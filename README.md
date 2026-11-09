@@ -1,3 +1,7 @@
+> **Aviso.** Este es un fork de [oscar-soirey/Raven](https://github.com/oscar-soirey/Raven) (rama `localtex`, con los cambios que usa LocalTeX). Sus cambios se han probado solo en Linux: no están probados en Windows ni en macOS. Úsalo bajo tu propia responsabilidad.
+>
+> **Notice.** This is a fork of [oscar-soirey/Raven](https://github.com/oscar-soirey/Raven) (`localtex` branch, with the changes LocalTeX uses). Its changes have been tested on Linux only: they are not tested on Windows or macOS. Use it at your own risk.
+
 <p align="center">
   <img src="docs/images/logo-com.png" alt="Raven logo" width="80">
 </p>
