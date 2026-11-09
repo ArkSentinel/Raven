@@ -16,3 +16,21 @@ dev/
 bindings/**/bin/
 bindings/**/obj/
 target/
+
+# LocalTeX development artifacts
+*.pdf
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.bbl
+*.blg
+preview/
+*.png
+*.jpg
+*.jpeg
+localtex-config.json
+.localtex/
