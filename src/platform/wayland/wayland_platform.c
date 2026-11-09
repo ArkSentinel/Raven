@@ -805,10 +805,12 @@ static void rvn_wl_emit_state(rvn_pwindow_t* window) {
 static void rvn_wl_apply_configure(rvn_pwindow_t* window, int width, int height, int maximized) {
 	int first = !window->configured;
 	int state_changed = window->maximized != maximized;
+	int resized = R_FALSE;
 	/* (0 x 0: the compositor leaves the size to the application) */
-	if (width > 0 && height > 0) {
+	if (width > 0 && height > 0 && (window->width != width || window->height != height)) {
 		window->width = width;
 		window->height = height;
+		resized = R_TRUE;
 	}
 	window->maximized = maximized;
 	window->configured = R_TRUE;
@@ -819,6 +821,25 @@ static void rvn_wl_apply_configure(rvn_pwindow_t* window, int width, int height,
 		memset(&event, 0, sizeof(event));
 		event.type = RVN_PEVENT_EXPOSE;
 		rvn_wl_emit(window, &event);
+	}
+	/*
+	 * While the user drags the edge of the window every configure must reach
+	 * the screen as soon as possible: the surface is committed now, with the
+	 * geometry of the new size (no buffer yet: the frame of the new size
+	 * follows) and the compositor is asked for a frame at once. Without this
+	 * the new size only showed when some other change happened to paint, and
+	 * the edge seemed to lag behind the pointer.
+	 */
+	if (resized && !window->is_child && window->shown) {
+		wl_surface_commit(window->surface);
+		if (!window->frame_callback) {
+			window->frame_callback = wl_surface_frame(window->surface);
+			if (window->frame_callback) {
+				wl_callback_add_listener(window->frame_callback, &g_wl_frame_listener, window);
+				window->frame_asked = rvn_clock_seconds();
+			}
+		}
+		g_wlc.display_flush(g_wl.display);
 	}
 }
 

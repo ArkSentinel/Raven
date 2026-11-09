@@ -297,25 +297,38 @@ static void rvn_tree_select(rvn_widget_t* widget, rvn_tree_item_t* item, int not
 	rvn_tree_select_ex(widget, item, notify, R_FALSE);
 }
 
+/* The selection set by the pointer: the highlight appears where it clicked instead of gliding there. */
+static void rvn_tree_select_by_mouse(rvn_widget_t* widget, rvn_tree_item_t* item, int notify) {
+	rvn_tree_view_t* tree = (rvn_tree_view_t*)widget;
+	rvn_tree_select_ex(widget, item, notify, R_FALSE);
+	rvn_selection_snap(&tree->select_y);
+}
+
+static void rvn_tree_select_ex_by_mouse(rvn_widget_t* widget, rvn_tree_item_t* item, int notify, int keep_others) {
+	rvn_tree_view_t* tree = (rvn_tree_view_t*)widget;
+	rvn_tree_select_ex(widget, item, notify, keep_others);
+	rvn_selection_snap(&tree->select_y);
+}
+
 /* Shift + click: every row between the anchor and `item`. */
 static void rvn_tree_select_range(rvn_widget_t* widget, rvn_tree_item_t* item, int add) {
 	rvn_tree_view_t* tree = (rvn_tree_view_t*)widget;
 	int from, to, i;
 	if (!tree->anchor) {
-		rvn_tree_select(widget, item, R_TRUE);
+		rvn_tree_select_by_mouse(widget, item, R_TRUE);
 		return;
 	}
 	from = rvn_tree_row_of(tree, tree->anchor);
 	to = rvn_tree_row_of(tree, item);
 	if (from < 0 || to < 0) {
-		rvn_tree_select(widget, item, R_TRUE);
+		rvn_tree_select_by_mouse(widget, item, R_TRUE);
 		return;
 	}
 	if (!add) rvn_tree_clear_multi(&tree->root);
 	if (from > to) { i = from; from = to; to = i; }
 	for (i = from; i <= to; i++) tree->rows[i]->selected = R_TRUE;
 	tree->selected = NULL;
-	rvn_tree_select_ex(widget, item, R_TRUE, R_TRUE);
+	rvn_tree_select_ex_by_mouse(widget, item, R_TRUE, R_TRUE);
 	if (tree->selected == item) rvn_widget_invalidate_paint(widget);
 }
 
@@ -361,7 +374,7 @@ static void rvn_tree_view_paint(rvn_widget_t* widget, RPainter* painter) {
 
 	rvn_paint_push_clip(painter, rvn_rect(1.0f, 1.0f, rect.w - 2.0f, rect.h - 2.0f));
 	last = rvn_mini((int)tree->row_count, first + (int)(tree->bar.viewport / row) + 3);
-	/* the selection slides from the previous row to the new one (a row hidden in a closed branch shows none) */
+	/* the selection of the keyboard glides when Rset_selection_animation is on, a click puts it there at once (a row hidden in a closed branch shows none) */
 	for (i = 0; tree->selected && i < (int)tree->row_count; i++) {
 		if (tree->rows[i] == tree->selected) {
 			selected_row = i;
@@ -369,7 +382,7 @@ static void rvn_tree_view_paint(rvn_widget_t* widget, RPainter* painter) {
 		}
 	}
 	if (selected_row >= 0) {
-		float y = rvn_paint_spring(painter, &tree->select_y, row * (float)selected_row, R_MOTION_SNAPPY);
+		float y = rvn_paint_selection_spring(painter, &tree->select_y, row * (float)selected_row);
 		if (fluent) {
 			rvn_platform_paint_item(painter, widget, rvn_platform_row(widget, rvn_rect(1.0f, 1.0f + y - offset, content_width, row)),
 				rvn_widget_states(widget, painter, tree->hot == selected_row && (widget->flags & RVN_WF_HOVERED), R_FALSE) | RVN_STATE_SELECTED,
@@ -491,7 +504,7 @@ static int rvn_tree_view_event(rvn_widget_t* widget, const REvent* event) {
 				rvn_tree_item_t* keep = tree->press_reduce;
 				tree->press_reduce = NULL;
 				tree->press_pending = R_FALSE;
-				rvn_tree_select(widget, keep, R_TRUE);
+				rvn_tree_select_by_mouse(widget, keep, R_TRUE);
 				return R_TRUE;
 			}
 			tree->press_reduce = NULL;
@@ -500,7 +513,7 @@ static int rvn_tree_view_event(rvn_widget_t* widget, const REvent* event) {
 				row = rvn_tree_row_at(widget, event->local_y);
 				item = row >= 0 ? tree->rows[row] : NULL;
 				/* the menu acts on what is under the pointer */
-				if (item && !(item == tree->selected || (tree->multi && item->selected))) rvn_tree_select(widget, item, R_TRUE);
+				if (item && !(item == tree->selected || (tree->multi && item->selected))) rvn_tree_select_by_mouse(widget, item, R_TRUE);
 				if (!rvn_widget_alive(widget)) return R_TRUE;
 				tree->context_callback(widget->id, item ? item->id : R_INVALID_ID, event->x, event->y, tree->context_user);
 				return R_TRUE;
@@ -516,7 +529,7 @@ static int rvn_tree_view_event(rvn_widget_t* widget, const REvent* event) {
 				if (!(event->modifiers & (R_MOD_CTRL | R_MOD_SHIFT))) {
 					rvn_tree_clear_multi(&tree->root);
 					tree->anchor = NULL;
-					if (tree->selected) rvn_tree_select(widget, NULL, R_TRUE);
+					if (tree->selected) rvn_tree_select_by_mouse(widget, NULL, R_TRUE);
 					else rvn_widget_invalidate_paint(widget);
 				}
 				return R_TRUE;
@@ -541,13 +554,13 @@ static int rvn_tree_view_event(rvn_widget_t* widget, const REvent* event) {
 				tree->anchor = item;
 				if (item->selected) {
 					tree->selected = NULL;
-					rvn_tree_select_ex(widget, item, R_TRUE, R_TRUE);
+					rvn_tree_select_ex_by_mouse(widget, item, R_TRUE, R_TRUE);
 				} else {
 					rvn_tree_item_t* other = NULL;
 					uint32_t r;
 					for (r = 0; r < tree->row_count; r++) if (tree->rows[r]->selected) other = tree->rows[r];
 					tree->selected = NULL;
-					rvn_tree_select_ex(widget, other, R_TRUE, R_TRUE);
+					rvn_tree_select_ex_by_mouse(widget, other, R_TRUE, R_TRUE);
 				}
 				rvn_widget_invalidate_paint(widget);
 				return R_TRUE;
@@ -557,11 +570,11 @@ static int rvn_tree_view_event(rvn_widget_t* widget, const REvent* event) {
 				tree->press_reduce = item;
 				if (tree->selected != item) {
 					tree->selected = NULL;
-					rvn_tree_select_ex(widget, item, R_TRUE, R_TRUE);
+					rvn_tree_select_ex_by_mouse(widget, item, R_TRUE, R_TRUE);
 				}
 				return R_TRUE;
 			}
-			rvn_tree_select(widget, item, R_TRUE);
+			rvn_tree_select_by_mouse(widget, item, R_TRUE);
 			if (event->clicks == 2 && rvn_widget_alive(widget) && tree->selected == item) {
 				if (item->child_count > 0) rvn_tree_set_expanded(item, !item->expanded);
 				rvn_tree_activate(widget);

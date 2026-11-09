@@ -2,7 +2,7 @@
 #
 #   test_layout, test_widgets, test_xml, test_threads, test_memory, test_animation,
 #   test_text_editor, test_shell, test_dialogs, test_themes, test_markdown, test_tools,
-#   test_locale, test_fonts, test_touch, test_more_widgets
+#   test_locale, test_fonts, test_touch, test_more_widgets, test_pdf_view, test_process
 #       run headless (null platform + null backend): no display and no GPU are
 #       needed, so they run on any build machine.
 #   test_wayland
@@ -40,6 +40,7 @@ raven_add_test(test_threads)
 raven_add_test(test_memory)
 raven_add_test(test_animation)
 raven_add_test(test_text_editor)
+raven_add_test(test_latex_editor)
 raven_add_test(test_shell)
 raven_add_test(test_dock_tearing)
 raven_add_test(test_editor_features)
@@ -48,9 +49,12 @@ raven_add_test(test_themes)
 raven_add_test(test_markdown)
 raven_add_test(test_tools)
 raven_add_test(test_locale)
+raven_add_test(test_settings)
 raven_add_test(test_host_platform)
 raven_add_test(test_touch)
 raven_add_test(test_more_widgets)
+raven_add_test(test_pdf_view)
+raven_add_test(test_process)
 if(NOT RAVEN_WITH_SVG)
 	target_compile_definitions(test_more_widgets PRIVATE RAVEN_TEST_NO_SVG)
 endif()

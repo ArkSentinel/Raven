@@ -982,6 +982,17 @@ void rvn_window_add_shortcut(rvn_window_t* window, RKey key, uint32_t modifiers,
 void rvn_window_remove_shortcut(rvn_window_t* window, RKey key, uint32_t modifiers);
 
 /**
+ * R_TRUE when the highlight that follows the selection is drawn with a spring
+ * (Rset_selection_animation, and the animations are not off). It never is by
+ * default: a list that follows the pointer wants the highlight at once.
+ */
+int rvn_selection_animated(void);
+/** Makes the next paint of a selection highlight put it in place, without gliding: the selection was set by the mouse. */
+void rvn_selection_snap(RSpring* spring);
+/** The spring of a selection highlight: it glides only when Rset_selection_animation is on. */
+float rvn_paint_selection_spring(RPainter* painter, RSpring* spring, float target);
+
+/**
  * Moves a spring that belongs to `widget` toward `target`, giving the widget
  * a new layout at every step. The spring must live as long as the widget.
  * Without a window, or with the animations off, the value is set at once.
@@ -1087,6 +1098,10 @@ void rvn_inspector_shutdown(void);
 rvn_widget_t* rvn_menu_find_window_shortcut(rvn_window_t* window, RKey key, uint32_t modifiers);
 /** Parses "Ctrl+Shift+S". Implemented in widgets/menu.c. */
 int rvn_parse_shortcut(const char* text, RKey* key, uint32_t* modifiers);
+/** Writes a shortcut as text ("Ctrl+Shift+S"), as the menus show it. */
+void rvn_shortcut_format(RKey key, uint32_t modifiers, char* out, size_t size);
+/** The name of a key alone ("F5", "Escape", "A"), or "" when it has none. `buffer` holds a one-letter name. */
+const char* rvn_key_text(RKey key, char buffer[2]);
 /** Opens a menu as a popup at a window position. Implemented in widgets/menu.c. */
 void rvn_menu_popup(rvn_widget_t* menu, rvn_window_t* window, float x, float y);
 

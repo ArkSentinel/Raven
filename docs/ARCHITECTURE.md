@@ -345,6 +345,16 @@ back into what opened it, until its spring is at rest. `Rset_animation_time_step
 replaces the clock (tests, films); `Rset_animations_enabled(R_FALSE)` puts
 every spring on its target at once.
 
+What a pointer does is not animated. The highlight that follows the selection
+of a ListView, a Table, a TreeView or the file browser is put where a click
+landed (`rvn_selection_snap`); it only glides when the application asks for it
+with `Rset_selection_animation(R_TRUE)` and the animations are on. A window
+resize is not an animation either: `rvn_window_resized` puts the layout springs
+at their target, so the content is laid out and painted for the new size at
+once. On Wayland the surface is committed and a frame asked for right after a
+configure, so the new size reaches the compositor without waiting for another
+change to paint.
+
 ## Windows: header, dialogs, drag and drop
 
 `widget/window.c` holds what belongs to a window rather than to a widget.

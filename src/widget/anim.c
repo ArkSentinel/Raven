@@ -144,6 +144,35 @@ void Rset_animation_time_step(double seconds) {
 	g_rvn.animation_time_step = seconds > 0.0 ? seconds : 0.0;
 }
 
+/* R_TRUE: the highlight that follows the selection of lists, tables and trees glides. */
+static int g_rvn_selection_animation;
+
+void Rset_selection_animation(int enabled) {
+	RVN_API_GUARD_VOID();
+	g_rvn_selection_animation = enabled ? R_TRUE : R_FALSE;
+	rvn_repaint_all_windows();
+}
+
+int Rget_selection_animation(void) {
+	return g_rvn_selection_animation;
+}
+
+int rvn_selection_animated(void) {
+	/* a user who asked for no motion gets none; the default is to be there at once */
+	return g_rvn_selection_animation && !g_rvn.animations_disabled;
+}
+
+void rvn_selection_snap(RSpring* spring) {
+	/* not started: the next paint puts it where the selection is, without gliding */
+	if (spring) spring->started = R_FALSE;
+}
+
+float rvn_paint_selection_spring(RPainter* painter, RSpring* spring, float target) {
+	if (!spring) return target;
+	if (!rvn_selection_animated()) spring->started = R_FALSE;
+	return rvn_paint_spring(painter, spring, target, R_MOTION_SNAPPY);
+}
+
 float rvn_animation_dt(double elapsed) {
 	float speed = g_rvn.animation_speed > 0.0f ? g_rvn.animation_speed : 1.0f;
 	if (g_rvn.animation_time_step > 0.0) return (float)g_rvn.animation_time_step * speed;

@@ -1325,6 +1325,122 @@ public:
 
 	int get_marker_count() const { return Rtext_editor_get_marker_count(id_); }
 
+	/// The line, the columns and the kind of a marker, by index (0 ..
+	/// Rtext_editor_get_marker_count - 1).
+	/// Returns: The message of the marker, or NULL when `index` is out of range.
+	const char* get_marker(int index, int* line, int* from_column, int* to_column, RMarkerKind* kind) const { return Rtext_editor_get_marker(id_, index, line, from_column, to_column, kind); }
+
+	/// Removes the markers of one line and adds a list, as a compiler's report does.
+	void clear_markers_of_line(int line) const { Rtext_editor_clear_markers_of_line(id_, line); }
+
+	/// Sets what is looked for, from now on. An empty pattern clears it.
+	/// The flags are a bitmask of RSearchFlags. Invalid regular expressions are
+	/// reported and leave the search as it was.
+	/// Returns: R_TRUE when the pattern was taken.
+	int set_search(const char* pattern, Ruint flags) const { return Rtext_editor_set_search(id_, pattern, flags); }
+
+	const char* get_search() const { return Rtext_editor_get_search(id_); }
+
+	Ruint get_search_flags() const { return Rtext_editor_get_search_flags(id_); }
+
+	/// The next match after the caret (or before it, with
+	/// `backwards`), selected; the text is scrolled to it. It wraps around
+	/// the ends of the text. R_FALSE when nothing matches.
+	int find_next(int backwards) const { return Rtext_editor_find_next(id_, backwards); }
+
+	/// How many places match the search.
+	int count_matches() const { return Rtext_editor_count_matches(id_); }
+
+	/// Where a match is, by index (0 .. count - 1): its start and its end. R_FALSE when out of range.
+	int get_match(int index, int* from_line, int* from_column, int* to_line, int* to_column) const { return Rtext_editor_get_match(id_, index, from_line, from_column, to_line, to_column); }
+
+	/// Replaces the current match (the selection, when it is one) and
+	/// goes to the next one. R_FALSE when there is nothing to replace.
+	int replace(const char* text) const { return Rtext_editor_replace(id_, text); }
+
+	/// Replaces every match, as one step of the history. Returns: How many were replaced.
+	int replace_all(const char* text) const { return Rtext_editor_replace_all(id_, text); }
+
+	/// The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
+	/// (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
+	/// with `matches`, the groups of the regex that matched. Pure: no editor needed.
+	/// Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
+	static const char* expand_replacement(const char* replacement, const char* text, int from, int to, const int* groups, int group_count) { return Rtext_editor_expand_replacement(replacement, text, from, to, groups, group_count); }
+
+	/// R_TRUE (the default): with a language whose blocks can be folded
+	/// (braces, brackets, \begin{...} ... \end{...}, <tag> ... </tag>,
+	/// Markdown titles), a small arrow in the margin collapses the block;
+	/// Ctrl+Shift+[ and Ctrl+Shift+] fold and unfold the block of the caret.
+	void set_folding(int enabled) const { Rtext_editor_set_folding(id_, enabled); }
+
+	int get_folding() const { return Rtext_editor_get_folding(id_); }
+
+	/// Folds the block of the caret (the one that holds it), or unfolds it. R_FALSE when there is none.
+	int toggle_fold() const { return Rtext_editor_toggle_fold(id_); }
+
+	/// Folds or unfolds the block that starts on a line (an opening brace, \begin, a title).
+	int fold_line(int line) const { return Rtext_editor_fold_line(id_, line); }
+
+	int unfold_line(int line) const { return Rtext_editor_unfold_line(id_, line); }
+
+	int is_folded(int line) const { return Rtext_editor_is_folded(id_, line); }
+
+	/// Unfolds everything, and forgets the folded blocks.
+	void unfold_all() const { Rtext_editor_unfold_all(id_); }
+
+	int get_folded_count() const { return Rtext_editor_get_folded_count(id_); }
+
+	/// The first line of a folded block that holds `line` (the block's
+	/// own line), or -1 when the line is not hidden by any fold.
+	int get_fold_start(int line) const { return Rtext_editor_get_fold_start(id_, line); }
+
+	/// Types the snippet at the caret, replacing the word before it
+	/// when that word is its name. Sets the places; Tab and Shift+Tab walk
+	/// them, Escape leaves them.
+	/// Returns: R_FALSE when the editor is read-only or the snippet is unknown.
+	int insert_snippet(const char* name) const { return Rtext_editor_insert_snippet(id_, name); }
+
+	/// The snippet whose name is what is being typed before the caret, or -1.
+	int snippet_at_caret() const { return Rtext_editor_snippet_at_caret(id_); }
+
+	/// R_FALSE stops the editor from offering snippets while typing. On by default.
+	void set_snippet_completion(int enabled) const { Rtext_editor_set_snippet_completion(id_, enabled); }
+
+	/// R_TRUE while Tab and Shift+Tab walk the places of a snippet that was inserted.
+	int is_in_snippet() const { return Rtext_editor_is_in_snippet(id_); }
+
+	/// R_TRUE: Ctrl+click adds a caret where it is clicked, and every
+	/// caret is selected and typed at once (Alt+drag selects a column, and
+	/// Ctrl+D selects the next occurrence of the selection). Off by default.
+	void set_multi_cursor(int enabled) const { Rtext_editor_set_multi_cursor(id_, enabled); }
+
+	int get_multi_cursor() const { return Rtext_editor_get_multi_cursor(id_); }
+
+	int get_caret_count() const { return Rtext_editor_get_caret_count(id_); }
+
+	/// Where a caret is, by index (0 is the main one, which typing and scrolling follow).
+	int get_caret(int index, int* line, int* column) const { return Rtext_editor_get_caret(id_, index, line, column); }
+
+	/// Adds a caret; the text at each of them is selected. R_FALSE when there are too many (256).
+	int add_caret(int line, int column) const { return Rtext_editor_add_caret(id_, line, column); }
+
+	void clear_carets() const { Rtext_editor_clear_carets(id_); }
+
+	/// Selects the next occurrence of the selected text, with a caret of its own. R_FALSE when there is none.
+	int select_next_occurrence() const { return Rtext_editor_select_next_occurrence(id_); }
+
+	/// Returns: How many words the text has, as an editor counts them: runs of letters and digits.
+	int get_word_count() const { return Rtext_editor_get_word_count(id_); }
+
+	/// Returns: The characters of the text, not the bytes (a UTF-8 code point counts one).
+	int get_character_count() const { return Rtext_editor_get_character_count(id_); }
+
+	/// Returns: How many lines have something besides blanks.
+	int get_non_empty_line_count() const { return Rtext_editor_get_non_empty_line_count(id_); }
+
+	/// Returns: The line that holds the caret, from 1 (for a status bar).
+	int get_current_line() const { return Rtext_editor_get_current_line(id_); }
+
 	void set_changed_callback(RTextEditorChangedCallback callback, void* user_data) const { Rtext_editor_set_changed_callback(id_, callback, user_data); }
 	void set_changed_callback(std::function<void(Rid)> callback) const {
 		Rtext_editor_set_changed_callback(id_, [](Rid editor, void* kept_) -> void { return (*static_cast<std::function<void(Rid)>*>(kept_))(editor); }, detail::keep(id_, 27, std::move(callback)));
@@ -1931,6 +2047,29 @@ public:
 
 	void unregister_shortcut(RKey key, Ruint modifiers) const { Rwindow_unregister_shortcut(id_, key, modifiers); }
 
+	/// Registers a whole set of shortcuts from a text, as a preferences
+	/// window writes it:
+	///
+	///     "Ctrl+S save | Ctrl+Shift+S save_as | F5 build | Ctrl+K,Ctrl+B clear"
+	///
+	/// Entries are separated by '|'. The key or the keys come first, then the
+	/// action name (Raction_bind). An entry whose action is empty unbinds that
+	/// key. Several chords separated by commas are a sequence: only the first
+	/// chord is bound for now (the others are parsed and ignored).
+	/// Returns: How many shortcuts were registered (unbound ones included).
+	int set_keybindings(const char* bindings) const { return Rwindow_set_keybindings(id_, bindings); }
+
+	/// How many shortcuts the window has (Rwindow_register_shortcut).
+	int get_shortcut_count() const { return Rwindow_get_shortcut_count(id_); }
+
+	/// Reads the index-th shortcut of the window, for a preferences
+	/// window that lists them.
+	/// action Receives the name of the action; may be NULL. Valid until
+	/// the next call of this function (or until the window changes its
+	/// shortcuts).
+	/// Returns: R_FALSE when `index` is out of range.
+	int get_shortcut(int index, RKey* key, Ruint* modifiers, const char** action) const { return Rwindow_get_shortcut(id_, index, key, modifiers, action); }
+
 	/// Settings of one window; NULL: it follows Rtouch_set_settings again.
 	void set_touch_settings(const RTouchSettings* settings) const { Rwindow_set_touch_settings(id_, settings); }
 
@@ -2477,6 +2616,15 @@ inline void set_animations_enabled(int enabled) { Rset_animations_enabled(enable
 
 inline int get_animations_enabled() { return Rget_animations_enabled(); }
 
+/// R_TRUE: the highlight that follows the selection in lists, tables
+/// and trees moves with a spring; R_FALSE (the default) it is there at once,
+/// which is what a list that follows the pointer needs. A window resize and
+/// the text caret are never animated: they follow the input exactly.
+/// XML and theme files cannot set it.
+inline void set_selection_animation(int enabled) { Rset_selection_animation(enabled); }
+
+inline int get_selection_animation() { return Rget_selection_animation(); }
+
 /// Multiplies the speed of every animation. 1 is the default, 0.25 a slow motion.
 inline void set_animation_speed(float speed) { Rset_animation_speed(speed); }
 
@@ -2621,6 +2769,17 @@ inline const char* drag_get_data(Rid window) { return Rdrag_get_data(window); }
 /// Ends the drag in progress without dropping (the target receives R_DROP_LEAVE).
 inline void drag_cancel(Rid window) { Rdrag_cancel(window); }
 
+/// Parses one key name to a key and its modifiers: "Ctrl+S",
+/// "Ctrl+Shift+S", "F5", "PageUp", "Escape", "A". The modifiers are
+/// Ctrl, Shift, Alt and Super (Cmd and Win are accepted for Super).
+/// Returns: R_FALSE when the name is not a key.
+inline int key_from_name(const char* name, RKey* key, Ruint* modifiers) { return Rkey_from_name(name, key, modifiers); }
+
+/// The reverse, for showing a shortcut: "Ctrl+S". Super is written
+/// "Super" (the menus show it too).
+/// Returns: NULL when the key has no name. Valid until the next call.
+inline const char* key_to_name(RKey key, Ruint modifiers) { return Rkey_to_name(key, modifiers); }
+
 /// The settings every window follows, unless it has its own.
 inline void touch_get_settings(RTouchSettings* settings) { Rtouch_get_settings(settings); }
 
@@ -2732,6 +2891,24 @@ inline int theme_get_count() { return Rtheme_get_count(); }
 
 /// Name of the index-th one, or NULL.
 inline const char* theme_get_name_at(int index) { return Rtheme_get_name_at(index); }
+
+/// Remembers the theme of a project folder, so that opening the
+/// project again gives it its look back. The store is the one the
+/// application owns (Rsettings_open(app, "sessions.json") or its own): the
+/// library keeps no file of its own.
+///
+/// The key is "theme." followed by the absolute, normalised path of the
+/// project (forward slashes).
+/// Returns: R_FALSE when there is no store or when the path is empty.
+inline int theme_remember_for(Rid settings, const char* project_path, const char* theme_name) { return Rtheme_remember_for(settings, project_path, theme_name); }
+
+/// The theme remembered for a project, or NULL. Valid until the store changes.
+inline const char* theme_get_remembered(Rid settings, const char* project_path) { return Rtheme_get_remembered(settings, project_path); }
+
+/// Applies the theme remembered for a project (Rtheme_use).
+/// Returns: R_TRUE when one was remembered and Rtheme_use accepted it. When
+/// it did not, the theme in use is left as it was.
+inline int theme_apply_remembered(Rid settings, const char* project_path) { return Rtheme_apply_remembered(settings, project_path); }
 
 /// Writes the theme in use, with every change made since it was
 /// applied, as a theme file.
@@ -3254,6 +3431,16 @@ inline const char* language_get_name(int index) { return Rlanguage_get_name(inde
 
 /// Returns: The name of the language of a file, from its extension, or NULL.
 inline const char* language_for_file(const char* path) { return Rlanguage_for_file(path); }
+
+inline int snippet_add(const RSnippet* snippet) { return Rsnippet_add(snippet); }
+
+inline void snippet_clear() { Rsnippet_clear(); }
+
+inline int snippet_get_count() { return Rsnippet_get_count(); }
+
+inline const char* snippet_get_name(int index) { return Rsnippet_get_name(index); }
+
+inline int snippet_find(const char* name) { return Rsnippet_find(name); }
 
 /// Color of a kind of token in the theme in use, instead of the
 /// one Raven picks for dark and for light themes. Theme files set them
@@ -3970,6 +4157,86 @@ inline void spring_kick(RSpring* spring, float velocity) { Rspring_kick(spring, 
 /// Puts a spring at rest on a value, without animation.
 inline void spring_set(RSpring* spring, float value) { Rspring_set(spring, value); }
 
+/// Creates an empty view. Give it its pages with Rpdf_view_set_page_count.
+inline Rid pdf_view_create() { return Rpdf_view_create(); }
+
+/// Number of pages of the document. 0 pages clears the view: the
+/// bitmaps are forgotten. New pages take the size of US Letter until
+/// Rpdf_view_set_page_size gives them their own.
+inline void pdf_view_set_page_count(Rid pdf_view, int count) { Rpdf_view_set_page_count(pdf_view, count); }
+
+inline int pdf_view_get_page_count(Rid pdf_view) { return Rpdf_view_get_page_count(pdf_view); }
+
+inline void pdf_view_set_page_size(Rid pdf_view, int page, float width, float height) { Rpdf_view_set_page_size(pdf_view, page, width, height); }
+
+/// The size of a page in points (1/72 inch); 0, 0 when there is no such page.
+inline void pdf_view_get_page_size(Rid pdf_view, int page, float* width, float* height) { Rpdf_view_get_page_size(pdf_view, page, width, height); }
+
+/// The RGBA pixels of a page, rendered at `scale` pixels per point
+/// (2 fills a page drawn at zoom 2). The view keeps the texture and frees
+/// nothing. R_INVALID_ID forgets the bitmap of that page, which then shows
+/// as a placeholder again.
+inline void pdf_view_set_page_bitmap(Rid pdf_view, int page, Rid texture, float scale) { Rpdf_view_set_page_bitmap(pdf_view, page, texture, scale); }
+
+/// Returns: R_TRUE when that page has a bitmap.
+inline int pdf_view_has_page_bitmap(Rid pdf_view, int page) { return Rpdf_view_has_page_bitmap(pdf_view, page); }
+
+/// The current page, from 0: it becomes the first one in view.
+/// Rpdf_view_set_page scrolls so that the page starts at the top.
+inline void pdf_view_set_page(Rid pdf_view, int page) { Rpdf_view_set_page(pdf_view, page); }
+
+inline int pdf_view_get_page(Rid pdf_view) { return Rpdf_view_get_page(pdf_view); }
+
+/// Returns: The first and the last page whose rectangle is in the view, or 0 when there is none.
+inline int pdf_view_get_visible_first_page(Rid pdf_view) { return Rpdf_view_get_visible_first_page(pdf_view); }
+
+inline int pdf_view_get_visible_last_page(Rid pdf_view) { return Rpdf_view_get_visible_last_page(pdf_view); }
+
+/// Zoom in pixels per point: 1 = 72 dpi (0.05 .. 16, clamped).
+/// Setting it leaves the fit mode. Rpdf_view_set_fit sets a mode that
+/// keeps following the size of the view.
+inline void pdf_view_set_zoom(Rid pdf_view, float zoom) { Rpdf_view_set_zoom(pdf_view, zoom); }
+
+inline float pdf_view_get_zoom(Rid pdf_view) { return Rpdf_view_get_zoom(pdf_view); }
+
+inline void pdf_view_set_fit(Rid pdf_view, RPdfFit fit) { Rpdf_view_set_fit(pdf_view, fit); }
+
+inline RPdfFit pdf_view_get_fit(Rid pdf_view) { return Rpdf_view_get_fit(pdf_view); }
+
+/// Space between pages, and around them, in points (default 16).
+inline void pdf_view_set_page_gap(Rid pdf_view, float gap) { Rpdf_view_set_page_gap(pdf_view, gap); }
+
+inline float pdf_view_get_page_gap(Rid pdf_view) { return Rpdf_view_get_page_gap(pdf_view); }
+
+inline void pdf_view_set_page_needed_callback(Rid pdf_view, RPdfPageNeededCallback callback, void* user_data) { Rpdf_view_set_page_needed_callback(pdf_view, callback, user_data); }
+inline void pdf_view_set_page_needed_callback(Rid pdf_view, std::function<void(Rid, int, float)> callback) {
+	Rpdf_view_set_page_needed_callback(pdf_view, [](Rid pdf_view, int page, float scale, void* kept_) -> void { return (*static_cast<std::function<void(Rid, int, float)>*>(kept_))(pdf_view, page, scale); }, detail::keep(pdf_view, 89, std::move(callback)));
+}
+
+/// The page and the point of the page (in points, from its top-left
+/// corner) under a point of the widget, for SyncTeX inverse search.
+/// Returns: R_FALSE outside a page.
+inline int pdf_view_get_page_at(Rid pdf_view, float x, float y, int* page, float* page_x, float* page_y) { return Rpdf_view_get_page_at(pdf_view, x, y, page, page_x, page_y); }
+
+inline void pdf_view_set_page_clicked_callback(Rid pdf_view, RPdfPageClickedCallback callback, void* user_data) { Rpdf_view_set_page_clicked_callback(pdf_view, callback, user_data); }
+inline void pdf_view_set_page_clicked_callback(Rid pdf_view, std::function<void(Rid, int, float, float)> callback) {
+	Rpdf_view_set_page_clicked_callback(pdf_view, [](Rid pdf_view, int page, float page_x, float page_y, void* kept_) -> void { return (*static_cast<std::function<void(Rid, int, float, float)>*>(kept_))(pdf_view, page, page_x, page_y); }, detail::keep(pdf_view, 90, std::move(callback)));
+}
+
+/// Asks for one page to be painted again, once its bitmap has arrived.
+inline void pdf_view_invalidate_page(Rid pdf_view, int page) { Rpdf_view_invalidate_page(pdf_view, page); }
+
+/// Scrolls so that a point of a page is in the middle of the view (SyncTeX forward search).
+inline void pdf_view_scroll_to_position(Rid pdf_view, int page, float page_x, float page_y) { Rpdf_view_scroll_to_position(pdf_view, page, page_x, page_y); }
+
+/// A rectangle of a page to show, in points from its top-left corner
+/// (where the source of what is selected is, in a forward search): one per
+/// view. A negative page removes it.
+inline void pdf_view_set_highlight(Rid pdf_view, int page, float x, float y, float width, float height) { Rpdf_view_set_highlight(pdf_view, page, x, y, width, height); }
+
+/// Color behind the pages; the theme's by default (Rwidget_clear_color brings it back).
+inline void pdf_view_set_background_color(Rid pdf_view, float r, float g, float b, float a) { Rpdf_view_set_background_color(pdf_view, r, g, b, a); }
+
 /// A shader from SPIR-V code (a fragment shader written with
 /// raven_effect.glsl, as in a .spv file): `size` bytes, copied. R_INVALID_ID
 /// when the code is not SPIR-V; a backend that refuses it reports an error
@@ -4023,7 +4290,7 @@ inline int xml_get_live_reload() { return Rxml_get_live_reload(); }
 
 inline void xml_set_reload_callback(RXmlReloadCallback callback, void* user_data) { Rxml_set_reload_callback(callback, user_data); }
 inline void xml_set_reload_callback(std::function<void(const char*, int)> callback) {
-	Rxml_set_reload_callback([](const char* path, int ok, void* kept_) -> void { return (*static_cast<std::function<void(const char*, int)>*>(kept_))(path, ok); }, detail::keep(0, 89, std::move(callback)));
+	Rxml_set_reload_callback([](const char* path, int ok, void* kept_) -> void { return (*static_cast<std::function<void(const char*, int)>*>(kept_))(path, ok); }, detail::keep(0, 91, std::move(callback)));
 }
 
 /// Looks at the files now, without waiting for the next look
@@ -4052,7 +4319,7 @@ inline const char* xml_get_registered_widget_name(int index) { return Rxml_get_r
 /// Returns: R_FALSE when the name is the one of a widget of Raven, or when too many tags are registered (64).
 inline int xml_register_tag(const char* tag, RXmlTagCreateCallback create, RXmlTagAttributeCallback set_attribute, void* user_data) { return Rxml_register_tag(tag, create, set_attribute, user_data); }
 inline int xml_register_tag(const char* tag, RXmlTagCreateCallback create, std::function<int(Rid, const char*, const char*)> set_attribute) {
-	return Rxml_register_tag(tag, create, [](Rid widget, const char* name, const char* value, void* kept_) -> int { return (*static_cast<std::function<int(Rid, const char*, const char*)>*>(kept_))(widget, name, value); }, detail::keep(detail::key_of(tag), 90, std::move(set_attribute)));
+	return Rxml_register_tag(tag, create, [](Rid widget, const char* name, const char* value, void* kept_) -> int { return (*static_cast<std::function<int(Rid, const char*, const char*)>*>(kept_))(widget, name, value); }, detail::keep(detail::key_of(tag), 92, std::move(set_attribute)));
 }
 
 inline void xml_unregister_tag(const char* tag) { Rxml_unregister_tag(tag); }
@@ -4126,7 +4393,7 @@ inline int locale_is_rtl() { return Rlocale_is_rtl(); }
 /// Called after the language or the tables changed (the widgets are already updated).
 inline void locale_set_changed_callback(RLocaleChangedCallback callback, void* user_data) { Rlocale_set_changed_callback(callback, user_data); }
 inline void locale_set_changed_callback(std::function<void(const char*)> callback) {
-	Rlocale_set_changed_callback([](const char* language, void* kept_) -> void { return (*static_cast<std::function<void(const char*)>*>(kept_))(language); }, detail::keep(0, 91, std::move(callback)));
+	Rlocale_set_changed_callback([](const char* language, void* kept_) -> void { return (*static_cast<std::function<void(const char*)>*>(kept_))(language); }, detail::keep(0, 93, std::move(callback)));
 }
 
 /// The text of a key in the current language (see the fallbacks above). Never NULL.
@@ -4147,6 +4414,214 @@ inline const char* tr_plural(const char* key, int count) { return Rtr_plural(key
 
 /// A number written in the conventions of the language: decimal separator and digit grouping ("1 234,5" in French).
 inline const char* locale_format_number(double value, int decimals) { return Rlocale_format_number(value, decimals); }
+
+/// Opens a settings store.
+/// path File the store is read from and written to, or NULL for a
+/// store that lives in memory only. The file is read when it exists.
+/// Returns: The store, or R_INVALID_ID (after reporting an error).
+inline Rid settings_create(const char* path) { return Rsettings_create(path); }
+
+/// Frees a store. Rshutdown frees the stores the application left alive.
+inline void settings_destroy(Rid settings) { Rsettings_destroy(settings); }
+
+/// Reads the file of the store again, replacing everything it holds.
+/// Returns: R_TRUE when the file existed and was valid JSON. When it did not,
+/// the store is emptied (a store with no file stays empty).
+inline int settings_load(Rid settings) { return Rsettings_load(settings); }
+
+/// Writes the store to its file: a temporary file next to it, then a
+/// rename, so a reader never sees half a file. The folder is created when
+/// it does not exist.
+/// Returns: R_FALSE when the store has no file or when the file could not be
+/// written.
+inline int settings_save(Rid settings) { return Rsettings_save(settings); }
+
+/// Path of the file of the store ("" for a store that lives in memory only).
+inline const char* settings_get_path(Rid settings) { return Rsettings_get_path(settings); }
+
+/// Returns: What the key holds, R_SETTING_NONE when it is not there (or holds an object, an array or null).
+inline RSettingType settings_get_type(Rid settings, const char* key) { return Rsettings_get_type(settings, key); }
+
+/// The value of the key; `fallback` when it is missing or holds another type.
+inline int settings_get_bool(Rid settings, const char* key, int fallback) { return Rsettings_get_bool(settings, key, fallback); }
+
+inline int settings_get_int(Rid settings, const char* key, int fallback) { return Rsettings_get_int(settings, key, fallback); }
+
+inline double settings_get_number(Rid settings, const char* key, double fallback) { return Rsettings_get_number(settings, key, fallback); }
+
+/// Valid until the store changes. NULL only when the key is missing and `fallback` is NULL.
+inline const char* settings_get_text(Rid settings, const char* key, const char* fallback) { return Rsettings_get_text(settings, key, fallback); }
+
+inline void settings_set_bool(Rid settings, const char* key, int value) { Rsettings_set_bool(settings, key, value); }
+
+inline void settings_set_int(Rid settings, const char* key, int value) { Rsettings_set_int(settings, key, value); }
+
+inline void settings_set_number(Rid settings, const char* key, double value) { Rsettings_set_number(settings, key, value); }
+
+/// An empty text stores ""; a NULL text removes the key.
+inline void settings_set_text(Rid settings, const char* key, const char* value) { Rsettings_set_text(settings, key, value); }
+
+/// Removes a key. R_TRUE when it was there.
+inline int settings_remove(Rid settings, const char* key) { return Rsettings_remove(settings, key); }
+
+/// R_TRUE when the key is there, whatever it holds.
+inline int settings_has(Rid settings, const char* key) { return Rsettings_has(settings, key); }
+
+/// The whole document as text, for a project file that holds arrays
+/// and objects too. Valid until the store changes or the function is called
+/// again. "" when the store is empty.
+inline const char* settings_get_json(Rid settings) { return Rsettings_get_json(settings); }
+
+/// Replaces the whole document.
+/// Returns: R_FALSE when `json` is not valid JSON: the store is not changed.
+inline int settings_set_json(Rid settings, const char* json) { return Rsettings_set_json(settings, json); }
+
+/// How many keys the object at `prefix` has ("" for the whole
+/// document), or how many items the array at `prefix` has. 0 when there is
+/// nothing there.
+inline int settings_get_key_count(Rid settings, const char* prefix) { return Rsettings_get_key_count(settings, prefix); }
+
+/// The index-th key of the object at `prefix` ("" for the whole
+/// document), or the index-th item of an array as "0", "1"... NULL when
+/// `index` is out of range. Valid until the next call of this function
+/// that returns a key.
+inline const char* settings_get_key(Rid settings, const char* prefix, int index) { return Rsettings_get_key(settings, prefix, index); }
+
+/// The folder where the settings of the application live:
+/// ~/.config/<app> ($XDG_CONFIG_HOME honoured),
+/// ~/Library/Application Support/<app> on macOS,
+/// %APPDATA%\<app> on Windows. Created when it does not exist; valid until
+/// the next call from the same thread.
+inline const char* settings_get_config_folder(const char* app_name) { return Rsettings_get_config_folder(app_name); }
+
+/// The folder for what can be made again (caches), by the same rules.
+inline const char* settings_get_cache_folder(const char* app_name) { return Rsettings_get_cache_folder(app_name); }
+
+/// Opens <config folder>/<file_name> for the application, creating
+/// the folder when needed. Rsettings_open("myeditor", "sessions.json").
+/// Returns: R_INVALID_ID when the folder or the file cannot be opened.
+inline Rid settings_open(const char* app_name, const char* file_name) { return Rsettings_open(app_name, file_name); }
+
+/// Starts a program and returns at once.
+/// desc What to run. Copied: the strings may be freed after the call.
+/// output Called for every piece of output, or NULL. May be called
+/// several times, and not at all for a program that prints nothing.
+/// exited Called once when the program ends, or NULL.
+/// user_data Passed to both callbacks.
+/// Returns: The process, or R_INVALID_ID when it could not even be started
+/// (an empty description, no Raven). A program that does not exist is
+/// reported through `exited` with failed set, not here.
+inline Rid process_start(const RProcessDesc* desc, RProcessOutputCallback output, RProcessExitCallback exited, void* user_data) { return Rprocess_start(desc, output, exited, user_data); }
+inline Rid process_start(const RProcessDesc* desc, RProcessOutputCallback output, std::function<void(int, int)> exited) {
+	return Rprocess_start(desc, output, [](int exit_code, int failed, void* kept_) -> void { return (*static_cast<std::function<void(int, int)>*>(kept_))(exit_code, failed); }, detail::keep(0, 94, std::move(exited)));
+}
+
+/// Returns: R_TRUE while the program runs.
+inline int process_is_running(Rid process) { return Rprocess_is_running(process); }
+
+/// Returns: The exit code, or -1 while the program runs and when it could not be run.
+inline int process_get_exit_code(Rid process) { return Rprocess_get_exit_code(process); }
+
+/// Returns: R_PROCESS_RUNNING, R_PROCESS_EXITED or R_PROCESS_FAILED.
+inline RProcessState process_get_state(Rid process) { return Rprocess_get_state(process); }
+
+/// Asks the program to stop (SIGTERM on POSIX, TerminateProcess on
+/// Windows), waits a moment, then kills it, and returns once its output has
+/// been read to the end. The exit callback still runs, during a frame.
+/// Does nothing when the program already ended.
+inline void process_cancel(Rid process) { Rprocess_cancel(process); }
+
+/// Blocks until the program ends. For tests and shutdown: never call
+/// it from the UI thread of a running application.
+inline void process_wait(Rid process) { Rprocess_wait(process); }
+
+/// Returns: R_TRUE when the program is found (PATH lookup only).
+inline int process_is_available(const char* program) { return Rprocess_is_available(program); }
+
+/// Finds a program without running it.
+/// Returns: An absolute path (in a buffer of the library, valid until the
+/// next call), or NULL when it is nowhere. A program with a separator in it
+/// is checked as given. The usual install folders of TeX are searched too,
+/// after PATH: /Library/TeX/texbin, /usr/local/texlive/ * /bin/ *,
+/// /opt/homebrew/bin, C:\\texlive\\ * \\bin\\windows and the bin folder of
+/// MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
+inline const char* process_find(const char* program) { return Rprocess_find(program); }
+
+/// Runs a program to the end and collects what it printed.
+/// Blocking: for setup work (asking git for the state of a file, a tool for
+/// its version), never for a build. The window is frozen meanwhile.
+/// output Receives the output, NUL-terminated, allocated with the
+/// allocator of Raven: free it with Rmemory_free. May be NULL.
+/// size Receives its length, without the NUL. May be NULL.
+/// max_bytes Longest output kept; 0 selects 4 MiB. What comes after
+/// is read and dropped, so the program never blocks on a full pipe. A cut
+/// never leaves half of a UTF-8 character.
+/// Returns: The exit code, or -1 when the program could not be run.
+inline char* process_run(const RProcessDesc* desc, size_t* size, size_t max_bytes) { return Rprocess_run(desc, size, max_bytes); }
+
+/// Parses the text of a log.
+/// log The bytes of the file; need not be NUL-terminated.
+/// size Their number.
+/// Returns: A list of messages, or R_INVALID_ID when the log has nothing
+/// to report (a log with no diagnostic parses to no list at all).
+inline Rid latex_log_parse(const char* log, size_t size) { return Rlatex_log_parse(log, size); }
+
+/// Reads a log file and parses it. R_INVALID_ID when it cannot be read or has nothing to report.
+inline Rid latex_log_parse_file(const char* path) { return Rlatex_log_parse_file(path); }
+
+/// Returns: How many messages the list holds, or 0 for R_INVALID_ID.
+inline int latex_log_get_count(Rid log) { return Rlatex_log_get_count(log); }
+
+/// One message of the list.
+/// message Receives the fields; its strings are owned by the list.
+/// Returns: R_FALSE when `index` is out of range.
+inline int latex_log_get_message(Rid log, int index, RLogMessage* message) { return Rlatex_log_get_message(log, index, message); }
+
+/// Frees a list given by Rlatex_log_parse. Its messages are no longer valid.
+inline void latex_log_destroy(Rid log) { Rlatex_log_destroy(log); }
+
+/// Starts a build and returns at once.
+/// desc What to build; copied.
+/// output Called with what the tool prints, as it prints it, on the
+/// UI thread. May be NULL.
+/// user_data Passed to `output`.
+/// Returns: The build, or R_INVALID_ID when it cannot start (no root file).
+/// When the process ends the log is parsed, then `finished` runs.
+inline Rid latex_build_start(const RLatexBuildDesc* desc, RProcessOutputCallback output, RLatexBuildFinishedCallback finished, void* user_data) { return Rlatex_build_start(desc, output, finished, user_data); }
+inline Rid latex_build_start(const RLatexBuildDesc* desc, RProcessOutputCallback output, std::function<void(Rid, int)> finished) {
+	return Rlatex_build_start(desc, output, [](Rid build, int success, void* kept_) -> void { return (*static_cast<std::function<void(Rid, int)>*>(kept_))(build, success); }, detail::keep(0, 95, std::move(finished)));
+}
+
+/// Returns: R_TRUE while the tool runs.
+inline int latex_build_is_running(Rid build) { return Rlatex_build_is_running(build); }
+
+/// Stops the tool and waits for it. The messages parsed so far stay.
+inline void latex_build_cancel(Rid build) { Rlatex_build_cancel(build); }
+
+/// The diagnostics of the last finished build, as a list that
+/// belongs to the build: read it with Rlatex_log_get_message, and do not
+/// destroy it. Valid until the build runs again or is destroyed.
+/// Returns: The list, or R_INVALID_ID before the first build ends.
+inline Rid latex_build_get_messages(Rid build) { return Rlatex_build_get_messages(build); }
+
+/// Returns: The .pdf the build wrote, or NULL when it wrote none. Owned by the build.
+inline const char* latex_build_get_pdf_path(Rid build) { return Rlatex_build_get_pdf_path(build); }
+
+/// Returns: The .log the build read, or NULL. Owned by the build.
+inline const char* latex_build_get_log_path(Rid build) { return Rlatex_build_get_log_path(build); }
+
+/// Returns: R_TRUE when the build ended and its tool exited with 0.
+inline int latex_build_succeeded(Rid build) { return Rlatex_build_succeeded(build); }
+
+/// Cancels the build if it still runs, frees it and its messages.
+/// The handle is invalid afterwards.
+inline void latex_build_destroy(Rid build) { Rlatex_build_destroy(build); }
+
+/// Finds a tool of the trade: "latexmk", "pdflatex", "xelatex",
+/// "lualatex", "synctex", "bibtex", "biber", "hunspell", "git"...
+/// Same lookup as Rprocess_find, which it forwards to.
+/// Returns: An absolute path valid until the next call, or NULL.
+inline const char* latex_find_tool(const char* name) { return Rlatex_find_tool(name); }
 
 /// Size of every text, 1 = as designed (0.5 to 4). Controls grow with their text.
 inline void accessibility_set_text_scale(float scale) { Raccessibility_set_text_scale(scale); }

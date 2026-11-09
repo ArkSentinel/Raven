@@ -637,6 +637,7 @@ const (
 	R_WIDGET_RATING          RWidgetType = 0x0230
 	R_WIDGET_PAGINATION      RWidgetType = 0x0231
 	R_WIDGET_PLOT            RWidgetType = 0x0232
+	R_WIDGET_PDF_VIEW        RWidgetType = 0x0233
 )
 
 type RHAlign int32
@@ -843,6 +844,8 @@ const (
 	R_LANGUAGE_IGNORE_CASE     RLanguageFlags = 0x0020
 	R_LANGUAGE_EMBEDS          RLanguageFlags = 0x0040
 	R_LANGUAGE_FORMATTED_TEXT  RLanguageFlags = 0x0080
+	R_LANGUAGE_TEX             RLanguageFlags = 0x0100
+	R_LANGUAGE_BIBTEX          RLanguageFlags = 0x0200
 )
 
 // RToken: What a part of the text is, for the language of the editor (Rtext_editor_get_token).
@@ -873,6 +876,15 @@ const (
 	R_MARKER_ERROR   RMarkerKind = 0x0350
 	R_MARKER_WARNING RMarkerKind = 0x0351
 	R_MARKER_INFO    RMarkerKind = 0x0352
+)
+
+type RSearchFlags int32
+
+const (
+	R_SEARCH_NONE        RSearchFlags = 0
+	R_SEARCH_REGEX       RSearchFlags = 1
+	R_SEARCH_IGNORE_CASE RSearchFlags = 2
+	R_SEARCH_WHOLE_WORD  RSearchFlags = 4
 )
 
 // RHeaderButtons: Buttons of a header bar.
@@ -1002,6 +1014,15 @@ const (
 	R_MOTION_WOBBLY RMotion = 0x0323
 )
 
+// RPdfFit: How the view keeps the pages in its place when it is resized.
+type RPdfFit int32
+
+const (
+	R_PDF_FIT_NONE  RPdfFit = 0x0570
+	R_PDF_FIT_WIDTH RPdfFit = 0x0571
+	R_PDF_FIT_PAGE  RPdfFit = 0x0572
+)
+
 // REffect: The effects that come with Raven (Reffect_get).
 type REffect int32
 
@@ -1037,6 +1058,44 @@ const (
 	R_XML_FILE    RXmlValueType = 0x03C6
 	R_XML_NUMBERS RXmlValueType = 0x03C7
 	R_XML_LIST    RXmlValueType = 0x03C8
+)
+
+// RSettingType: What a key holds.
+type RSettingType int32
+
+const (
+	R_SETTING_NONE   RSettingType = 0x0300
+	R_SETTING_BOOL   RSettingType = 0x0301
+	R_SETTING_INT    RSettingType = 0x0302
+	R_SETTING_NUMBER RSettingType = 0x0303
+	R_SETTING_TEXT   RSettingType = 0x0304
+)
+
+type RProcessState int32
+
+const (
+	R_PROCESS_RUNNING RProcessState = 0x0400
+	R_PROCESS_EXITED  RProcessState = 0x0401
+	R_PROCESS_FAILED  RProcessState = 0x0402
+)
+
+// RLogKind: What a line of a log is worth to an editor.
+type RLogKind int32
+
+const (
+	R_LOG_ERROR   RLogKind = 0x0500
+	R_LOG_WARNING RLogKind = 0x0501
+	R_LOG_INFO    RLogKind = 0x0502
+	R_LOG_BAD_BOX RLogKind = 0x0503
+)
+
+// RLatexEngine: The engines an editor offers. All of them take the same command line.
+type RLatexEngine int32
+
+const (
+	R_LATEX_PDFLATEX RLatexEngine = 0
+	R_LATEX_XELATEX  RLatexEngine = 1
+	R_LATEX_LUALATEX RLatexEngine = 2
 )
 
 type RColorFilter int32
@@ -1208,6 +1267,18 @@ func SetAnimationsEnabled(enabled int) {
 
 func GetAnimationsEnabled() int {
 	return int(C.Rget_animations_enabled())
+}
+
+// SetSelectionAnimation: R_TRUE: the highlight that follows the selection in lists, tables and trees moves
+// with a spring; R_FALSE (the default) it is there at once, which is what a list that follows the pointer
+// needs. A window resize and the text caret are never animated: they follow the input exactly. XML and theme
+// files cannot set it.
+func SetSelectionAnimation(enabled int) {
+	C.Rset_selection_animation(C.int(enabled))
+}
+
+func GetSelectionAnimation() int {
+	return int(C.Rget_selection_animation())
 }
 
 // SetAnimationSpeed: Multiplies the speed of every animation. 1 is the default, 0.25 a slow motion.
@@ -1742,6 +1813,42 @@ func WindowUnregisterShortcut(window ID, key RKey, modifiers uint32) {
 	C.Rwindow_unregister_shortcut(C.Rid(window), C.RKey(key), C.Ruint(modifiers))
 }
 
+// WindowSetKeybindings: Registers a whole set of shortcuts from a text, as a preferences window writes it:
+// "Ctrl+S save | Ctrl+Shift+S save_as | F5 build | Ctrl+K,Ctrl+B clear" Entries are separated by '|'. The key
+// or the keys come first, then the action name (Raction_bind). An entry whose action is empty unbinds that
+// key. Several chords separated by commas are a sequence: only the first chord is bound for now (the others
+// are parsed and ignored). Returns: How many shortcuts were registered (unbound ones included).
+func WindowSetKeybindings(window ID, bindings string) int {
+	bindings_ := C.CString(bindings)
+	defer C.free(unsafe.Pointer(bindings_))
+	return int(C.Rwindow_set_keybindings(C.Rid(window), bindings_))
+}
+
+// KeyFromName: Parses one key name to a key and its modifiers: "Ctrl+S", "Ctrl+Shift+S", "F5", "PageUp",
+// "Escape", "A". The modifiers are Ctrl, Shift, Alt and Super (Cmd and Win are accepted for Super). Returns:
+// R_FALSE when the name is not a key.
+func KeyFromName(name string) (result int, key RKey, modifiers uint32) {
+	name_ := C.CString(name)
+	defer C.free(unsafe.Pointer(name_))
+	var key_ C.RKey
+	var modifiers_ C.Ruint
+	result = int(C.Rkey_from_name(name_, &key_, &modifiers_))
+	key = RKey(key_)
+	modifiers = uint32(modifiers_)
+	return
+}
+
+// KeyToName: The reverse, for showing a shortcut: "Ctrl+S". Super is written "Super" (the menus show it too).
+// Returns: NULL when the key has no name. Valid until the next call.
+func KeyToName(key RKey, modifiers uint32) string {
+	return C.GoString(C.Rkey_to_name(C.RKey(key), C.Ruint(modifiers)))
+}
+
+// WindowGetShortcutCount: How many shortcuts the window has (Rwindow_register_shortcut).
+func WindowGetShortcutCount(window ID) int {
+	return int(C.Rwindow_get_shortcut_count(C.Rid(window)))
+}
+
 // WidgetSetTouchMode: What a finger does on the widget and what it contains (default R_TOUCH_MODE_AUTO: as
 // its parent says).
 func WidgetSetTouchMode(widget ID, mode RTouchMode) {
@@ -1988,6 +2095,33 @@ func ThemeGetCount() int {
 // ThemeGetNameAt: Name of the index-th one, or NULL.
 func ThemeGetNameAt(index int) string {
 	return C.GoString(C.Rtheme_get_name_at(C.int(index)))
+}
+
+// ThemeRememberFor: Remembers the theme of a project folder, so that opening the project again gives it its
+// look back. The store is the one the application owns (Rsettings_open(app, "sessions.json") or its own): the
+// library keeps no file of its own. The key is "theme." followed by the absolute, normalised path of the
+// project (forward slashes). Returns: R_FALSE when there is no store or when the path is empty.
+func ThemeRememberFor(settings ID, project_path string, theme_name string) int {
+	project_path_ := C.CString(project_path)
+	defer C.free(unsafe.Pointer(project_path_))
+	theme_name_ := C.CString(theme_name)
+	defer C.free(unsafe.Pointer(theme_name_))
+	return int(C.Rtheme_remember_for(C.Rid(settings), project_path_, theme_name_))
+}
+
+// ThemeGetRemembered: The theme remembered for a project, or NULL. Valid until the store changes.
+func ThemeGetRemembered(settings ID, project_path string) string {
+	project_path_ := C.CString(project_path)
+	defer C.free(unsafe.Pointer(project_path_))
+	return C.GoString(C.Rtheme_get_remembered(C.Rid(settings), project_path_))
+}
+
+// ThemeApplyRemembered: Applies the theme remembered for a project (Rtheme_use). Returns: R_TRUE when one was
+// remembered and Rtheme_use accepted it. When it did not, the theme in use is left as it was.
+func ThemeApplyRemembered(settings ID, project_path string) int {
+	project_path_ := C.CString(project_path)
+	defer C.free(unsafe.Pointer(project_path_))
+	return int(C.Rtheme_apply_remembered(C.Rid(settings), project_path_))
 }
 
 // ThemeSave: Writes the theme in use, with every change made since it was applied, as a theme file. name Name
@@ -4404,6 +4538,252 @@ func TextEditorGetMarkerCount(editor ID) int {
 	return int(C.Rtext_editor_get_marker_count(C.Rid(editor)))
 }
 
+// TextEditorGetMarker: The line, the columns and the kind of a marker, by index (0 ..
+// Rtext_editor_get_marker_count - 1). Returns: The message of the marker, or NULL when `index` is out of
+// range.
+func TextEditorGetMarker(editor ID, index int) (result string, line int, from_column int, to_column int, kind RMarkerKind) {
+	var line_ C.int
+	var from_column_ C.int
+	var to_column_ C.int
+	var kind_ C.RMarkerKind
+	result = C.GoString(C.Rtext_editor_get_marker(C.Rid(editor), C.int(index), &line_, &from_column_, &to_column_, &kind_))
+	line = int(line_)
+	from_column = int(from_column_)
+	to_column = int(to_column_)
+	kind = RMarkerKind(kind_)
+	return
+}
+
+// TextEditorClearMarkersOfLine: Removes the markers of one line and adds a list, as a compiler's report does.
+func TextEditorClearMarkersOfLine(editor ID, line int) {
+	C.Rtext_editor_clear_markers_of_line(C.Rid(editor), C.int(line))
+}
+
+// TextEditorSetSearch: Sets what is looked for, from now on. An empty pattern clears it. The flags are a
+// bitmask of RSearchFlags. Invalid regular expressions are reported and leave the search as it was. Returns:
+// R_TRUE when the pattern was taken.
+func TextEditorSetSearch(editor ID, pattern string, flags uint32) int {
+	pattern_ := C.CString(pattern)
+	defer C.free(unsafe.Pointer(pattern_))
+	return int(C.Rtext_editor_set_search(C.Rid(editor), pattern_, C.Ruint(flags)))
+}
+
+func TextEditorGetSearch(editor ID) string {
+	return C.GoString(C.Rtext_editor_get_search(C.Rid(editor)))
+}
+
+func TextEditorGetSearchFlags(editor ID) uint32 {
+	return uint32(C.Rtext_editor_get_search_flags(C.Rid(editor)))
+}
+
+// TextEditorFindNext: The next match after the caret (or before it, with `backwards`), selected; the text is
+// scrolled to it. It wraps around the ends of the text. R_FALSE when nothing matches.
+func TextEditorFindNext(editor ID, backwards int) int {
+	return int(C.Rtext_editor_find_next(C.Rid(editor), C.int(backwards)))
+}
+
+// TextEditorCountMatches: How many places match the search.
+func TextEditorCountMatches(editor ID) int {
+	return int(C.Rtext_editor_count_matches(C.Rid(editor)))
+}
+
+// TextEditorGetMatch: Where a match is, by index (0 .. count - 1): its start and its end. R_FALSE when out of
+// range.
+func TextEditorGetMatch(editor ID, index int) (result int, from_line int, from_column int, to_line int, to_column int) {
+	var from_line_ C.int
+	var from_column_ C.int
+	var to_line_ C.int
+	var to_column_ C.int
+	result = int(C.Rtext_editor_get_match(C.Rid(editor), C.int(index), &from_line_, &from_column_, &to_line_, &to_column_))
+	from_line = int(from_line_)
+	from_column = int(from_column_)
+	to_line = int(to_line_)
+	to_column = int(to_column_)
+	return
+}
+
+// TextEditorReplace: Replaces the current match (the selection, when it is one) and goes to the next one.
+// R_FALSE when there is nothing to replace.
+func TextEditorReplace(editor ID, text string) int {
+	text_ := C.CString(text)
+	defer C.free(unsafe.Pointer(text_))
+	return int(C.Rtext_editor_replace(C.Rid(editor), text_))
+}
+
+// TextEditorReplaceAll: Replaces every match, as one step of the history. Returns: How many were replaced.
+func TextEditorReplaceAll(editor ID, text string) int {
+	text_ := C.CString(text)
+	defer C.free(unsafe.Pointer(text_))
+	return int(C.Rtext_editor_replace_all(C.Rid(editor), text_))
+}
+
+// TextEditorExpandReplacement: The text of a replacement where `$1` .. `$9`, `${name}`, `$&` (the whole
+// match), `$$` (a dollar), `\n`, `\t` and `\\` mean something; with `matches`, the groups of the regex that
+// matched. Pure: no editor needed. Returns: The text, in a buffer of the editor (valid until the next call),
+// or NULL.
+func TextEditorExpandReplacement(replacement string, text string, from int, to int, groups []int, group_count int) string {
+	replacement_ := C.CString(replacement)
+	defer C.free(unsafe.Pointer(replacement_))
+	text_ := C.CString(text)
+	defer C.free(unsafe.Pointer(text_))
+	var groups_ *C.int
+	if len(groups) > 0 {
+		groups_ = (*C.int)(unsafe.Pointer(&groups[0]))
+	}
+	return C.GoString(C.Rtext_editor_expand_replacement(replacement_, text_, C.int(from), C.int(to), groups_, C.int(group_count)))
+}
+
+// TextEditorSetFolding: R_TRUE (the default): with a language whose blocks can be folded (braces, brackets,
+// \begin{...} ... \end{...}, <tag> ... </tag>, Markdown titles), a small arrow in the margin collapses the
+// block; Ctrl+Shift+[ and Ctrl+Shift+] fold and unfold the block of the caret.
+func TextEditorSetFolding(editor ID, enabled int) {
+	C.Rtext_editor_set_folding(C.Rid(editor), C.int(enabled))
+}
+
+func TextEditorGetFolding(editor ID) int {
+	return int(C.Rtext_editor_get_folding(C.Rid(editor)))
+}
+
+// TextEditorToggleFold: Folds the block of the caret (the one that holds it), or unfolds it. R_FALSE when
+// there is none.
+func TextEditorToggleFold(editor ID) int {
+	return int(C.Rtext_editor_toggle_fold(C.Rid(editor)))
+}
+
+// TextEditorFoldLine: Folds or unfolds the block that starts on a line (an opening brace, \begin, a title).
+func TextEditorFoldLine(editor ID, line int) int {
+	return int(C.Rtext_editor_fold_line(C.Rid(editor), C.int(line)))
+}
+
+func TextEditorUnfoldLine(editor ID, line int) int {
+	return int(C.Rtext_editor_unfold_line(C.Rid(editor), C.int(line)))
+}
+
+func TextEditorIsFolded(editor ID, line int) int {
+	return int(C.Rtext_editor_is_folded(C.Rid(editor), C.int(line)))
+}
+
+// TextEditorUnfoldAll: Unfolds everything, and forgets the folded blocks.
+func TextEditorUnfoldAll(editor ID) {
+	C.Rtext_editor_unfold_all(C.Rid(editor))
+}
+
+func TextEditorGetFoldedCount(editor ID) int {
+	return int(C.Rtext_editor_get_folded_count(C.Rid(editor)))
+}
+
+// TextEditorGetFoldStart: The first line of a folded block that holds `line` (the block's own line), or -1
+// when the line is not hidden by any fold.
+func TextEditorGetFoldStart(editor ID, line int) int {
+	return int(C.Rtext_editor_get_fold_start(C.Rid(editor), C.int(line)))
+}
+
+func SnippetClear() {
+	C.Rsnippet_clear()
+}
+
+func SnippetGetCount() int {
+	return int(C.Rsnippet_get_count())
+}
+
+func SnippetGetName(index int) string {
+	return C.GoString(C.Rsnippet_get_name(C.int(index)))
+}
+
+func SnippetFind(name string) int {
+	name_ := C.CString(name)
+	defer C.free(unsafe.Pointer(name_))
+	return int(C.Rsnippet_find(name_))
+}
+
+// TextEditorInsertSnippet: Types the snippet at the caret, replacing the word before it when that word is its
+// name. Sets the places; Tab and Shift+Tab walk them, Escape leaves them. Returns: R_FALSE when the editor is
+// read-only or the snippet is unknown.
+func TextEditorInsertSnippet(editor ID, name string) int {
+	name_ := C.CString(name)
+	defer C.free(unsafe.Pointer(name_))
+	return int(C.Rtext_editor_insert_snippet(C.Rid(editor), name_))
+}
+
+// TextEditorSnippetAtCaret: The snippet whose name is what is being typed before the caret, or -1.
+func TextEditorSnippetAtCaret(editor ID) int {
+	return int(C.Rtext_editor_snippet_at_caret(C.Rid(editor)))
+}
+
+// TextEditorSetSnippetCompletion: R_FALSE stops the editor from offering snippets while typing. On by
+// default.
+func TextEditorSetSnippetCompletion(editor ID, enabled int) {
+	C.Rtext_editor_set_snippet_completion(C.Rid(editor), C.int(enabled))
+}
+
+// TextEditorIsInSnippet: R_TRUE while Tab and Shift+Tab walk the places of a snippet that was inserted.
+func TextEditorIsInSnippet(editor ID) int {
+	return int(C.Rtext_editor_is_in_snippet(C.Rid(editor)))
+}
+
+// TextEditorSetMultiCursor: R_TRUE: Ctrl+click adds a caret where it is clicked, and every caret is selected
+// and typed at once (Alt+drag selects a column, and Ctrl+D selects the next occurrence of the selection). Off
+// by default.
+func TextEditorSetMultiCursor(editor ID, enabled int) {
+	C.Rtext_editor_set_multi_cursor(C.Rid(editor), C.int(enabled))
+}
+
+func TextEditorGetMultiCursor(editor ID) int {
+	return int(C.Rtext_editor_get_multi_cursor(C.Rid(editor)))
+}
+
+func TextEditorGetCaretCount(editor ID) int {
+	return int(C.Rtext_editor_get_caret_count(C.Rid(editor)))
+}
+
+// TextEditorGetCaret: Where a caret is, by index (0 is the main one, which typing and scrolling follow).
+func TextEditorGetCaret(editor ID, index int) (result int, line int, column int) {
+	var line_ C.int
+	var column_ C.int
+	result = int(C.Rtext_editor_get_caret(C.Rid(editor), C.int(index), &line_, &column_))
+	line = int(line_)
+	column = int(column_)
+	return
+}
+
+// TextEditorAddCaret: Adds a caret; the text at each of them is selected. R_FALSE when there are too many
+// (256).
+func TextEditorAddCaret(editor ID, line int, column int) int {
+	return int(C.Rtext_editor_add_caret(C.Rid(editor), C.int(line), C.int(column)))
+}
+
+func TextEditorClearCarets(editor ID) {
+	C.Rtext_editor_clear_carets(C.Rid(editor))
+}
+
+// TextEditorSelectNextOccurrence: Selects the next occurrence of the selected text, with a caret of its own.
+// R_FALSE when there is none.
+func TextEditorSelectNextOccurrence(editor ID) int {
+	return int(C.Rtext_editor_select_next_occurrence(C.Rid(editor)))
+}
+
+// TextEditorGetWordCount: Returns: How many words the text has, as an editor counts them: runs of letters and
+// digits.
+func TextEditorGetWordCount(editor ID) int {
+	return int(C.Rtext_editor_get_word_count(C.Rid(editor)))
+}
+
+// TextEditorGetCharacterCount: Returns: The characters of the text, not the bytes (a UTF-8 code point counts
+// one).
+func TextEditorGetCharacterCount(editor ID) int {
+	return int(C.Rtext_editor_get_character_count(C.Rid(editor)))
+}
+
+// TextEditorGetNonEmptyLineCount: Returns: How many lines have something besides blanks.
+func TextEditorGetNonEmptyLineCount(editor ID) int {
+	return int(C.Rtext_editor_get_non_empty_line_count(C.Rid(editor)))
+}
+
+// TextEditorGetCurrentLine: Returns: The line that holds the caret, from 1 (for a status bar).
+func TextEditorGetCurrentLine(editor ID) int {
+	return int(C.Rtext_editor_get_current_line(C.Rid(editor)))
+}
+
 // ThemeSetTokenColor: Color of a kind of token in the theme in use, instead of the one Raven picks for dark
 // and for light themes. Theme files set them with <Syntax Keyword="#FF7AB2" String="..."/>.
 func ThemeSetTokenColor(token RToken, r float32, g float32, b float32, a float32) {
@@ -5892,6 +6272,130 @@ func ViewportSetRealtime(viewport ID, realtime int) {
 	C.Rviewport_set_realtime(C.Rid(viewport), C.int(realtime))
 }
 
+// PdfViewCreate: Creates an empty view. Give it its pages with Rpdf_view_set_page_count.
+func PdfViewCreate() ID {
+	return ID(C.Rpdf_view_create())
+}
+
+// PdfViewSetPageCount: Number of pages of the document. 0 pages clears the view: the bitmaps are forgotten.
+// New pages take the size of US Letter until Rpdf_view_set_page_size gives them their own.
+func PdfViewSetPageCount(pdf_view ID, count int) {
+	C.Rpdf_view_set_page_count(C.Rid(pdf_view), C.int(count))
+}
+
+func PdfViewGetPageCount(pdf_view ID) int {
+	return int(C.Rpdf_view_get_page_count(C.Rid(pdf_view)))
+}
+
+func PdfViewSetPageSize(pdf_view ID, page int, width float32, height float32) {
+	C.Rpdf_view_set_page_size(C.Rid(pdf_view), C.int(page), C.float(width), C.float(height))
+}
+
+// PdfViewGetPageSize: The size of a page in points (1/72 inch); 0, 0 when there is no such page.
+func PdfViewGetPageSize(pdf_view ID, page int) (width float32, height float32) {
+	var width_ C.float
+	var height_ C.float
+	C.Rpdf_view_get_page_size(C.Rid(pdf_view), C.int(page), &width_, &height_)
+	width = float32(width_)
+	height = float32(height_)
+	return
+}
+
+// PdfViewSetPageBitmap: The RGBA pixels of a page, rendered at `scale` pixels per point (2 fills a page drawn
+// at zoom 2). The view keeps the texture and frees nothing. R_INVALID_ID forgets the bitmap of that page,
+// which then shows as a placeholder again.
+func PdfViewSetPageBitmap(pdf_view ID, page int, texture ID, scale float32) {
+	C.Rpdf_view_set_page_bitmap(C.Rid(pdf_view), C.int(page), C.Rid(texture), C.float(scale))
+}
+
+// PdfViewHasPageBitmap: Returns: R_TRUE when that page has a bitmap.
+func PdfViewHasPageBitmap(pdf_view ID, page int) int {
+	return int(C.Rpdf_view_has_page_bitmap(C.Rid(pdf_view), C.int(page)))
+}
+
+// PdfViewSetPage: The current page, from 0: it becomes the first one in view. Rpdf_view_set_page scrolls so
+// that the page starts at the top.
+func PdfViewSetPage(pdf_view ID, page int) {
+	C.Rpdf_view_set_page(C.Rid(pdf_view), C.int(page))
+}
+
+func PdfViewGetPage(pdf_view ID) int {
+	return int(C.Rpdf_view_get_page(C.Rid(pdf_view)))
+}
+
+// PdfViewGetVisibleFirstPage: Returns: The first and the last page whose rectangle is in the view, or 0 when
+// there is none.
+func PdfViewGetVisibleFirstPage(pdf_view ID) int {
+	return int(C.Rpdf_view_get_visible_first_page(C.Rid(pdf_view)))
+}
+
+func PdfViewGetVisibleLastPage(pdf_view ID) int {
+	return int(C.Rpdf_view_get_visible_last_page(C.Rid(pdf_view)))
+}
+
+// PdfViewSetZoom: Zoom in pixels per point: 1 = 72 dpi (0.05 .. 16, clamped). Setting it leaves the fit mode.
+// Rpdf_view_set_fit sets a mode that keeps following the size of the view.
+func PdfViewSetZoom(pdf_view ID, zoom float32) {
+	C.Rpdf_view_set_zoom(C.Rid(pdf_view), C.float(zoom))
+}
+
+func PdfViewGetZoom(pdf_view ID) float32 {
+	return float32(C.Rpdf_view_get_zoom(C.Rid(pdf_view)))
+}
+
+func PdfViewSetFit(pdf_view ID, fit RPdfFit) {
+	C.Rpdf_view_set_fit(C.Rid(pdf_view), C.RPdfFit(fit))
+}
+
+func PdfViewGetFit(pdf_view ID) RPdfFit {
+	return RPdfFit(C.Rpdf_view_get_fit(C.Rid(pdf_view)))
+}
+
+// PdfViewSetPageGap: Space between pages, and around them, in points (default 16).
+func PdfViewSetPageGap(pdf_view ID, gap float32) {
+	C.Rpdf_view_set_page_gap(C.Rid(pdf_view), C.float(gap))
+}
+
+func PdfViewGetPageGap(pdf_view ID) float32 {
+	return float32(C.Rpdf_view_get_page_gap(C.Rid(pdf_view)))
+}
+
+// PdfViewGetPageAt: The page and the point of the page (in points, from its top-left corner) under a point of
+// the widget, for SyncTeX inverse search. Returns: R_FALSE outside a page.
+func PdfViewGetPageAt(pdf_view ID, x float32, y float32) (result int, page int, page_x float32, page_y float32) {
+	var page_ C.int
+	var page_x_ C.float
+	var page_y_ C.float
+	result = int(C.Rpdf_view_get_page_at(C.Rid(pdf_view), C.float(x), C.float(y), &page_, &page_x_, &page_y_))
+	page = int(page_)
+	page_x = float32(page_x_)
+	page_y = float32(page_y_)
+	return
+}
+
+// PdfViewInvalidatePage: Asks for one page to be painted again, once its bitmap has arrived.
+func PdfViewInvalidatePage(pdf_view ID, page int) {
+	C.Rpdf_view_invalidate_page(C.Rid(pdf_view), C.int(page))
+}
+
+// PdfViewScrollToPosition: Scrolls so that a point of a page is in the middle of the view (SyncTeX forward
+// search).
+func PdfViewScrollToPosition(pdf_view ID, page int, page_x float32, page_y float32) {
+	C.Rpdf_view_scroll_to_position(C.Rid(pdf_view), C.int(page), C.float(page_x), C.float(page_y))
+}
+
+// PdfViewSetHighlight: A rectangle of a page to show, in points from its top-left corner (where the source of
+// what is selected is, in a forward search): one per view. A negative page removes it.
+func PdfViewSetHighlight(pdf_view ID, page int, x float32, y float32, width float32, height float32) {
+	C.Rpdf_view_set_highlight(C.Rid(pdf_view), C.int(page), C.float(x), C.float(y), C.float(width), C.float(height))
+}
+
+// PdfViewSetBackgroundColor: Color behind the pages; the theme's by default (Rwidget_clear_color brings it
+// back).
+func PdfViewSetBackgroundColor(pdf_view ID, r float32, g float32, b float32, a float32) {
+	C.Rpdf_view_set_background_color(C.Rid(pdf_view), C.float(r), C.float(g), C.float(b), C.float(a))
+}
+
 // ShaderCreate: A shader from SPIR-V code (a fragment shader written with raven_effect.glsl, as in a .spv
 // file): `size` bytes, copied. R_INVALID_ID when the code is not SPIR-V; a backend that refuses it reports an
 // error and the effect is drawn as a rectangle.
@@ -6417,6 +6921,293 @@ func LocaleFormatNumber(value float64, decimals int) string {
 	return C.GoString(C.Rlocale_format_number(C.double(value), C.int(decimals)))
 }
 
+// SettingsCreate: Opens a settings store. path File the store is read from and written to, or NULL for a
+// store that lives in memory only. The file is read when it exists. Returns: The store, or R_INVALID_ID
+// (after reporting an error).
+func SettingsCreate(path string) ID {
+	path_ := C.CString(path)
+	defer C.free(unsafe.Pointer(path_))
+	return ID(C.Rsettings_create(path_))
+}
+
+// SettingsDestroy: Frees a store. Rshutdown frees the stores the application left alive.
+func SettingsDestroy(settings ID) {
+	C.Rsettings_destroy(C.Rid(settings))
+}
+
+// SettingsLoad: Reads the file of the store again, replacing everything it holds. Returns: R_TRUE when the
+// file existed and was valid JSON. When it did not, the store is emptied (a store with no file stays empty).
+func SettingsLoad(settings ID) int {
+	return int(C.Rsettings_load(C.Rid(settings)))
+}
+
+// SettingsSave: Writes the store to its file: a temporary file next to it, then a rename, so a reader never
+// sees half a file. The folder is created when it does not exist. Returns: R_FALSE when the store has no file
+// or when the file could not be written.
+func SettingsSave(settings ID) int {
+	return int(C.Rsettings_save(C.Rid(settings)))
+}
+
+// SettingsGetPath: Path of the file of the store ("" for a store that lives in memory only).
+func SettingsGetPath(settings ID) string {
+	return C.GoString(C.Rsettings_get_path(C.Rid(settings)))
+}
+
+// SettingsGetType: Returns: What the key holds, R_SETTING_NONE when it is not there (or holds an object, an
+// array or null).
+func SettingsGetType(settings ID, key string) RSettingType {
+	key_ := C.CString(key)
+	defer C.free(unsafe.Pointer(key_))
+	return RSettingType(C.Rsettings_get_type(C.Rid(settings), key_))
+}
+
+// SettingsGetBool: The value of the key; `fallback` when it is missing or holds another type.
+func SettingsGetBool(settings ID, key string, fallback int) int {
+	key_ := C.CString(key)
+	defer C.free(unsafe.Pointer(key_))
+	return int(C.Rsettings_get_bool(C.Rid(settings), key_, C.int(fallback)))
+}
+
+func SettingsGetInt(settings ID, key string, fallback int) int {
+	key_ := C.CString(key)
+	defer C.free(unsafe.Pointer(key_))
+	return int(C.Rsettings_get_int(C.Rid(settings), key_, C.int(fallback)))
+}
+
+func SettingsGetNumber(settings ID, key string, fallback float64) float64 {
+	key_ := C.CString(key)
+	defer C.free(unsafe.Pointer(key_))
+	return float64(C.Rsettings_get_number(C.Rid(settings), key_, C.double(fallback)))
+}
+
+// SettingsGetText: Valid until the store changes. NULL only when the key is missing and `fallback` is NULL.
+func SettingsGetText(settings ID, key string, fallback string) string {
+	key_ := C.CString(key)
+	defer C.free(unsafe.Pointer(key_))
+	fallback_ := C.CString(fallback)
+	defer C.free(unsafe.Pointer(fallback_))
+	return C.GoString(C.Rsettings_get_text(C.Rid(settings), key_, fallback_))
+}
+
+func SettingsSetBool(settings ID, key string, value int) {
+	key_ := C.CString(key)
+	defer C.free(unsafe.Pointer(key_))
+	C.Rsettings_set_bool(C.Rid(settings), key_, C.int(value))
+}
+
+func SettingsSetInt(settings ID, key string, value int) {
+	key_ := C.CString(key)
+	defer C.free(unsafe.Pointer(key_))
+	C.Rsettings_set_int(C.Rid(settings), key_, C.int(value))
+}
+
+func SettingsSetNumber(settings ID, key string, value float64) {
+	key_ := C.CString(key)
+	defer C.free(unsafe.Pointer(key_))
+	C.Rsettings_set_number(C.Rid(settings), key_, C.double(value))
+}
+
+// SettingsSetText: An empty text stores ""; a NULL text removes the key.
+func SettingsSetText(settings ID, key string, value string) {
+	key_ := C.CString(key)
+	defer C.free(unsafe.Pointer(key_))
+	value_ := C.CString(value)
+	defer C.free(unsafe.Pointer(value_))
+	C.Rsettings_set_text(C.Rid(settings), key_, value_)
+}
+
+// SettingsRemove: Removes a key. R_TRUE when it was there.
+func SettingsRemove(settings ID, key string) int {
+	key_ := C.CString(key)
+	defer C.free(unsafe.Pointer(key_))
+	return int(C.Rsettings_remove(C.Rid(settings), key_))
+}
+
+// SettingsHas: R_TRUE when the key is there, whatever it holds.
+func SettingsHas(settings ID, key string) int {
+	key_ := C.CString(key)
+	defer C.free(unsafe.Pointer(key_))
+	return int(C.Rsettings_has(C.Rid(settings), key_))
+}
+
+// SettingsGetJson: The whole document as text, for a project file that holds arrays and objects too. Valid
+// until the store changes or the function is called again. "" when the store is empty.
+func SettingsGetJson(settings ID) string {
+	return C.GoString(C.Rsettings_get_json(C.Rid(settings)))
+}
+
+// SettingsSetJson: Replaces the whole document. Returns: R_FALSE when `json` is not valid JSON: the store is
+// not changed.
+func SettingsSetJson(settings ID, json string) int {
+	json_ := C.CString(json)
+	defer C.free(unsafe.Pointer(json_))
+	return int(C.Rsettings_set_json(C.Rid(settings), json_))
+}
+
+// SettingsGetKeyCount: How many keys the object at `prefix` has ("" for the whole document), or how many
+// items the array at `prefix` has. 0 when there is nothing there.
+func SettingsGetKeyCount(settings ID, prefix string) int {
+	prefix_ := C.CString(prefix)
+	defer C.free(unsafe.Pointer(prefix_))
+	return int(C.Rsettings_get_key_count(C.Rid(settings), prefix_))
+}
+
+// SettingsGetKey: The index-th key of the object at `prefix` ("" for the whole document), or the index-th
+// item of an array as "0", "1"... NULL when `index` is out of range. Valid until the next call of this
+// function that returns a key.
+func SettingsGetKey(settings ID, prefix string, index int) string {
+	prefix_ := C.CString(prefix)
+	defer C.free(unsafe.Pointer(prefix_))
+	return C.GoString(C.Rsettings_get_key(C.Rid(settings), prefix_, C.int(index)))
+}
+
+// SettingsGetConfigFolder: The folder where the settings of the application live: ~/.config/<app>
+// ($XDG_CONFIG_HOME honoured), ~/Library/Application Support/<app> on macOS, %APPDATA%\<app> on Windows.
+// Created when it does not exist; valid until the next call from the same thread.
+func SettingsGetConfigFolder(app_name string) string {
+	app_name_ := C.CString(app_name)
+	defer C.free(unsafe.Pointer(app_name_))
+	return C.GoString(C.Rsettings_get_config_folder(app_name_))
+}
+
+// SettingsGetCacheFolder: The folder for what can be made again (caches), by the same rules.
+func SettingsGetCacheFolder(app_name string) string {
+	app_name_ := C.CString(app_name)
+	defer C.free(unsafe.Pointer(app_name_))
+	return C.GoString(C.Rsettings_get_cache_folder(app_name_))
+}
+
+// SettingsOpen: Opens <config folder>/<file_name> for the application, creating the folder when needed.
+// Rsettings_open("myeditor", "sessions.json"). Returns: R_INVALID_ID when the folder or the file cannot be
+// opened.
+func SettingsOpen(app_name string, file_name string) ID {
+	app_name_ := C.CString(app_name)
+	defer C.free(unsafe.Pointer(app_name_))
+	file_name_ := C.CString(file_name)
+	defer C.free(unsafe.Pointer(file_name_))
+	return ID(C.Rsettings_open(app_name_, file_name_))
+}
+
+// ProcessIsRunning: Returns: R_TRUE while the program runs.
+func ProcessIsRunning(process ID) int {
+	return int(C.Rprocess_is_running(C.Rid(process)))
+}
+
+// ProcessGetExitCode: Returns: The exit code, or -1 while the program runs and when it could not be run.
+func ProcessGetExitCode(process ID) int {
+	return int(C.Rprocess_get_exit_code(C.Rid(process)))
+}
+
+// ProcessGetState: Returns: R_PROCESS_RUNNING, R_PROCESS_EXITED or R_PROCESS_FAILED.
+func ProcessGetState(process ID) RProcessState {
+	return RProcessState(C.Rprocess_get_state(C.Rid(process)))
+}
+
+// ProcessCancel: Asks the program to stop (SIGTERM on POSIX, TerminateProcess on Windows), waits a moment,
+// then kills it, and returns once its output has been read to the end. The exit callback still runs, during a
+// frame. Does nothing when the program already ended.
+func ProcessCancel(process ID) {
+	C.Rprocess_cancel(C.Rid(process))
+}
+
+// ProcessWait: Blocks until the program ends. For tests and shutdown: never call it from the UI thread of a
+// running application.
+func ProcessWait(process ID) {
+	C.Rprocess_wait(C.Rid(process))
+}
+
+// ProcessIsAvailable: Returns: R_TRUE when the program is found (PATH lookup only).
+func ProcessIsAvailable(program string) int {
+	program_ := C.CString(program)
+	defer C.free(unsafe.Pointer(program_))
+	return int(C.Rprocess_is_available(program_))
+}
+
+// ProcessFind: Finds a program without running it. Returns: An absolute path (in a buffer of the library,
+// valid until the next call), or NULL when it is nowhere. A program with a separator in it is checked as
+// given. The usual install folders of TeX are searched too, after PATH: /Library/TeX/texbin,
+// /usr/local/texlive/ * /bin/ *, /opt/homebrew/bin, C:\\texlive\\ * \\bin\\windows and the bin folder of
+// MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
+func ProcessFind(program string) string {
+	program_ := C.CString(program)
+	defer C.free(unsafe.Pointer(program_))
+	return C.GoString(C.Rprocess_find(program_))
+}
+
+// LatexLogParse: Parses the text of a log. log The bytes of the file; need not be NUL-terminated. size Their
+// number. Returns: A list of messages, or R_INVALID_ID when the log has nothing to report (a log with no
+// diagnostic parses to no list at all).
+func LatexLogParse(log string) ID {
+	log_ := C.CString(log)
+	defer C.free(unsafe.Pointer(log_))
+	return ID(C.Rlatex_log_parse(log_, C.size_t(len(log))))
+}
+
+// LatexLogParseFile: Reads a log file and parses it. R_INVALID_ID when it cannot be read or has nothing to
+// report.
+func LatexLogParseFile(path string) ID {
+	path_ := C.CString(path)
+	defer C.free(unsafe.Pointer(path_))
+	return ID(C.Rlatex_log_parse_file(path_))
+}
+
+// LatexLogGetCount: Returns: How many messages the list holds, or 0 for R_INVALID_ID.
+func LatexLogGetCount(log ID) int {
+	return int(C.Rlatex_log_get_count(C.Rid(log)))
+}
+
+// LatexLogDestroy: Frees a list given by Rlatex_log_parse. Its messages are no longer valid.
+func LatexLogDestroy(log ID) {
+	C.Rlatex_log_destroy(C.Rid(log))
+}
+
+// LatexBuildIsRunning: Returns: R_TRUE while the tool runs.
+func LatexBuildIsRunning(build ID) int {
+	return int(C.Rlatex_build_is_running(C.Rid(build)))
+}
+
+// LatexBuildCancel: Stops the tool and waits for it. The messages parsed so far stay.
+func LatexBuildCancel(build ID) {
+	C.Rlatex_build_cancel(C.Rid(build))
+}
+
+// LatexBuildGetMessages: The diagnostics of the last finished build, as a list that belongs to the build:
+// read it with Rlatex_log_get_message, and do not destroy it. Valid until the build runs again or is
+// destroyed. Returns: The list, or R_INVALID_ID before the first build ends.
+func LatexBuildGetMessages(build ID) ID {
+	return ID(C.Rlatex_build_get_messages(C.Rid(build)))
+}
+
+// LatexBuildGetPdfPath: Returns: The .pdf the build wrote, or NULL when it wrote none. Owned by the build.
+func LatexBuildGetPdfPath(build ID) string {
+	return C.GoString(C.Rlatex_build_get_pdf_path(C.Rid(build)))
+}
+
+// LatexBuildGetLogPath: Returns: The .log the build read, or NULL. Owned by the build.
+func LatexBuildGetLogPath(build ID) string {
+	return C.GoString(C.Rlatex_build_get_log_path(C.Rid(build)))
+}
+
+// LatexBuildSucceeded: Returns: R_TRUE when the build ended and its tool exited with 0.
+func LatexBuildSucceeded(build ID) int {
+	return int(C.Rlatex_build_succeeded(C.Rid(build)))
+}
+
+// LatexBuildDestroy: Cancels the build if it still runs, frees it and its messages. The handle is invalid
+// afterwards.
+func LatexBuildDestroy(build ID) {
+	C.Rlatex_build_destroy(C.Rid(build))
+}
+
+// LatexFindTool: Finds a tool of the trade: "latexmk", "pdflatex", "xelatex", "lualatex", "synctex",
+// "bibtex", "biber", "hunspell", "git"... Same lookup as Rprocess_find, which it forwards to. Returns: An
+// absolute path valid until the next call, or NULL.
+func LatexFindTool(name string) string {
+	name_ := C.CString(name)
+	defer C.free(unsafe.Pointer(name_))
+	return C.GoString(C.Rlatex_find_tool(name_))
+}
+
 // AccessibilitySetTextScale: Size of every text, 1 = as designed (0.5 to 4). Controls grow with their text.
 func AccessibilitySetTextScale(scale float32) {
 	C.Raccessibility_set_text_scale(C.float(scale))
@@ -6577,40 +7368,43 @@ func HostInjectClose(window ID) {
 // Rset_device_reset_callback, Rwindow_get_frame_stats, Rwindow_set_icon, Rwindow_set_close_callback
 // Rwindow_set_resize_callback, Rwindow_set_drop_callback, Rwindow_set_user_handle, Rwindow_get_user_handle
 // Rwindow_get_native_handle, Rwindow_capture, Rwindow_inject_drop, Rwindow_set_event_hook
-// Rtouch_get_settings, Rtouch_set_settings, Rtouch_get_default_settings, Rwindow_set_touch_settings
-// Rwindow_get_touch_settings, Rwidget_set_touch_callback, Rwidget_set_pen_callback
-// Rwidget_set_gesture_callback, Rtexture_create_from_pixels, Rtexture_update, Rimage_decode, Rpixels_free
-// Rwidget_set_user_handle, Rwidget_get_user_handle, Rwidget_set_destroy_callback, Rwidget_set_event_callback
-// Rwidget_set_drop_callback, Rtab_view_set_changed_callback, Rtab_view_set_close_callback
-// Rexpander_set_changed_callback, Rlabel_set_link_callback, Rbutton_set_clicked_callback
-// Rcheckbox_set_changed_callback, Rslider_set_changed_callback, Rtext_input_set_changed_callback
-// Rtext_input_set_committed_callback, Rspin_box_set_changed_callback, Rcombo_box_set_changed_callback
-// Rlist_view_set_virtual_items, Rlist_view_set_selection_changed_callback, Rlist_view_set_activated_callback
-// Rtree_item_set_user_handle, Rtree_item_get_user_handle, Rtree_view_set_selection_changed_callback
-// Rtree_view_set_activated_callback, Rtree_view_set_context_callback, Rmenu_item_set_clicked_callback
-// Rtile_view_set_items, Rtile_view_set_drag_data_callback, Rtile_view_set_selection_changed_callback
+// Rwindow_get_shortcut, Rtouch_get_settings, Rtouch_set_settings, Rtouch_get_default_settings
+// Rwindow_set_touch_settings, Rwindow_get_touch_settings, Rwidget_set_touch_callback
+// Rwidget_set_pen_callback, Rwidget_set_gesture_callback, Rtexture_create_from_pixels, Rtexture_update
+// Rimage_decode, Rpixels_free, Rwidget_set_user_handle, Rwidget_get_user_handle
+// Rwidget_set_destroy_callback, Rwidget_set_event_callback, Rwidget_set_drop_callback
+// Rtab_view_set_changed_callback, Rtab_view_set_close_callback, Rexpander_set_changed_callback
+// Rlabel_set_link_callback, Rbutton_set_clicked_callback, Rcheckbox_set_changed_callback
+// Rslider_set_changed_callback, Rtext_input_set_changed_callback, Rtext_input_set_committed_callback
+// Rspin_box_set_changed_callback, Rcombo_box_set_changed_callback, Rlist_view_set_virtual_items
+// Rlist_view_set_selection_changed_callback, Rlist_view_set_activated_callback, Rtree_item_set_user_handle
+// Rtree_item_get_user_handle, Rtree_view_set_selection_changed_callback, Rtree_view_set_activated_callback
+// Rtree_view_set_context_callback, Rmenu_item_set_clicked_callback, Rtile_view_set_items
+// Rtile_view_set_drag_data_callback, Rtile_view_set_selection_changed_callback
 // Rtile_view_set_activated_callback, Rtile_view_set_context_callback, Rtable_set_virtual_rows
 // Rtable_set_selection_changed_callback, Rtable_set_activated_callback, Rtable_set_sort_callback
 // Rdate_picker_set_changed_callback, Rtime_picker_set_changed_callback, Rtoast_set_action_callback
 // Rbreadcrumb_set_clicked_callback, Rrating_set_changed_callback, Rpagination_set_changed_callback
 // Rplot_set_view_changed_callback, Rplot_set_drag_line_callback, Rplot_set_series_toggled_callback
 // Rtext_editor_set_zoom_callback, Rlanguage_register, Rlanguage_get, Rtext_editor_set_completion_callback
-// Rtext_editor_set_changed_callback, Rdock_area_set_close_callback, Rdock_area_set_changed_callback
-// Risland_set_changed_callback, Rtaskbar_set_jump_list, Rtray_set_icon, Rtray_set_clicked_callback
-// Rcolor_picker_set_changed_callback, Rtimeline_set_time_callback, Rtimeline_set_changed_callback
-// Rtimeline_set_selection_callback, Rtimeline_set_activated_callback, Rtimeline_set_removed_callback
-// Rnode_graph_set_node_user_data, Rnode_graph_get_node_user_data, Rnode_graph_set_connect_callback
-// Rnode_graph_set_linked_callback, Rnode_graph_set_unlinked_callback, Rnode_graph_set_moved_callback
-// Rnode_graph_set_selection_callback, Rnode_graph_set_removed_callback, Rnode_graph_set_activated_callback
-// Rnode_graph_set_context_callback, Rblock_editor_set_changed_callback, Rblock_editor_set_clicked_callback
-// Rblock_editor_set_context_callback, Rdialog_open, Rfile_dialog_open, Rfile_dialog_save
-// Rfile_dialog_select_folder, Rfile_read, Rfile_browser_set_filters, Rfile_browser_set_accepted_callback
-// Rfile_browser_set_cancelled_callback, Rfile_browser_set_selection_changed_callback
-// Rnotification_set_fallback, Rnotification_set_clicked_callback, Rviewport_set_draw_callback
-// Rviewport_get_native_handle, Rviewport_set_resize_callback, Rcustom_set_paint_callback
-// Rcustom_set_measure_callback, Rdraw_rect, Rdraw_rect_outline, Rdraw_circle, Rdraw_line, Rdraw_curve
-// Rdraw_triangle, Rdraw_image, Rdraw_text, Rdraw_glass, Rdraw_spring, Rspring_kick, Rspring_set
-// Rdraw_push_clip_rect, Rdraw_pop_clip_rect, Reffect_get_defaults, Rshader_look_init, Rshader_look_defaults
-// Rdraw_shader, Rborder_set_effect, Rxml_set_reload_callback, Rxml_register_tag, Rxml_document_parse
-// Rxml_get_attribute_info, Rlocale_set_changed_callback, Rtr_format, Raccessibility_get_system_settings
-// Rhost_platform_register
+// Rsnippet_add, Rtext_editor_set_changed_callback, Rdock_area_set_close_callback
+// Rdock_area_set_changed_callback, Risland_set_changed_callback, Rtaskbar_set_jump_list, Rtray_set_icon
+// Rtray_set_clicked_callback, Rcolor_picker_set_changed_callback, Rtimeline_set_time_callback
+// Rtimeline_set_changed_callback, Rtimeline_set_selection_callback, Rtimeline_set_activated_callback
+// Rtimeline_set_removed_callback, Rnode_graph_set_node_user_data, Rnode_graph_get_node_user_data
+// Rnode_graph_set_connect_callback, Rnode_graph_set_linked_callback, Rnode_graph_set_unlinked_callback
+// Rnode_graph_set_moved_callback, Rnode_graph_set_selection_callback, Rnode_graph_set_removed_callback
+// Rnode_graph_set_activated_callback, Rnode_graph_set_context_callback, Rblock_editor_set_changed_callback
+// Rblock_editor_set_clicked_callback, Rblock_editor_set_context_callback, Rdialog_open, Rfile_dialog_open
+// Rfile_dialog_save, Rfile_dialog_select_folder, Rfile_read, Rfile_browser_set_filters
+// Rfile_browser_set_accepted_callback, Rfile_browser_set_cancelled_callback
+// Rfile_browser_set_selection_changed_callback, Rnotification_set_fallback
+// Rnotification_set_clicked_callback, Rviewport_set_draw_callback, Rviewport_get_native_handle
+// Rviewport_set_resize_callback, Rcustom_set_paint_callback, Rcustom_set_measure_callback, Rdraw_rect
+// Rdraw_rect_outline, Rdraw_circle, Rdraw_line, Rdraw_curve, Rdraw_triangle, Rdraw_image, Rdraw_text
+// Rdraw_glass, Rdraw_spring, Rspring_kick, Rspring_set, Rdraw_push_clip_rect, Rdraw_pop_clip_rect
+// Rpdf_view_set_page_needed_callback, Rpdf_view_set_page_clicked_callback, Reffect_get_defaults
+// Rshader_look_init, Rshader_look_defaults, Rdraw_shader, Rborder_set_effect, Rxml_set_reload_callback
+// Rxml_register_tag, Rxml_document_parse, Rxml_get_attribute_info, Rlocale_set_changed_callback, Rtr_format
+// Rprocess_start, Rprocess_run, Rlatex_log_get_message, Rlatex_build_start
+// Raccessibility_get_system_settings, Rhost_platform_register

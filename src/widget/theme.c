@@ -13,6 +13,7 @@
 #include "../xml/xml.h"
 #include "../xml/xml_watch.h"
 #include "../render/renderer.h"
+#include "../core/fs.h"
 
 #define RVN_COLOR_INDEX(role) ((int)(role) - (int)R_COLOR_WINDOW)
 #define RVN_METRIC_INDEX(metric) ((int)(metric) - (int)R_METRIC_FONT_SIZE)
@@ -1289,6 +1290,63 @@ const char* Rtheme_get_name_at(int index) {
 	rvn_theme_builtins();
 	if (index < 0 || index >= (int)g_rvn.theme_count) return NULL;
 	return g_rvn.themes[index]->name;
+}
+
+/* "theme.<absolute path with forward slashes>" */
+static char* rvn_theme_project_key(const char* project_path) {
+	char* absolute;
+	char* key;
+	char* c;
+	if (!project_path || !project_path[0]) return NULL;
+	absolute = rvn_path_absolute(project_path);
+	if (!absolute) return NULL;
+	for (c = absolute; *c; c++) {
+		if (*c == '\\') *c = '/';
+	}
+	key = (char*)rvn_alloc(strlen(absolute) + 7);
+	sprintf(key, "theme.%s", absolute);
+	rvn_free(absolute);
+	return key;
+}
+
+int Rtheme_remember_for(Rid settings, const char* project_path, const char* theme_name) {
+	char* key;
+	RVN_API_GUARD(R_FALSE);
+	key = rvn_theme_project_key(project_path);
+	if (!key) return R_FALSE;
+	Rsettings_set_text(settings, key, theme_name && theme_name[0] ? theme_name : NULL);
+	rvn_free(key);
+	return R_TRUE;
+}
+
+const char* Rtheme_get_remembered(Rid settings, const char* project_path) {
+	char* key;
+	const char* name;
+	RVN_API_GUARD(NULL);
+	key = rvn_theme_project_key(project_path);
+	if (!key) return NULL;
+	name = Rsettings_get_text(settings, key, NULL);
+	rvn_free(key);
+	return name;
+}
+
+int Rtheme_apply_remembered(Rid settings, const char* project_path) {
+	char* key;
+	char* name;
+	int applied;
+	RVN_API_GUARD(R_FALSE);
+	key = rvn_theme_project_key(project_path);
+	if (!key) return R_FALSE;
+	name = rvn_strdup(Rsettings_get_text(settings, key, NULL));
+	rvn_free(key);
+	if (!name || !name[0]) {
+		rvn_free(name);
+		return R_FALSE;
+	}
+	/* Rtheme_use only changes the theme when it knows the name */
+	applied = Rtheme_use(name);
+	rvn_free(name);
+	return applied;
 }
 
 int Rtheme_save(const char* path, const char* name) {

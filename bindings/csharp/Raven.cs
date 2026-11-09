@@ -976,6 +976,10 @@ namespace Raven
         /// Curves of X / Y data: legend, line styles, markers, log axes, a second X and Y axis, pan and zoom.
         /// </summary>
         R_WIDGET_PLOT = 0x0232,
+        /// <summary>
+        /// The pages of a document, rendered by the application: zoom, scroll, page navigation.
+        /// </summary>
+        R_WIDGET_PDF_VIEW = 0x0233,
     }
 
     public enum RHAlign : int
@@ -1326,6 +1330,17 @@ namespace Raven
         /// and titles in bold: what will be formatted is seen while typing.
         /// </summary>
         R_LANGUAGE_FORMATTED_TEXT = 0x0080,
+        /// <summary>
+        /// TeX and LaTeX: a backslash starts a command, a percent sign starts a
+        /// comment that ends with its line, $...$ is mathematics. A line that
+        /// ends with \begin{...} indents the next one, and \end{...} comes back.
+        /// </summary>
+        R_LANGUAGE_TEX = 0x0100,
+        /// <summary>
+        /// BibTeX: @type{key, field = {value}}. The entries and their fields are
+        /// colored, and a citation key is a word of its own.
+        /// </summary>
+        R_LANGUAGE_BIBTEX = 0x0200,
     }
 
     /// <summary>
@@ -1376,6 +1391,24 @@ namespace Raven
         R_MARKER_ERROR = 0x0350,
         R_MARKER_WARNING = 0x0351,
         R_MARKER_INFO = 0x0352,
+    }
+
+    [Flags]
+    public enum RSearchFlags : int
+    {
+        R_SEARCH_NONE = 0,
+        /// <summary>
+        /// A regular expression, in the syntax of the editor: see raven_text_editor.h.
+        /// </summary>
+        R_SEARCH_REGEX = 1,
+        /// <summary>
+        /// Case is ignored (and, with R_SEARCH_REGEX, the pattern is not sensitive to case).
+        /// </summary>
+        R_SEARCH_IGNORE_CASE = 2,
+        /// <summary>
+        /// Only whole words match ("cat" does not match "concatenate").
+        /// </summary>
+        R_SEARCH_WHOLE_WORD = 4,
     }
 
     /// <summary>
@@ -1588,6 +1621,25 @@ namespace Raven
     }
 
     /// <summary>
+    /// How the view keeps the pages in its place when it is resized.
+    /// </summary>
+    public enum RPdfFit : int
+    {
+        /// <summary>
+        /// The zoom given is used as it is (the default).
+        /// </summary>
+        R_PDF_FIT_NONE = 0x0570,
+        /// <summary>
+        /// The zoom follows the width of the view, with a scrollbar for the height.
+        /// </summary>
+        R_PDF_FIT_WIDTH = 0x0571,
+        /// <summary>
+        /// The zoom follows the width or the height, whichever is smaller: the whole page shows.
+        /// </summary>
+        R_PDF_FIT_PAGE = 0x0572,
+    }
+
+    /// <summary>
     /// The effects that come with Raven (Reffect_get).
     /// </summary>
     public enum REffect : int
@@ -1677,6 +1729,71 @@ namespace Raven
         /// Texts separated by '|': "One|Two|Three".
         /// </summary>
         R_XML_LIST = 0x03C8,
+    }
+
+    /// <summary>
+    /// What a key holds.
+    /// </summary>
+    public enum RSettingType : int
+    {
+        /// <summary>
+        /// No such key, or a value that is an object, an array or null.
+        /// </summary>
+        R_SETTING_NONE = 0x0300,
+        R_SETTING_BOOL = 0x0301,
+        R_SETTING_INT = 0x0302,
+        R_SETTING_NUMBER = 0x0303,
+        R_SETTING_TEXT = 0x0304,
+    }
+
+    public enum RProcessState : int
+    {
+        /// <summary>
+        /// Started, its output is still being read.
+        /// </summary>
+        R_PROCESS_RUNNING = 0x0400,
+        /// <summary>
+        /// Ended by itself: Rprocess_get_exit_code says how.
+        /// </summary>
+        R_PROCESS_EXITED = 0x0401,
+        /// <summary>
+        /// Could not be run at all (not found, no permission): the exit code is -1.
+        /// </summary>
+        R_PROCESS_FAILED = 0x0402,
+    }
+
+    /// <summary>
+    /// What a line of a log is worth to an editor.
+    /// </summary>
+    public enum RLogKind : int
+    {
+        /// <summary>
+        /// TeX stopped here ("! Undefined control sequence.").
+        /// </summary>
+        R_LOG_ERROR = 0x0500,
+        /// <summary>
+        /// Something that may be wrong (an undefined reference, a font substitution).
+        /// </summary>
+        R_LOG_WARNING = 0x0501,
+        /// <summary>
+        /// Neither: a file opened, the pages written, how much memory TeX used.
+        /// </summary>
+        R_LOG_INFO = 0x0502,
+        /// <summary>
+        /// Overfull or underfull \hbox or \vbox: not an error, but the page will show it.
+        /// </summary>
+        R_LOG_BAD_BOX = 0x0503,
+    }
+
+    /// <summary>
+    /// The engines an editor offers. All of them take the same command line.
+    /// </summary>
+    [Flags]
+    public enum RLatexEngine : int
+    {
+        R_LATEX_PDFLATEX = 0,
+        R_LATEX_XELATEX = 1,
+        R_LATEX_LUALATEX = 2,
     }
 
     public enum RColorFilter : int
@@ -2294,6 +2411,43 @@ namespace Raven
         /// NULL: JavaScript, as in HTML.
         /// </summary>
         public IntPtr script_language;
+        /// <summary>
+        /// Characters that belong to a name besides letters, digits and the
+        /// underscore: "\\" for TeX commands (so that completing "\\sec" proposes
+        /// "\\section", and a command is one word), "-" and ":" for the names of
+        /// a BibTeX entry. NULL keeps the usual ones.
+        /// </summary>
+        public IntPtr word_characters;
+    }
+
+    /// <summary>
+    /// A block of text typed by a name.
+    /// 
+    /// The body may hold `$1` .. `$9` (places the caret goes to, in order,
+    /// with Tab) and `$0` (where the caret ends), the same place twice to
+    /// edit the two copies at once, `${1:text}` for a place with a text
+    /// selected, and `$NAME` for a variable given here (date, author...).
+    /// `\t` and `\n` in the body are a tab and a line break.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RSnippet
+    {
+        /// <summary>
+        /// The word that is typed and replaced ("sec", "fig"...). Case is ignored.
+        /// </summary>
+        public IntPtr name;
+        /// <summary>
+        /// What the snippet is, shown in the list ("Section"). May be NULL.
+        /// </summary>
+        public IntPtr description;
+        /// <summary>
+        /// A few words before the caret that make the snippet apply ("\\begin{", "\\"). May be NULL.
+        /// </summary>
+        public IntPtr prefix;
+        /// <summary>
+        /// The text it types, with its places.
+        /// </summary>
+        public IntPtr body;
     }
 
     /// <summary>
@@ -2514,6 +2668,102 @@ namespace Raven
         /// One line saying what it does.
         /// </summary>
         public IntPtr description;
+    }
+
+    /// <summary>
+    /// What to run and how. A zero-initialized structure is a valid, empty description.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RProcessDesc
+    {
+        /// <summary>
+        /// "latexmk", or an absolute path. Looked up in PATH when it has no separator.
+        /// </summary>
+        public IntPtr program;
+        /// <summary>
+        /// NULL-terminated argv, NOT including argv[0]. May be NULL.
+        /// </summary>
+        public IntPtr arguments;
+        /// <summary>
+        /// How many arguments there are, argv[0] not counted. 0 = count them up to the NULL.
+        /// </summary>
+        public int argument_count;
+        /// <summary>
+        /// NULL = the current one.
+        /// </summary>
+        public IntPtr working_directory;
+        /// <summary>
+        /// R_TRUE: stderr goes to the same stream as stdout, which is what a
+        /// build log wants (the warnings of a compiler are as interesting as
+        /// its errors, and the order between them is kept).
+        /// </summary>
+        public int merge_stderr;
+    }
+
+    /// <summary>
+    /// One diagnostic of a log. The strings belong to the list: copy them to keep them.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RLogMessage
+    {
+        public RLogKind kind;
+        /// <summary>
+        /// The file as the log writes it (often "./chapter.tex"), or NULL.
+        /// </summary>
+        public IntPtr file;
+        /// <summary>
+        /// The line, or 0 when the log does not say.
+        /// </summary>
+        public int line;
+        /// <summary>
+        /// One line, trimmed: "Undefined control sequence."
+        /// </summary>
+        public IntPtr message;
+        /// <summary>
+        /// The lines TeX printed around it (what the error happened in, what
+        /// follows), or NULL. Several lines, separated by '\n'.
+        /// </summary>
+        public IntPtr context;
+    }
+
+    /// <summary>
+    /// What to build. A zero-initialized structure builds `root_file` with
+    /// pdflatex, once; an editor usually sets `use_latexmk` too.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RLatexBuildDesc
+    {
+        /// <summary>
+        /// Path to the main .tex: its folder is the working directory, its name gives the .pdf and the .log.
+        /// </summary>
+        public IntPtr root_file;
+        public RLatexEngine engine;
+        /// <summary>
+        /// R_TRUE runs latexmk, which does the several passes LaTeX needs (a
+        /// table of contents, references); R_FALSE runs the engine once. Since
+        /// R_FALSE is 0, a zero-initialized structure runs the engine once.
+        /// </summary>
+        public int use_latexmk;
+        /// <summary>
+        /// R_TRUE adds -shell-escape: the document may run programs of its own.
+        /// </summary>
+        public int shell_escape;
+        /// <summary>
+        /// For tests and unusual tools: the program that runs instead of the
+        /// engine and latexmk, with its arguments in `arguments_override`
+        /// (NULL-terminated, without argv[0]). The working directory is still
+        /// the folder of the root file.
+        /// </summary>
+        public IntPtr command_override;
+        public IntPtr arguments_override;
+        /// <summary>
+        /// How many there are. 0 = count them up to the NULL.
+        /// </summary>
+        public int arguments_override_count;
+        /// <summary>
+        /// For tests: the log to read when the process ends, instead of the one guessed from the root file.
+        /// </summary>
+        public IntPtr log_path_override;
     }
 
     /// <summary>
@@ -2986,6 +3236,23 @@ namespace Raven
     public delegate void RMeasureCallback(uint widget, ref float width, ref float height, IntPtr user_data);
 
     /// <summary>
+    /// Called when a page must be rendered, with `scale` pixels per
+    /// point (the zoom, times the scale of the window) and the index of the
+    /// page. It may call Rpdf_view_set_page_bitmap from inside. A page is
+    /// asked for once while it stays visible at a given scale; it is asked for
+    /// again when the scale changes by more than 1 % or when it comes back
+    /// into view.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RPdfPageNeededCallback(uint pdf_view, int page, float scale, IntPtr user_data);
+
+    /// <summary>
+    /// Called when the user clicks on a page. This also fires the action of the widget.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RPdfPageClickedCallback(uint pdf_view, int page, float page_x, float page_y, IntPtr user_data);
+
+    /// <summary>
     /// Called each time a file was loaded again.
     /// path The file given when the interface was created.
     /// ok   R_FALSE when the file could not be used (the interface is unchanged).
@@ -3016,6 +3283,24 @@ namespace Raven
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void RLocaleChangedCallback(IntPtr language, IntPtr user_data);
+
+    /// <summary>
+    /// A piece of output, as it arrives. `text` is not null-terminated. Runs on the UI thread.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RProcessOutputCallback(IntPtr text, UIntPtr length, int is_stderr, IntPtr user_data);
+
+    /// <summary>
+    /// The process ended. `failed` is R_TRUE when it could not be run at all. Runs on the UI thread.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RProcessExitCallback(int exit_code, int failed, IntPtr user_data);
+
+    /// <summary>
+    /// Called on the UI thread when a build ended. `success` is R_TRUE when the process exited with 0.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RLatexBuildFinishedCallback(uint build, int success, IntPtr user_data);
 
     public static class R
     {
@@ -3280,6 +3565,19 @@ namespace Raven
 
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rget_animations_enabled();
+
+        /// <summary>
+        /// R_TRUE: the highlight that follows the selection in lists, tables
+        /// and trees moves with a spring; R_FALSE (the default) it is there at once,
+        /// which is what a list that follows the pointer needs. A window resize and
+        /// the text caret are never animated: they follow the input exactly.
+        /// XML and theme files cannot set it.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rset_selection_animation(int enabled);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rget_selection_animation();
 
         /// <summary>
         /// Multiplies the speed of every animation. 1 is the default, 0.25 a slow motion.
@@ -3924,6 +4222,56 @@ namespace Raven
         public static extern void Rwindow_unregister_shortcut(uint window, RKey key, uint modifiers);
 
         /// <summary>
+        /// Registers a whole set of shortcuts from a text, as a preferences
+        /// window writes it:
+        /// 
+        ///     "Ctrl+S save | Ctrl+Shift+S save_as | F5 build | Ctrl+K,Ctrl+B clear"
+        /// 
+        /// Entries are separated by '|'. The key or the keys come first, then the
+        /// action name (Raction_bind). An entry whose action is empty unbinds that
+        /// key. Several chords separated by commas are a sequence: only the first
+        /// chord is bound for now (the others are parsed and ignored).
+        /// Returns: How many shortcuts were registered (unbound ones included).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rwindow_set_keybindings(uint window, [MarshalAs(Utf8.Str)] string bindings);
+
+        /// <summary>
+        /// Parses one key name to a key and its modifiers: "Ctrl+S",
+        /// "Ctrl+Shift+S", "F5", "PageUp", "Escape", "A". The modifiers are
+        /// Ctrl, Shift, Alt and Super (Cmd and Win are accepted for Super).
+        /// Returns: R_FALSE when the name is not a key.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rkey_from_name([MarshalAs(Utf8.Str)] string name, out RKey key, out uint modifiers);
+
+        /// <summary>
+        /// The reverse, for showing a shortcut: "Ctrl+S". Super is written
+        /// "Super" (the menus show it too).
+        /// Returns: NULL when the key has no name. Valid until the next call.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rkey_to_name", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rkey_to_name_(RKey key, uint modifiers);
+        public static string Rkey_to_name(RKey key, uint modifiers) { return Text(Rkey_to_name_(key, modifiers)); }
+
+        /// <summary>
+        /// How many shortcuts the window has (Rwindow_register_shortcut).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rwindow_get_shortcut_count(uint window);
+
+        /// <summary>
+        /// Reads the index-th shortcut of the window, for a preferences
+        /// window that lists them.
+        /// action Receives the name of the action; may be NULL. Valid until
+        /// the next call of this function (or until the window changes its
+        /// shortcuts).
+        /// Returns: R_FALSE when `index` is out of range.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rwindow_get_shortcut(uint window, int index, out RKey key, out uint modifiers, out IntPtr action);
+
+        /// <summary>
         /// The settings every window follows, unless it has its own.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
@@ -4247,6 +4595,34 @@ namespace Raven
         [DllImport(Lib, EntryPoint = "Rtheme_get_name_at", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr Rtheme_get_name_at_(int index);
         public static string Rtheme_get_name_at(int index) { return Text(Rtheme_get_name_at_(index)); }
+
+        /// <summary>
+        /// Remembers the theme of a project folder, so that opening the
+        /// project again gives it its look back. The store is the one the
+        /// application owns (Rsettings_open(app, "sessions.json") or its own): the
+        /// library keeps no file of its own.
+        /// 
+        /// The key is "theme." followed by the absolute, normalised path of the
+        /// project (forward slashes).
+        /// Returns: R_FALSE when there is no store or when the path is empty.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtheme_remember_for(uint settings, [MarshalAs(Utf8.Str)] string project_path, [MarshalAs(Utf8.Str)] string theme_name);
+
+        /// <summary>
+        /// The theme remembered for a project, or NULL. Valid until the store changes.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rtheme_get_remembered", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rtheme_get_remembered_(uint settings, [MarshalAs(Utf8.Str)] string project_path);
+        public static string Rtheme_get_remembered(uint settings, string project_path) { return Text(Rtheme_get_remembered_(settings, project_path)); }
+
+        /// <summary>
+        /// Applies the theme remembered for a project (Rtheme_use).
+        /// Returns: R_TRUE when one was remembered and Rtheme_use accepted it. When
+        /// it did not, the theme in use is left as it was.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtheme_apply_remembered(uint settings, [MarshalAs(Utf8.Str)] string project_path);
 
         /// <summary>
         /// Writes the theme in use, with every change made since it was
@@ -6737,6 +7113,231 @@ namespace Raven
         public static extern int Rtext_editor_get_marker_count(uint editor);
 
         /// <summary>
+        /// The line, the columns and the kind of a marker, by index (0 ..
+        /// Rtext_editor_get_marker_count - 1).
+        /// Returns: The message of the marker, or NULL when `index` is out of range.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rtext_editor_get_marker", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rtext_editor_get_marker_(uint editor, int index, out int line, out int from_column, out int to_column, out RMarkerKind kind);
+        public static string Rtext_editor_get_marker(uint editor, int index, out int line, out int from_column, out int to_column, out RMarkerKind kind) { return Text(Rtext_editor_get_marker_(editor, index, out line, out from_column, out to_column, out kind)); }
+
+        /// <summary>
+        /// Removes the markers of one line and adds a list, as a compiler's report does.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_clear_markers_of_line(uint editor, int line);
+
+        /// <summary>
+        /// Sets what is looked for, from now on. An empty pattern clears it.
+        /// The flags are a bitmask of RSearchFlags. Invalid regular expressions are
+        /// reported and leave the search as it was.
+        /// Returns: R_TRUE when the pattern was taken.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_set_search(uint editor, [MarshalAs(Utf8.Str)] string pattern, uint flags);
+
+        [DllImport(Lib, EntryPoint = "Rtext_editor_get_search", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rtext_editor_get_search_(uint editor);
+        public static string Rtext_editor_get_search(uint editor) { return Text(Rtext_editor_get_search_(editor)); }
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rtext_editor_get_search_flags(uint editor);
+
+        /// <summary>
+        /// The next match after the caret (or before it, with
+        /// `backwards`), selected; the text is scrolled to it. It wraps around
+        /// the ends of the text. R_FALSE when nothing matches.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_find_next(uint editor, int backwards);
+
+        /// <summary>
+        /// How many places match the search.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_count_matches(uint editor);
+
+        /// <summary>
+        /// Where a match is, by index (0 .. count - 1): its start and its end. R_FALSE when out of range.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_get_match(uint editor, int index, out int from_line, out int from_column, out int to_line, out int to_column);
+
+        /// <summary>
+        /// Replaces the current match (the selection, when it is one) and
+        /// goes to the next one. R_FALSE when there is nothing to replace.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_replace(uint editor, [MarshalAs(Utf8.Str)] string text);
+
+        /// <summary>
+        /// Replaces every match, as one step of the history. Returns: How many were replaced.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_replace_all(uint editor, [MarshalAs(Utf8.Str)] string text);
+
+        /// <summary>
+        /// The text of a replacement where `$1` .. `$9`, `${name}`, `$&amp;`
+        /// (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
+        /// with `matches`, the groups of the regex that matched. Pure: no editor needed.
+        /// Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rtext_editor_expand_replacement", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rtext_editor_expand_replacement_([MarshalAs(Utf8.Str)] string replacement, [MarshalAs(Utf8.Str)] string text, int from, int to, int[] groups, int group_count);
+        public static string Rtext_editor_expand_replacement(string replacement, string text, int from, int to, int[] groups, int group_count) { return Text(Rtext_editor_expand_replacement_(replacement, text, from, to, groups, group_count)); }
+
+        /// <summary>
+        /// R_TRUE (the default): with a language whose blocks can be folded
+        /// (braces, brackets, \begin{...} ... \end{...}, &lt;tag&gt; ... &lt;/tag&gt;,
+        /// Markdown titles), a small arrow in the margin collapses the block;
+        /// Ctrl+Shift+[ and Ctrl+Shift+] fold and unfold the block of the caret.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_set_folding(uint editor, int enabled);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_get_folding(uint editor);
+
+        /// <summary>
+        /// Folds the block of the caret (the one that holds it), or unfolds it. R_FALSE when there is none.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_toggle_fold(uint editor);
+
+        /// <summary>
+        /// Folds or unfolds the block that starts on a line (an opening brace, \begin, a title).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_fold_line(uint editor, int line);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_unfold_line(uint editor, int line);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_is_folded(uint editor, int line);
+
+        /// <summary>
+        /// Unfolds everything, and forgets the folded blocks.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_unfold_all(uint editor);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_get_folded_count(uint editor);
+
+        /// <summary>
+        /// The first line of a folded block that holds `line` (the block's
+        /// own line), or -1 when the line is not hidden by any fold.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_get_fold_start(uint editor, int line);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsnippet_add(ref RSnippet snippet);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsnippet_add(IntPtr snippet);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rsnippet_clear();
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsnippet_get_count();
+
+        [DllImport(Lib, EntryPoint = "Rsnippet_get_name", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rsnippet_get_name_(int index);
+        public static string Rsnippet_get_name(int index) { return Text(Rsnippet_get_name_(index)); }
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsnippet_find([MarshalAs(Utf8.Str)] string name);
+
+        /// <summary>
+        /// Types the snippet at the caret, replacing the word before it
+        /// when that word is its name. Sets the places; Tab and Shift+Tab walk
+        /// them, Escape leaves them.
+        /// Returns: R_FALSE when the editor is read-only or the snippet is unknown.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_insert_snippet(uint editor, [MarshalAs(Utf8.Str)] string name);
+
+        /// <summary>
+        /// The snippet whose name is what is being typed before the caret, or -1.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_snippet_at_caret(uint editor);
+
+        /// <summary>
+        /// R_FALSE stops the editor from offering snippets while typing. On by default.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_set_snippet_completion(uint editor, int enabled);
+
+        /// <summary>
+        /// R_TRUE while Tab and Shift+Tab walk the places of a snippet that was inserted.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_is_in_snippet(uint editor);
+
+        /// <summary>
+        /// R_TRUE: Ctrl+click adds a caret where it is clicked, and every
+        /// caret is selected and typed at once (Alt+drag selects a column, and
+        /// Ctrl+D selects the next occurrence of the selection). Off by default.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_set_multi_cursor(uint editor, int enabled);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_get_multi_cursor(uint editor);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_get_caret_count(uint editor);
+
+        /// <summary>
+        /// Where a caret is, by index (0 is the main one, which typing and scrolling follow).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_get_caret(uint editor, int index, out int line, out int column);
+
+        /// <summary>
+        /// Adds a caret; the text at each of them is selected. R_FALSE when there are too many (256).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_add_caret(uint editor, int line, int column);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_clear_carets(uint editor);
+
+        /// <summary>
+        /// Selects the next occurrence of the selected text, with a caret of its own. R_FALSE when there is none.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_select_next_occurrence(uint editor);
+
+        /// <summary>
+        /// Returns: How many words the text has, as an editor counts them: runs of letters and digits.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_get_word_count(uint editor);
+
+        /// <summary>
+        /// Returns: The characters of the text, not the bytes (a UTF-8 code point counts one).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_get_character_count(uint editor);
+
+        /// <summary>
+        /// Returns: How many lines have something besides blanks.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_get_non_empty_line_count(uint editor);
+
+        /// <summary>
+        /// Returns: The line that holds the caret, from 1 (for a status bar).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_get_current_line(uint editor);
+
+        /// <summary>
         /// Color of a kind of token in the theme in use, instead of the
         /// one Raven picks for dark and for light themes. Theme files set them
         /// with &lt;Syntax Keyword="#FF7AB2" String="..."/&gt;.
@@ -8482,6 +9083,132 @@ namespace Raven
         public static extern void Rdraw_pop_clip_rect(IntPtr painter);
 
         /// <summary>
+        /// Creates an empty view. Give it its pages with Rpdf_view_set_page_count.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rpdf_view_create();
+
+        /// <summary>
+        /// Number of pages of the document. 0 pages clears the view: the
+        /// bitmaps are forgotten. New pages take the size of US Letter until
+        /// Rpdf_view_set_page_size gives them their own.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_page_count(uint pdf_view, int count);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rpdf_view_get_page_count(uint pdf_view);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_page_size(uint pdf_view, int page, float width, float height);
+
+        /// <summary>
+        /// The size of a page in points (1/72 inch); 0, 0 when there is no such page.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_get_page_size(uint pdf_view, int page, out float width, out float height);
+
+        /// <summary>
+        /// The RGBA pixels of a page, rendered at `scale` pixels per point
+        /// (2 fills a page drawn at zoom 2). The view keeps the texture and frees
+        /// nothing. R_INVALID_ID forgets the bitmap of that page, which then shows
+        /// as a placeholder again.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_page_bitmap(uint pdf_view, int page, uint texture, float scale);
+
+        /// <summary>
+        /// Returns: R_TRUE when that page has a bitmap.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rpdf_view_has_page_bitmap(uint pdf_view, int page);
+
+        /// <summary>
+        /// The current page, from 0: it becomes the first one in view.
+        /// Rpdf_view_set_page scrolls so that the page starts at the top.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_page(uint pdf_view, int page);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rpdf_view_get_page(uint pdf_view);
+
+        /// <summary>
+        /// Returns: The first and the last page whose rectangle is in the view, or 0 when there is none.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rpdf_view_get_visible_first_page(uint pdf_view);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rpdf_view_get_visible_last_page(uint pdf_view);
+
+        /// <summary>
+        /// Zoom in pixels per point: 1 = 72 dpi (0.05 .. 16, clamped).
+        /// Setting it leaves the fit mode. Rpdf_view_set_fit sets a mode that
+        /// keeps following the size of the view.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_zoom(uint pdf_view, float zoom);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern float Rpdf_view_get_zoom(uint pdf_view);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_fit(uint pdf_view, RPdfFit fit);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern RPdfFit Rpdf_view_get_fit(uint pdf_view);
+
+        /// <summary>
+        /// Space between pages, and around them, in points (default 16).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_page_gap(uint pdf_view, float gap);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern float Rpdf_view_get_page_gap(uint pdf_view);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_page_needed_callback(uint pdf_view, RPdfPageNeededCallback callback, IntPtr user_data);
+
+        /// <summary>
+        /// The page and the point of the page (in points, from its top-left
+        /// corner) under a point of the widget, for SyncTeX inverse search.
+        /// Returns: R_FALSE outside a page.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rpdf_view_get_page_at(uint pdf_view, float x, float y, out int page, out float page_x, out float page_y);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_page_clicked_callback(uint pdf_view, RPdfPageClickedCallback callback, IntPtr user_data);
+
+        /// <summary>
+        /// Asks for one page to be painted again, once its bitmap has arrived.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_invalidate_page(uint pdf_view, int page);
+
+        /// <summary>
+        /// Scrolls so that a point of a page is in the middle of the view (SyncTeX forward search).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_scroll_to_position(uint pdf_view, int page, float page_x, float page_y);
+
+        /// <summary>
+        /// A rectangle of a page to show, in points from its top-left corner
+        /// (where the source of what is selected is, in a forward search): one per
+        /// view. A negative page removes it.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_highlight(uint pdf_view, int page, float x, float y, float width, float height);
+
+        /// <summary>
+        /// Color behind the pages; the theme's by default (Rwidget_clear_color brings it back).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_background_color(uint pdf_view, float r, float g, float b, float a);
+
+        /// <summary>
         /// A shader from SPIR-V code (a fragment shader written with
         /// raven_effect.glsl, as in a .spv file): `size` bytes, copied. R_INVALID_ID
         /// when the code is not SPIR-V; a backend that refuses it reports an error
@@ -9087,6 +9814,396 @@ namespace Raven
         [DllImport(Lib, EntryPoint = "Rlocale_format_number", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr Rlocale_format_number_(double value, int decimals);
         public static string Rlocale_format_number(double value, int decimals) { return Text(Rlocale_format_number_(value, decimals)); }
+
+        /// <summary>
+        /// Opens a settings store.
+        /// path File the store is read from and written to, or NULL for a
+        /// store that lives in memory only. The file is read when it exists.
+        /// Returns: The store, or R_INVALID_ID (after reporting an error).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rsettings_create([MarshalAs(Utf8.Str)] string path);
+
+        /// <summary>
+        /// Frees a store. Rshutdown frees the stores the application left alive.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rsettings_destroy(uint settings);
+
+        /// <summary>
+        /// Reads the file of the store again, replacing everything it holds.
+        /// Returns: R_TRUE when the file existed and was valid JSON. When it did not,
+        /// the store is emptied (a store with no file stays empty).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsettings_load(uint settings);
+
+        /// <summary>
+        /// Writes the store to its file: a temporary file next to it, then a
+        /// rename, so a reader never sees half a file. The folder is created when
+        /// it does not exist.
+        /// Returns: R_FALSE when the store has no file or when the file could not be
+        /// written.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsettings_save(uint settings);
+
+        /// <summary>
+        /// Path of the file of the store ("" for a store that lives in memory only).
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rsettings_get_path", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rsettings_get_path_(uint settings);
+        public static string Rsettings_get_path(uint settings) { return Text(Rsettings_get_path_(settings)); }
+
+        /// <summary>
+        /// Returns: What the key holds, R_SETTING_NONE when it is not there (or holds an object, an array or null).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern RSettingType Rsettings_get_type(uint settings, [MarshalAs(Utf8.Str)] string key);
+
+        /// <summary>
+        /// The value of the key; `fallback` when it is missing or holds another type.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsettings_get_bool(uint settings, [MarshalAs(Utf8.Str)] string key, int fallback);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsettings_get_int(uint settings, [MarshalAs(Utf8.Str)] string key, int fallback);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern double Rsettings_get_number(uint settings, [MarshalAs(Utf8.Str)] string key, double fallback);
+
+        /// <summary>
+        /// Valid until the store changes. NULL only when the key is missing and `fallback` is NULL.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rsettings_get_text", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rsettings_get_text_(uint settings, [MarshalAs(Utf8.Str)] string key, [MarshalAs(Utf8.Str)] string fallback);
+        public static string Rsettings_get_text(uint settings, string key, string fallback) { return Text(Rsettings_get_text_(settings, key, fallback)); }
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rsettings_set_bool(uint settings, [MarshalAs(Utf8.Str)] string key, int value);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rsettings_set_int(uint settings, [MarshalAs(Utf8.Str)] string key, int value);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rsettings_set_number(uint settings, [MarshalAs(Utf8.Str)] string key, double value);
+
+        /// <summary>
+        /// An empty text stores ""; a NULL text removes the key.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rsettings_set_text(uint settings, [MarshalAs(Utf8.Str)] string key, [MarshalAs(Utf8.Str)] string value);
+
+        /// <summary>
+        /// Removes a key. R_TRUE when it was there.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsettings_remove(uint settings, [MarshalAs(Utf8.Str)] string key);
+
+        /// <summary>
+        /// R_TRUE when the key is there, whatever it holds.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsettings_has(uint settings, [MarshalAs(Utf8.Str)] string key);
+
+        /// <summary>
+        /// The whole document as text, for a project file that holds arrays
+        /// and objects too. Valid until the store changes or the function is called
+        /// again. "" when the store is empty.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rsettings_get_json", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rsettings_get_json_(uint settings);
+        public static string Rsettings_get_json(uint settings) { return Text(Rsettings_get_json_(settings)); }
+
+        /// <summary>
+        /// Replaces the whole document.
+        /// Returns: R_FALSE when `json` is not valid JSON: the store is not changed.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsettings_set_json(uint settings, [MarshalAs(Utf8.Str)] string json);
+
+        /// <summary>
+        /// How many keys the object at `prefix` has ("" for the whole
+        /// document), or how many items the array at `prefix` has. 0 when there is
+        /// nothing there.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsettings_get_key_count(uint settings, [MarshalAs(Utf8.Str)] string prefix);
+
+        /// <summary>
+        /// The index-th key of the object at `prefix` ("" for the whole
+        /// document), or the index-th item of an array as "0", "1"... NULL when
+        /// `index` is out of range. Valid until the next call of this function
+        /// that returns a key.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rsettings_get_key", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rsettings_get_key_(uint settings, [MarshalAs(Utf8.Str)] string prefix, int index);
+        public static string Rsettings_get_key(uint settings, string prefix, int index) { return Text(Rsettings_get_key_(settings, prefix, index)); }
+
+        /// <summary>
+        /// The folder where the settings of the application live:
+        /// ~/.config/&lt;app&gt; ($XDG_CONFIG_HOME honoured),
+        /// ~/Library/Application Support/&lt;app&gt; on macOS,
+        /// %APPDATA%\&lt;app&gt; on Windows. Created when it does not exist; valid until
+        /// the next call from the same thread.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rsettings_get_config_folder", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rsettings_get_config_folder_([MarshalAs(Utf8.Str)] string app_name);
+        public static string Rsettings_get_config_folder(string app_name) { return Text(Rsettings_get_config_folder_(app_name)); }
+
+        /// <summary>
+        /// The folder for what can be made again (caches), by the same rules.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rsettings_get_cache_folder", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rsettings_get_cache_folder_([MarshalAs(Utf8.Str)] string app_name);
+        public static string Rsettings_get_cache_folder(string app_name) { return Text(Rsettings_get_cache_folder_(app_name)); }
+
+        /// <summary>
+        /// Opens &lt;config folder&gt;/&lt;file_name&gt; for the application, creating
+        /// the folder when needed. Rsettings_open("myeditor", "sessions.json").
+        /// Returns: R_INVALID_ID when the folder or the file cannot be opened.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rsettings_open([MarshalAs(Utf8.Str)] string app_name, [MarshalAs(Utf8.Str)] string file_name);
+
+        /// <summary>
+        /// Starts a program and returns at once.
+        /// desc What to run. Copied: the strings may be freed after the call.
+        /// output Called for every piece of output, or NULL. May be called
+        /// several times, and not at all for a program that prints nothing.
+        /// exited Called once when the program ends, or NULL.
+        /// user_data Passed to both callbacks.
+        /// Returns: The process, or R_INVALID_ID when it could not even be started
+        /// (an empty description, no Raven). A program that does not exist is
+        /// reported through `exited` with failed set, not here.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rprocess_start(ref RProcessDesc desc, RProcessOutputCallback output, RProcessExitCallback exited, IntPtr user_data);
+
+        /// <summary>
+        /// Starts a program and returns at once.
+        /// desc What to run. Copied: the strings may be freed after the call.
+        /// output Called for every piece of output, or NULL. May be called
+        /// several times, and not at all for a program that prints nothing.
+        /// exited Called once when the program ends, or NULL.
+        /// user_data Passed to both callbacks.
+        /// Returns: The process, or R_INVALID_ID when it could not even be started
+        /// (an empty description, no Raven). A program that does not exist is
+        /// reported through `exited` with failed set, not here.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rprocess_start(IntPtr desc, RProcessOutputCallback output, RProcessExitCallback exited, IntPtr user_data);
+
+        /// <summary>
+        /// Returns: R_TRUE while the program runs.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rprocess_is_running(uint process);
+
+        /// <summary>
+        /// Returns: The exit code, or -1 while the program runs and when it could not be run.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rprocess_get_exit_code(uint process);
+
+        /// <summary>
+        /// Returns: R_PROCESS_RUNNING, R_PROCESS_EXITED or R_PROCESS_FAILED.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern RProcessState Rprocess_get_state(uint process);
+
+        /// <summary>
+        /// Asks the program to stop (SIGTERM on POSIX, TerminateProcess on
+        /// Windows), waits a moment, then kills it, and returns once its output has
+        /// been read to the end. The exit callback still runs, during a frame.
+        /// Does nothing when the program already ended.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rprocess_cancel(uint process);
+
+        /// <summary>
+        /// Blocks until the program ends. For tests and shutdown: never call
+        /// it from the UI thread of a running application.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rprocess_wait(uint process);
+
+        /// <summary>
+        /// Returns: R_TRUE when the program is found (PATH lookup only).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rprocess_is_available([MarshalAs(Utf8.Str)] string program);
+
+        /// <summary>
+        /// Finds a program without running it.
+        /// Returns: An absolute path (in a buffer of the library, valid until the
+        /// next call), or NULL when it is nowhere. A program with a separator in it
+        /// is checked as given. The usual install folders of TeX are searched too,
+        /// after PATH: /Library/TeX/texbin, /usr/local/texlive/ * /bin/ *,
+        /// /opt/homebrew/bin, C:\\texlive\\ * \\bin\\windows and the bin folder of
+        /// MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rprocess_find", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rprocess_find_([MarshalAs(Utf8.Str)] string program);
+        public static string Rprocess_find(string program) { return Text(Rprocess_find_(program)); }
+
+        /// <summary>
+        /// Runs a program to the end and collects what it printed.
+        /// Blocking: for setup work (asking git for the state of a file, a tool for
+        /// its version), never for a build. The window is frozen meanwhile.
+        /// output Receives the output, NUL-terminated, allocated with the
+        /// allocator of Raven: free it with Rmemory_free. May be NULL.
+        /// size Receives its length, without the NUL. May be NULL.
+        /// max_bytes Longest output kept; 0 selects 4 MiB. What comes after
+        /// is read and dropped, so the program never blocks on a full pipe. A cut
+        /// never leaves half of a UTF-8 character.
+        /// Returns: The exit code, or -1 when the program could not be run.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr Rprocess_run(ref RProcessDesc desc, out UIntPtr size, UIntPtr max_bytes);
+
+        /// <summary>
+        /// Runs a program to the end and collects what it printed.
+        /// Blocking: for setup work (asking git for the state of a file, a tool for
+        /// its version), never for a build. The window is frozen meanwhile.
+        /// output Receives the output, NUL-terminated, allocated with the
+        /// allocator of Raven: free it with Rmemory_free. May be NULL.
+        /// size Receives its length, without the NUL. May be NULL.
+        /// max_bytes Longest output kept; 0 selects 4 MiB. What comes after
+        /// is read and dropped, so the program never blocks on a full pipe. A cut
+        /// never leaves half of a UTF-8 character.
+        /// Returns: The exit code, or -1 when the program could not be run.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr Rprocess_run(IntPtr desc, out UIntPtr size, UIntPtr max_bytes);
+
+        /// <summary>
+        /// Parses the text of a log.
+        /// log The bytes of the file; need not be NUL-terminated.
+        /// size Their number.
+        /// Returns: A list of messages, or R_INVALID_ID when the log has nothing
+        /// to report (a log with no diagnostic parses to no list at all).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rlatex_log_parse([MarshalAs(Utf8.Str)] string log, UIntPtr size);
+        public static uint Rlatex_log_parse(string log) { return Rlatex_log_parse(log, Utf8Length(log)); }
+
+        /// <summary>
+        /// Reads a log file and parses it. R_INVALID_ID when it cannot be read or has nothing to report.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rlatex_log_parse_file([MarshalAs(Utf8.Str)] string path);
+
+        /// <summary>
+        /// Returns: How many messages the list holds, or 0 for R_INVALID_ID.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rlatex_log_get_count(uint log);
+
+        /// <summary>
+        /// One message of the list.
+        /// message Receives the fields; its strings are owned by the list.
+        /// Returns: R_FALSE when `index` is out of range.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rlatex_log_get_message(uint log, int index, ref RLogMessage message);
+
+        /// <summary>
+        /// One message of the list.
+        /// message Receives the fields; its strings are owned by the list.
+        /// Returns: R_FALSE when `index` is out of range.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rlatex_log_get_message(uint log, int index, IntPtr message);
+
+        /// <summary>
+        /// Frees a list given by Rlatex_log_parse. Its messages are no longer valid.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rlatex_log_destroy(uint log);
+
+        /// <summary>
+        /// Starts a build and returns at once.
+        /// desc What to build; copied.
+        /// output Called with what the tool prints, as it prints it, on the
+        /// UI thread. May be NULL.
+        /// user_data Passed to `output`.
+        /// Returns: The build, or R_INVALID_ID when it cannot start (no root file).
+        /// When the process ends the log is parsed, then `finished` runs.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rlatex_build_start(ref RLatexBuildDesc desc, RProcessOutputCallback output, RLatexBuildFinishedCallback finished, IntPtr user_data);
+
+        /// <summary>
+        /// Starts a build and returns at once.
+        /// desc What to build; copied.
+        /// output Called with what the tool prints, as it prints it, on the
+        /// UI thread. May be NULL.
+        /// user_data Passed to `output`.
+        /// Returns: The build, or R_INVALID_ID when it cannot start (no root file).
+        /// When the process ends the log is parsed, then `finished` runs.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rlatex_build_start(IntPtr desc, RProcessOutputCallback output, RLatexBuildFinishedCallback finished, IntPtr user_data);
+
+        /// <summary>
+        /// Returns: R_TRUE while the tool runs.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rlatex_build_is_running(uint build);
+
+        /// <summary>
+        /// Stops the tool and waits for it. The messages parsed so far stay.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rlatex_build_cancel(uint build);
+
+        /// <summary>
+        /// The diagnostics of the last finished build, as a list that
+        /// belongs to the build: read it with Rlatex_log_get_message, and do not
+        /// destroy it. Valid until the build runs again or is destroyed.
+        /// Returns: The list, or R_INVALID_ID before the first build ends.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint Rlatex_build_get_messages(uint build);
+
+        /// <summary>
+        /// Returns: The .pdf the build wrote, or NULL when it wrote none. Owned by the build.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rlatex_build_get_pdf_path", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rlatex_build_get_pdf_path_(uint build);
+        public static string Rlatex_build_get_pdf_path(uint build) { return Text(Rlatex_build_get_pdf_path_(build)); }
+
+        /// <summary>
+        /// Returns: The .log the build read, or NULL. Owned by the build.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rlatex_build_get_log_path", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rlatex_build_get_log_path_(uint build);
+        public static string Rlatex_build_get_log_path(uint build) { return Text(Rlatex_build_get_log_path_(build)); }
+
+        /// <summary>
+        /// Returns: R_TRUE when the build ended and its tool exited with 0.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rlatex_build_succeeded(uint build);
+
+        /// <summary>
+        /// Cancels the build if it still runs, frees it and its messages.
+        /// The handle is invalid afterwards.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rlatex_build_destroy(uint build);
+
+        /// <summary>
+        /// Finds a tool of the trade: "latexmk", "pdflatex", "xelatex",
+        /// "lualatex", "synctex", "bibtex", "biber", "hunspell", "git"...
+        /// Same lookup as Rprocess_find, which it forwards to.
+        /// Returns: An absolute path valid until the next call, or NULL.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rlatex_find_tool", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rlatex_find_tool_([MarshalAs(Utf8.Str)] string name);
+        public static string Rlatex_find_tool(string name) { return Text(Rlatex_find_tool_(name)); }
 
         /// <summary>
         /// Size of every text, 1 = as designed (0.5 to 4). Controls grow with their text.

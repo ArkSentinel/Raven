@@ -183,6 +183,8 @@ const _symbols = {
 	Rget_ui_scale: { args: [], returns: "f32" },
 	Rset_animations_enabled: { args: ["i32"], returns: "void" },
 	Rget_animations_enabled: { args: [], returns: "i32" },
+	Rset_selection_animation: { args: ["i32"], returns: "void" },
+	Rget_selection_animation: { args: [], returns: "i32" },
 	Rset_animation_speed: { args: ["f32"], returns: "void" },
 	Rget_animation_speed: { args: [], returns: "f32" },
 	Rset_animation_time_step: { args: ["f64"], returns: "void" },
@@ -292,6 +294,11 @@ const _symbols = {
 	Rdrag_cancel: { args: ["u32"], returns: "void" },
 	Rwindow_register_shortcut: { args: ["u32", "i32", "u32", "ptr"], returns: "void" },
 	Rwindow_unregister_shortcut: { args: ["u32", "i32", "u32"], returns: "void" },
+	Rwindow_set_keybindings: { args: ["u32", "ptr"], returns: "i32" },
+	Rkey_from_name: { args: ["ptr", "ptr", "ptr"], returns: "i32" },
+	Rkey_to_name: { args: ["i32", "u32"], returns: "cstring" },
+	Rwindow_get_shortcut_count: { args: ["u32"], returns: "i32" },
+	Rwindow_get_shortcut: { args: ["u32", "i32", "ptr", "ptr", "ptr"], returns: "i32" },
 	Rtouch_get_settings: { args: ["ptr"], returns: "void" },
 	Rtouch_set_settings: { args: ["ptr"], returns: "void" },
 	Rtouch_get_default_settings: { args: ["ptr"], returns: "void" },
@@ -341,6 +348,9 @@ const _symbols = {
 	Rtheme_get_name: { args: [], returns: "cstring" },
 	Rtheme_get_count: { args: [], returns: "i32" },
 	Rtheme_get_name_at: { args: ["i32"], returns: "cstring" },
+	Rtheme_remember_for: { args: ["u32", "ptr", "ptr"], returns: "i32" },
+	Rtheme_get_remembered: { args: ["u32", "ptr"], returns: "cstring" },
+	Rtheme_apply_remembered: { args: ["u32", "ptr"], returns: "i32" },
 	Rtheme_save: { args: ["ptr", "ptr"], returns: "i32" },
 	Rfont_create: { args: ["ptr", "usize"], returns: "u32" },
 	Rfont_create_from_file: { args: ["ptr"], returns: "u32" },
@@ -833,6 +843,46 @@ const _symbols = {
 	Rtext_editor_add_marker: { args: ["u32", "i32", "i32", "i32", "i32", "ptr"], returns: "void" },
 	Rtext_editor_clear_markers: { args: ["u32"], returns: "void" },
 	Rtext_editor_get_marker_count: { args: ["u32"], returns: "i32" },
+	Rtext_editor_get_marker: { args: ["u32", "i32", "ptr", "ptr", "ptr", "ptr"], returns: "cstring" },
+	Rtext_editor_clear_markers_of_line: { args: ["u32", "i32"], returns: "void" },
+	Rtext_editor_set_search: { args: ["u32", "ptr", "u32"], returns: "i32" },
+	Rtext_editor_get_search: { args: ["u32"], returns: "cstring" },
+	Rtext_editor_get_search_flags: { args: ["u32"], returns: "u32" },
+	Rtext_editor_find_next: { args: ["u32", "i32"], returns: "i32" },
+	Rtext_editor_count_matches: { args: ["u32"], returns: "i32" },
+	Rtext_editor_get_match: { args: ["u32", "i32", "ptr", "ptr", "ptr", "ptr"], returns: "i32" },
+	Rtext_editor_replace: { args: ["u32", "ptr"], returns: "i32" },
+	Rtext_editor_replace_all: { args: ["u32", "ptr"], returns: "i32" },
+	Rtext_editor_expand_replacement: { args: ["ptr", "ptr", "i32", "i32", "ptr", "i32"], returns: "cstring" },
+	Rtext_editor_set_folding: { args: ["u32", "i32"], returns: "void" },
+	Rtext_editor_get_folding: { args: ["u32"], returns: "i32" },
+	Rtext_editor_toggle_fold: { args: ["u32"], returns: "i32" },
+	Rtext_editor_fold_line: { args: ["u32", "i32"], returns: "i32" },
+	Rtext_editor_unfold_line: { args: ["u32", "i32"], returns: "i32" },
+	Rtext_editor_is_folded: { args: ["u32", "i32"], returns: "i32" },
+	Rtext_editor_unfold_all: { args: ["u32"], returns: "void" },
+	Rtext_editor_get_folded_count: { args: ["u32"], returns: "i32" },
+	Rtext_editor_get_fold_start: { args: ["u32", "i32"], returns: "i32" },
+	Rsnippet_add: { args: ["ptr"], returns: "i32" },
+	Rsnippet_clear: { args: [], returns: "void" },
+	Rsnippet_get_count: { args: [], returns: "i32" },
+	Rsnippet_get_name: { args: ["i32"], returns: "cstring" },
+	Rsnippet_find: { args: ["ptr"], returns: "i32" },
+	Rtext_editor_insert_snippet: { args: ["u32", "ptr"], returns: "i32" },
+	Rtext_editor_snippet_at_caret: { args: ["u32"], returns: "i32" },
+	Rtext_editor_set_snippet_completion: { args: ["u32", "i32"], returns: "void" },
+	Rtext_editor_is_in_snippet: { args: ["u32"], returns: "i32" },
+	Rtext_editor_set_multi_cursor: { args: ["u32", "i32"], returns: "void" },
+	Rtext_editor_get_multi_cursor: { args: ["u32"], returns: "i32" },
+	Rtext_editor_get_caret_count: { args: ["u32"], returns: "i32" },
+	Rtext_editor_get_caret: { args: ["u32", "i32", "ptr", "ptr"], returns: "i32" },
+	Rtext_editor_add_caret: { args: ["u32", "i32", "i32"], returns: "i32" },
+	Rtext_editor_clear_carets: { args: ["u32"], returns: "void" },
+	Rtext_editor_select_next_occurrence: { args: ["u32"], returns: "i32" },
+	Rtext_editor_get_word_count: { args: ["u32"], returns: "i32" },
+	Rtext_editor_get_character_count: { args: ["u32"], returns: "i32" },
+	Rtext_editor_get_non_empty_line_count: { args: ["u32"], returns: "i32" },
+	Rtext_editor_get_current_line: { args: ["u32"], returns: "i32" },
 	Rtheme_set_token_color: { args: ["i32", "f32", "f32", "f32", "f32"], returns: "void" },
 	Rtheme_get_token_color: { args: ["i32", "ptr", "ptr", "ptr", "ptr"], returns: "void" },
 	Rtheme_clear_token_colors: { args: [], returns: "void" },
@@ -1137,6 +1187,30 @@ const _symbols = {
 	Rspring_set: { args: ["ptr", "f32"], returns: "void" },
 	Rdraw_push_clip_rect: { args: ["ptr", "f32", "f32", "f32", "f32"], returns: "void" },
 	Rdraw_pop_clip_rect: { args: ["ptr"], returns: "void" },
+	Rpdf_view_create: { args: [], returns: "u32" },
+	Rpdf_view_set_page_count: { args: ["u32", "i32"], returns: "void" },
+	Rpdf_view_get_page_count: { args: ["u32"], returns: "i32" },
+	Rpdf_view_set_page_size: { args: ["u32", "i32", "f32", "f32"], returns: "void" },
+	Rpdf_view_get_page_size: { args: ["u32", "i32", "ptr", "ptr"], returns: "void" },
+	Rpdf_view_set_page_bitmap: { args: ["u32", "i32", "u32", "f32"], returns: "void" },
+	Rpdf_view_has_page_bitmap: { args: ["u32", "i32"], returns: "i32" },
+	Rpdf_view_set_page: { args: ["u32", "i32"], returns: "void" },
+	Rpdf_view_get_page: { args: ["u32"], returns: "i32" },
+	Rpdf_view_get_visible_first_page: { args: ["u32"], returns: "i32" },
+	Rpdf_view_get_visible_last_page: { args: ["u32"], returns: "i32" },
+	Rpdf_view_set_zoom: { args: ["u32", "f32"], returns: "void" },
+	Rpdf_view_get_zoom: { args: ["u32"], returns: "f32" },
+	Rpdf_view_set_fit: { args: ["u32", "i32"], returns: "void" },
+	Rpdf_view_get_fit: { args: ["u32"], returns: "i32" },
+	Rpdf_view_set_page_gap: { args: ["u32", "f32"], returns: "void" },
+	Rpdf_view_get_page_gap: { args: ["u32"], returns: "f32" },
+	Rpdf_view_set_page_needed_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
+	Rpdf_view_get_page_at: { args: ["u32", "f32", "f32", "ptr", "ptr", "ptr"], returns: "i32" },
+	Rpdf_view_set_page_clicked_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
+	Rpdf_view_invalidate_page: { args: ["u32", "i32"], returns: "void" },
+	Rpdf_view_scroll_to_position: { args: ["u32", "i32", "f32", "f32"], returns: "void" },
+	Rpdf_view_set_highlight: { args: ["u32", "i32", "f32", "f32", "f32", "f32"], returns: "void" },
+	Rpdf_view_set_background_color: { args: ["u32", "f32", "f32", "f32", "f32"], returns: "void" },
 	Rshader_create: { args: ["ptr", "usize", "u32"], returns: "u32" },
 	Rshader_create_from_file: { args: ["ptr", "u32"], returns: "u32" },
 	Rshader_destroy: { args: ["u32"], returns: "void" },
@@ -1233,6 +1307,52 @@ const _symbols = {
 	Rtr_plural: { args: ["ptr", "i32"], returns: "cstring" },
 	Rwidget_set_text_key: { args: ["u32", "ptr", "ptr"], returns: "void" },
 	Rlocale_format_number: { args: ["f64", "i32"], returns: "cstring" },
+	Rsettings_create: { args: ["ptr"], returns: "u32" },
+	Rsettings_destroy: { args: ["u32"], returns: "void" },
+	Rsettings_load: { args: ["u32"], returns: "i32" },
+	Rsettings_save: { args: ["u32"], returns: "i32" },
+	Rsettings_get_path: { args: ["u32"], returns: "cstring" },
+	Rsettings_get_type: { args: ["u32", "ptr"], returns: "i32" },
+	Rsettings_get_bool: { args: ["u32", "ptr", "i32"], returns: "i32" },
+	Rsettings_get_int: { args: ["u32", "ptr", "i32"], returns: "i32" },
+	Rsettings_get_number: { args: ["u32", "ptr", "f64"], returns: "f64" },
+	Rsettings_get_text: { args: ["u32", "ptr", "ptr"], returns: "cstring" },
+	Rsettings_set_bool: { args: ["u32", "ptr", "i32"], returns: "void" },
+	Rsettings_set_int: { args: ["u32", "ptr", "i32"], returns: "void" },
+	Rsettings_set_number: { args: ["u32", "ptr", "f64"], returns: "void" },
+	Rsettings_set_text: { args: ["u32", "ptr", "ptr"], returns: "void" },
+	Rsettings_remove: { args: ["u32", "ptr"], returns: "i32" },
+	Rsettings_has: { args: ["u32", "ptr"], returns: "i32" },
+	Rsettings_get_json: { args: ["u32"], returns: "cstring" },
+	Rsettings_set_json: { args: ["u32", "ptr"], returns: "i32" },
+	Rsettings_get_key_count: { args: ["u32", "ptr"], returns: "i32" },
+	Rsettings_get_key: { args: ["u32", "ptr", "i32"], returns: "cstring" },
+	Rsettings_get_config_folder: { args: ["ptr"], returns: "cstring" },
+	Rsettings_get_cache_folder: { args: ["ptr"], returns: "cstring" },
+	Rsettings_open: { args: ["ptr", "ptr"], returns: "u32" },
+	Rprocess_start: { args: ["ptr", "ptr", "ptr", "ptr"], returns: "u32" },
+	Rprocess_is_running: { args: ["u32"], returns: "i32" },
+	Rprocess_get_exit_code: { args: ["u32"], returns: "i32" },
+	Rprocess_get_state: { args: ["u32"], returns: "i32" },
+	Rprocess_cancel: { args: ["u32"], returns: "void" },
+	Rprocess_wait: { args: ["u32"], returns: "void" },
+	Rprocess_is_available: { args: ["ptr"], returns: "i32" },
+	Rprocess_find: { args: ["ptr"], returns: "cstring" },
+	Rprocess_run: { args: ["ptr", "ptr", "usize"], returns: "ptr" },
+	Rlatex_log_parse: { args: ["ptr", "usize"], returns: "u32" },
+	Rlatex_log_parse_file: { args: ["ptr"], returns: "u32" },
+	Rlatex_log_get_count: { args: ["u32"], returns: "i32" },
+	Rlatex_log_get_message: { args: ["u32", "i32", "ptr"], returns: "i32" },
+	Rlatex_log_destroy: { args: ["u32"], returns: "void" },
+	Rlatex_build_start: { args: ["ptr", "ptr", "ptr", "ptr"], returns: "u32" },
+	Rlatex_build_is_running: { args: ["u32"], returns: "i32" },
+	Rlatex_build_cancel: { args: ["u32"], returns: "void" },
+	Rlatex_build_get_messages: { args: ["u32"], returns: "u32" },
+	Rlatex_build_get_pdf_path: { args: ["u32"], returns: "cstring" },
+	Rlatex_build_get_log_path: { args: ["u32"], returns: "cstring" },
+	Rlatex_build_succeeded: { args: ["u32"], returns: "i32" },
+	Rlatex_build_destroy: { args: ["u32"], returns: "void" },
+	Rlatex_find_tool: { args: ["ptr"], returns: "cstring" },
 	Raccessibility_set_text_scale: { args: ["f32"], returns: "void" },
 	Raccessibility_get_text_scale: { args: [], returns: "f32" },
 	Raccessibility_set_high_contrast: { args: ["i32"], returns: "void" },
@@ -2303,6 +2423,8 @@ export enum RWidgetType {
 	R_WIDGET_PAGINATION = 0x0231,
 	/** Curves of X / Y data: legend, line styles, markers, log axes, a second X and Y axis, pan and zoom. */
 	R_WIDGET_PLOT = 0x0232,
+	/** The pages of a document, rendered by the application: zoom, scroll, page navigation. */
+	R_WIDGET_PDF_VIEW = 0x0233,
 }
 
 export const R_WIDGET_VBOX = RWidgetType.R_WIDGET_VBOX;
@@ -2356,6 +2478,7 @@ export const R_WIDGET_BREADCRUMB = RWidgetType.R_WIDGET_BREADCRUMB;
 export const R_WIDGET_RATING = RWidgetType.R_WIDGET_RATING;
 export const R_WIDGET_PAGINATION = RWidgetType.R_WIDGET_PAGINATION;
 export const R_WIDGET_PLOT = RWidgetType.R_WIDGET_PLOT;
+export const R_WIDGET_PDF_VIEW = RWidgetType.R_WIDGET_PDF_VIEW;
 
 export enum RHAlign {
 	R_HALIGN_FILL = 0x0240,
@@ -2697,6 +2820,17 @@ export enum RLanguageFlags {
 	 * and titles in bold: what will be formatted is seen while typing.
 	 */
 	R_LANGUAGE_FORMATTED_TEXT = 0x0080,
+	/**
+	 * TeX and LaTeX: a backslash starts a command, a percent sign starts a
+	 * comment that ends with its line, $...$ is mathematics. A line that
+	 * ends with \begin{...} indents the next one, and \end{...} comes back.
+	 */
+	R_LANGUAGE_TEX = 0x0100,
+	/**
+	 * BibTeX: @type{key, field = {value}}. The entries and their fields are
+	 * colored, and a citation key is a word of its own.
+	 */
+	R_LANGUAGE_BIBTEX = 0x0200,
 }
 
 export const R_LANGUAGE_MARKUP = RLanguageFlags.R_LANGUAGE_MARKUP;
@@ -2707,6 +2841,8 @@ export const R_LANGUAGE_INDENT_ON_COLON = RLanguageFlags.R_LANGUAGE_INDENT_ON_CO
 export const R_LANGUAGE_IGNORE_CASE = RLanguageFlags.R_LANGUAGE_IGNORE_CASE;
 export const R_LANGUAGE_EMBEDS = RLanguageFlags.R_LANGUAGE_EMBEDS;
 export const R_LANGUAGE_FORMATTED_TEXT = RLanguageFlags.R_LANGUAGE_FORMATTED_TEXT;
+export const R_LANGUAGE_TEX = RLanguageFlags.R_LANGUAGE_TEX;
+export const R_LANGUAGE_BIBTEX = RLanguageFlags.R_LANGUAGE_BIBTEX;
 
 /** What a part of the text is, for the language of the editor (Rtext_editor_get_token). */
 export enum RToken {
@@ -2759,6 +2895,21 @@ export enum RMarkerKind {
 export const R_MARKER_ERROR = RMarkerKind.R_MARKER_ERROR;
 export const R_MARKER_WARNING = RMarkerKind.R_MARKER_WARNING;
 export const R_MARKER_INFO = RMarkerKind.R_MARKER_INFO;
+
+export enum RSearchFlags {
+	R_SEARCH_NONE = 0,
+	/** A regular expression, in the syntax of the editor: see raven_text_editor.h. */
+	R_SEARCH_REGEX = 1,
+	/** Case is ignored (and, with R_SEARCH_REGEX, the pattern is not sensitive to case). */
+	R_SEARCH_IGNORE_CASE = 2,
+	/** Only whole words match ("cat" does not match "concatenate"). */
+	R_SEARCH_WHOLE_WORD = 4,
+}
+
+export const R_SEARCH_NONE = RSearchFlags.R_SEARCH_NONE;
+export const R_SEARCH_REGEX = RSearchFlags.R_SEARCH_REGEX;
+export const R_SEARCH_IGNORE_CASE = RSearchFlags.R_SEARCH_IGNORE_CASE;
+export const R_SEARCH_WHOLE_WORD = RSearchFlags.R_SEARCH_WHOLE_WORD;
 
 /** Buttons of a header bar. */
 export enum RHeaderButtons {
@@ -2957,6 +3108,20 @@ export const R_MOTION_SMOOTH = RMotion.R_MOTION_SMOOTH;
 export const R_MOTION_BOUNCY = RMotion.R_MOTION_BOUNCY;
 export const R_MOTION_WOBBLY = RMotion.R_MOTION_WOBBLY;
 
+/** How the view keeps the pages in its place when it is resized. */
+export enum RPdfFit {
+	/** The zoom given is used as it is (the default). */
+	R_PDF_FIT_NONE = 0x0570,
+	/** The zoom follows the width of the view, with a scrollbar for the height. */
+	R_PDF_FIT_WIDTH = 0x0571,
+	/** The zoom follows the width or the height, whichever is smaller: the whole page shows. */
+	R_PDF_FIT_PAGE = 0x0572,
+}
+
+export const R_PDF_FIT_NONE = RPdfFit.R_PDF_FIT_NONE;
+export const R_PDF_FIT_WIDTH = RPdfFit.R_PDF_FIT_WIDTH;
+export const R_PDF_FIT_PAGE = RPdfFit.R_PDF_FIT_PAGE;
+
 /** The effects that come with Raven (Reffect_get). */
 export enum REffect {
 	/** Soft lights that drift slowly: color, color2; params: speed, scale, intensity, -. Animated. */
@@ -3026,6 +3191,63 @@ export const R_XML_ACTION = RXmlValueType.R_XML_ACTION;
 export const R_XML_FILE = RXmlValueType.R_XML_FILE;
 export const R_XML_NUMBERS = RXmlValueType.R_XML_NUMBERS;
 export const R_XML_LIST = RXmlValueType.R_XML_LIST;
+
+/** What a key holds. */
+export enum RSettingType {
+	/** No such key, or a value that is an object, an array or null. */
+	R_SETTING_NONE = 0x0300,
+	R_SETTING_BOOL = 0x0301,
+	R_SETTING_INT = 0x0302,
+	R_SETTING_NUMBER = 0x0303,
+	R_SETTING_TEXT = 0x0304,
+}
+
+export const R_SETTING_NONE = RSettingType.R_SETTING_NONE;
+export const R_SETTING_BOOL = RSettingType.R_SETTING_BOOL;
+export const R_SETTING_INT = RSettingType.R_SETTING_INT;
+export const R_SETTING_NUMBER = RSettingType.R_SETTING_NUMBER;
+export const R_SETTING_TEXT = RSettingType.R_SETTING_TEXT;
+
+export enum RProcessState {
+	/** Started, its output is still being read. */
+	R_PROCESS_RUNNING = 0x0400,
+	/** Ended by itself: Rprocess_get_exit_code says how. */
+	R_PROCESS_EXITED = 0x0401,
+	/** Could not be run at all (not found, no permission): the exit code is -1. */
+	R_PROCESS_FAILED = 0x0402,
+}
+
+export const R_PROCESS_RUNNING = RProcessState.R_PROCESS_RUNNING;
+export const R_PROCESS_EXITED = RProcessState.R_PROCESS_EXITED;
+export const R_PROCESS_FAILED = RProcessState.R_PROCESS_FAILED;
+
+/** What a line of a log is worth to an editor. */
+export enum RLogKind {
+	/** TeX stopped here ("! Undefined control sequence."). */
+	R_LOG_ERROR = 0x0500,
+	/** Something that may be wrong (an undefined reference, a font substitution). */
+	R_LOG_WARNING = 0x0501,
+	/** Neither: a file opened, the pages written, how much memory TeX used. */
+	R_LOG_INFO = 0x0502,
+	/** Overfull or underfull \hbox or \vbox: not an error, but the page will show it. */
+	R_LOG_BAD_BOX = 0x0503,
+}
+
+export const R_LOG_ERROR = RLogKind.R_LOG_ERROR;
+export const R_LOG_WARNING = RLogKind.R_LOG_WARNING;
+export const R_LOG_INFO = RLogKind.R_LOG_INFO;
+export const R_LOG_BAD_BOX = RLogKind.R_LOG_BAD_BOX;
+
+/** The engines an editor offers. All of them take the same command line. */
+export enum RLatexEngine {
+	R_LATEX_PDFLATEX = 0,
+	R_LATEX_XELATEX = 1,
+	R_LATEX_LUALATEX = 2,
+}
+
+export const R_LATEX_PDFLATEX = RLatexEngine.R_LATEX_PDFLATEX;
+export const R_LATEX_XELATEX = RLatexEngine.R_LATEX_XELATEX;
+export const R_LATEX_LUALATEX = RLatexEngine.R_LATEX_LUALATEX;
 
 export enum RColorFilter {
 	R_COLOR_FILTER_NONE = 0x0740,
@@ -4309,7 +4531,7 @@ export class RTileItem extends RStruct {
  * Lists of words are separated by spaces.
  */
 export class RLanguageDesc extends RStruct {
-	static readonly SIZE = 112;
+	static readonly SIZE = 120;
 
 	constructor(pointer?: Pointer) {
 		super(RLanguageDesc.SIZE, pointer);
@@ -4437,6 +4659,73 @@ export class RLanguageDesc extends RStruct {
 	}
 	set script_language(value: string | null) {
 		this._point("script_language", 104, _s(value));
+	}
+
+	/**
+	 * Characters that belong to a name besides letters, digits and the
+	 * underscore: "\\" for TeX commands (so that completing "\\sec" proposes
+	 * "\\section", and a command is one word), "-" and ":" for the names of
+	 * a BibTeX entry. NULL keeps the usual ones.
+	 */
+	get word_characters(): string | null {
+		return _text(_address(this._view.getBigUint64(112, true)));
+	}
+	set word_characters(value: string | null) {
+		this._point("word_characters", 112, _s(value));
+	}
+}
+
+/**
+ * A block of text typed by a name.
+ *
+ * The body may hold `$1` .. `$9` (places the caret goes to, in order,
+ * with Tab) and `$0` (where the caret ends), the same place twice to
+ * edit the two copies at once, `${1:text}` for a place with a text
+ * selected, and `$NAME` for a variable given here (date, author...).
+ * `\t` and `\n` in the body are a tab and a line break.
+ */
+export class RSnippet extends RStruct {
+	static readonly SIZE = 32;
+
+	constructor(pointer?: Pointer) {
+		super(RSnippet.SIZE, pointer);
+	}
+
+	/** The structure at an address of the library, or null. */
+	static from(pointer: Pointer | null): RSnippet | null {
+		return pointer ? new RSnippet(pointer) : null;
+	}
+
+	/** The word that is typed and replaced ("sec", "fig"...). Case is ignored. */
+	get name(): string | null {
+		return _text(_address(this._view.getBigUint64(0, true)));
+	}
+	set name(value: string | null) {
+		this._point("name", 0, _s(value));
+	}
+
+	/** What the snippet is, shown in the list ("Section"). May be NULL. */
+	get description(): string | null {
+		return _text(_address(this._view.getBigUint64(8, true)));
+	}
+	set description(value: string | null) {
+		this._point("description", 8, _s(value));
+	}
+
+	/** A few words before the caret that make the snippet apply ("\\begin{", "\\"). May be NULL. */
+	get prefix(): string | null {
+		return _text(_address(this._view.getBigUint64(16, true)));
+	}
+	set prefix(value: string | null) {
+		this._point("prefix", 16, _s(value));
+	}
+
+	/** The text it types, with its places. */
+	get body(): string | null {
+		return _text(_address(this._view.getBigUint64(24, true)));
+	}
+	set body(value: string | null) {
+		this._point("body", 24, _s(value));
 	}
 }
 
@@ -4942,6 +5231,202 @@ export class RXmlAttributeInfo extends RStruct {
 	}
 	set description(value: string | null) {
 		this._point("description", 32, _s(value));
+	}
+}
+
+/** What to run and how. A zero-initialized structure is a valid, empty description. */
+export class RProcessDesc extends RStruct {
+	static readonly SIZE = 40;
+
+	constructor(pointer?: Pointer) {
+		super(RProcessDesc.SIZE, pointer);
+	}
+
+	/** The structure at an address of the library, or null. */
+	static from(pointer: Pointer | null): RProcessDesc | null {
+		return pointer ? new RProcessDesc(pointer) : null;
+	}
+
+	/** "latexmk", or an absolute path. Looked up in PATH when it has no separator. */
+	get program(): string | null {
+		return _text(_address(this._view.getBigUint64(0, true)));
+	}
+	set program(value: string | null) {
+		this._point("program", 0, _s(value));
+	}
+
+	/** NULL-terminated argv, NOT including argv[0]. May be NULL. */
+	get arguments(): string[] {
+		return _read_strings(_address(this._view.getBigUint64(8, true)), this.argument_count);
+	}
+
+	/** How many arguments there are, argv[0] not counted. 0 = count them up to the NULL. */
+	get argument_count(): number {
+		return this._view.getInt32(16, true);
+	}
+	set argument_count(value: number) {
+		this._view.setInt32(16, value, true);
+	}
+
+	/** NULL = the current one. */
+	get working_directory(): string | null {
+		return _text(_address(this._view.getBigUint64(24, true)));
+	}
+	set working_directory(value: string | null) {
+		this._point("working_directory", 24, _s(value));
+	}
+
+	/**
+	 * R_TRUE: stderr goes to the same stream as stdout, which is what a
+	 * build log wants (the warnings of a compiler are as interesting as
+	 * its errors, and the order between them is kept).
+	 */
+	get merge_stderr(): number {
+		return this._view.getInt32(32, true);
+	}
+	set merge_stderr(value: number) {
+		this._view.setInt32(32, value, true);
+	}
+}
+
+/** One diagnostic of a log. The strings belong to the list: copy them to keep them. */
+export class RLogMessage extends RStruct {
+	static readonly SIZE = 40;
+
+	constructor(pointer?: Pointer) {
+		super(RLogMessage.SIZE, pointer);
+	}
+
+	/** The structure at an address of the library, or null. */
+	static from(pointer: Pointer | null): RLogMessage | null {
+		return pointer ? new RLogMessage(pointer) : null;
+	}
+
+	get kind(): RLogKind {
+		return this._view.getInt32(0, true) as RLogKind;
+	}
+	set kind(value: RLogKind) {
+		this._view.setInt32(0, value, true);
+	}
+
+	/** The file as the log writes it (often "./chapter.tex"), or NULL. */
+	get file(): string | null {
+		return _text(_address(this._view.getBigUint64(8, true)));
+	}
+	set file(value: string | null) {
+		this._point("file", 8, _s(value));
+	}
+
+	/** The line, or 0 when the log does not say. */
+	get line(): number {
+		return this._view.getInt32(16, true);
+	}
+	set line(value: number) {
+		this._view.setInt32(16, value, true);
+	}
+
+	/** One line, trimmed: "Undefined control sequence." */
+	get message(): string | null {
+		return _text(_address(this._view.getBigUint64(24, true)));
+	}
+	set message(value: string | null) {
+		this._point("message", 24, _s(value));
+	}
+
+	/**
+	 * The lines TeX printed around it (what the error happened in, what
+	 * follows), or NULL. Several lines, separated by '\n'.
+	 */
+	get context(): string | null {
+		return _text(_address(this._view.getBigUint64(32, true)));
+	}
+	set context(value: string | null) {
+		this._point("context", 32, _s(value));
+	}
+}
+
+/**
+ * What to build. A zero-initialized structure builds `root_file` with
+ * pdflatex, once; an editor usually sets `use_latexmk` too.
+ */
+export class RLatexBuildDesc extends RStruct {
+	static readonly SIZE = 56;
+
+	constructor(pointer?: Pointer) {
+		super(RLatexBuildDesc.SIZE, pointer);
+	}
+
+	/** The structure at an address of the library, or null. */
+	static from(pointer: Pointer | null): RLatexBuildDesc | null {
+		return pointer ? new RLatexBuildDesc(pointer) : null;
+	}
+
+	/** Path to the main .tex: its folder is the working directory, its name gives the .pdf and the .log. */
+	get root_file(): string | null {
+		return _text(_address(this._view.getBigUint64(0, true)));
+	}
+	set root_file(value: string | null) {
+		this._point("root_file", 0, _s(value));
+	}
+
+	get engine(): RLatexEngine {
+		return this._view.getInt32(8, true) as RLatexEngine;
+	}
+	set engine(value: RLatexEngine) {
+		this._view.setInt32(8, value, true);
+	}
+
+	/**
+	 * R_TRUE runs latexmk, which does the several passes LaTeX needs (a
+	 * table of contents, references); R_FALSE runs the engine once. Since
+	 * R_FALSE is 0, a zero-initialized structure runs the engine once.
+	 */
+	get use_latexmk(): number {
+		return this._view.getInt32(12, true);
+	}
+	set use_latexmk(value: number) {
+		this._view.setInt32(12, value, true);
+	}
+
+	/** R_TRUE adds -shell-escape: the document may run programs of its own. */
+	get shell_escape(): number {
+		return this._view.getInt32(16, true);
+	}
+	set shell_escape(value: number) {
+		this._view.setInt32(16, value, true);
+	}
+
+	/**
+	 * For tests and unusual tools: the program that runs instead of the
+	 * engine and latexmk, with its arguments in `arguments_override`
+	 * (NULL-terminated, without argv[0]). The working directory is still
+	 * the folder of the root file.
+	 */
+	get command_override(): string | null {
+		return _text(_address(this._view.getBigUint64(24, true)));
+	}
+	set command_override(value: string | null) {
+		this._point("command_override", 24, _s(value));
+	}
+
+	get arguments_override(): string[] {
+		return _read_strings(_address(this._view.getBigUint64(32, true)), this.arguments_override_count);
+	}
+
+	/** How many there are. 0 = count them up to the NULL. */
+	get arguments_override_count(): number {
+		return this._view.getInt32(40, true);
+	}
+	set arguments_override_count(value: number) {
+		this._view.setInt32(40, value, true);
+	}
+
+	/** For tests: the log to read when the process ends, instead of the one guessed from the root file. */
+	get log_path_override(): string | null {
+		return _text(_address(this._view.getBigUint64(48, true)));
+	}
+	set log_path_override(value: string | null) {
+		this._point("log_path_override", 48, _s(value));
 	}
 }
 
@@ -6274,6 +6759,45 @@ function _adapt_RMeasureCallback(function_: RMeasureCallback | Pointer | null, t
 }
 
 /**
+ * Called when a page must be rendered, with `scale` pixels per
+ * point (the zoom, times the scale of the window) and the index of the
+ * page. It may call Rpdf_view_set_page_bitmap from inside. A page is
+ * asked for once while it stays visible at a given scale; it is asked for
+ * again when the scale changes by more than 1 % or when it comes back
+ * into view.
+ */
+export type RPdfPageNeededCallback = (pdf_view: Rid, page: number, scale: number, user_data: Pointer | null) => void;
+
+function _adapt_RPdfPageNeededCallback(function_: RPdfPageNeededCallback | Pointer | null, threadsafe = false): Pointer | null {
+	if (typeof function_ !== "function") {
+		return function_;
+	}
+	return _keep(new _JSCallback((pdf_view: number, page: number, scale: number, user_data: Pointer | null): void => {
+		try {
+			function_(pdf_view, page, scale, user_data);
+		} catch (error) {
+			_report(error as Error);
+		}
+	}, { args: ["u32", "i32", "f32", "ptr"], returns: "void", threadsafe }));
+}
+
+/** Called when the user clicks on a page. This also fires the action of the widget. */
+export type RPdfPageClickedCallback = (pdf_view: Rid, page: number, page_x: number, page_y: number, user_data: Pointer | null) => void;
+
+function _adapt_RPdfPageClickedCallback(function_: RPdfPageClickedCallback | Pointer | null, threadsafe = false): Pointer | null {
+	if (typeof function_ !== "function") {
+		return function_;
+	}
+	return _keep(new _JSCallback((pdf_view: number, page: number, page_x: number, page_y: number, user_data: Pointer | null): void => {
+		try {
+			function_(pdf_view, page, page_x, page_y, user_data);
+		} catch (error) {
+			_report(error as Error);
+		}
+	}, { args: ["u32", "i32", "f32", "f32", "ptr"], returns: "void", threadsafe }));
+}
+
+/**
  * Called each time a file was loaded again.
  * path The file given when the interface was created.
  * ok   R_FALSE when the file could not be used (the interface is unchanged).
@@ -6353,6 +6877,54 @@ function _adapt_RLocaleChangedCallback(function_: RLocaleChangedCallback | Point
 			_report(error as Error);
 		}
 	}, { args: ["ptr", "ptr"], returns: "void", threadsafe }));
+}
+
+/** A piece of output, as it arrives. `text` is not null-terminated. Runs on the UI thread. */
+export type RProcessOutputCallback = (text: string | null, length: number, is_stderr: number, user_data: Pointer | null) => void;
+
+function _adapt_RProcessOutputCallback(function_: RProcessOutputCallback | Pointer | null, threadsafe = false): Pointer | null {
+	if (typeof function_ !== "function") {
+		return function_;
+	}
+	return _keep(new _JSCallback((text: Pointer | null, length: bigint, is_stderr: number, user_data: Pointer | null): void => {
+		try {
+			function_(_text(text), Number(length), is_stderr, user_data);
+		} catch (error) {
+			_report(error as Error);
+		}
+	}, { args: ["ptr", "usize", "i32", "ptr"], returns: "void", threadsafe }));
+}
+
+/** The process ended. `failed` is R_TRUE when it could not be run at all. Runs on the UI thread. */
+export type RProcessExitCallback = (exit_code: number, failed: number, user_data: Pointer | null) => void;
+
+function _adapt_RProcessExitCallback(function_: RProcessExitCallback | Pointer | null, threadsafe = false): Pointer | null {
+	if (typeof function_ !== "function") {
+		return function_;
+	}
+	return _keep(new _JSCallback((exit_code: number, failed: number, user_data: Pointer | null): void => {
+		try {
+			function_(exit_code, failed, user_data);
+		} catch (error) {
+			_report(error as Error);
+		}
+	}, { args: ["i32", "i32", "ptr"], returns: "void", threadsafe }));
+}
+
+/** Called on the UI thread when a build ended. `success` is R_TRUE when the process exited with 0. */
+export type RLatexBuildFinishedCallback = (build: Rid, success: number, user_data: Pointer | null) => void;
+
+function _adapt_RLatexBuildFinishedCallback(function_: RLatexBuildFinishedCallback | Pointer | null, threadsafe = false): Pointer | null {
+	if (typeof function_ !== "function") {
+		return function_;
+	}
+	return _keep(new _JSCallback((build: number, success: number, user_data: Pointer | null): void => {
+		try {
+			function_(build, success, user_data);
+		} catch (error) {
+			_report(error as Error);
+		}
+	}, { args: ["u32", "i32", "ptr"], returns: "void", threadsafe }));
 }
 
 /**
@@ -6555,6 +7127,21 @@ export function Rset_animations_enabled(enabled: number): void {
 
 export function Rget_animations_enabled(): number {
 	return _lib.Rget_animations_enabled();
+}
+
+/**
+ * R_TRUE: the highlight that follows the selection in lists, tables
+ * and trees moves with a spring; R_FALSE (the default) it is there at once,
+ * which is what a list that follows the pointer needs. A window resize and
+ * the text caret are never animated: they follow the input exactly.
+ * XML and theme files cannot set it.
+ */
+export function Rset_selection_animation(enabled: number): void {
+	_lib.Rset_selection_animation(enabled);
+}
+
+export function Rget_selection_animation(): number {
+	return _lib.Rget_selection_animation();
 }
 
 /** Multiplies the speed of every animation. 1 is the default, 0.25 a slow motion. */
@@ -7253,6 +7840,65 @@ export function Rwindow_unregister_shortcut(window: Rid, key: RKey, modifiers: n
 	_lib.Rwindow_unregister_shortcut(window, key, modifiers);
 }
 
+/**
+ * Registers a whole set of shortcuts from a text, as a preferences
+ * window writes it:
+ *
+ *     "Ctrl+S save | Ctrl+Shift+S save_as | F5 build | Ctrl+K,Ctrl+B clear"
+ *
+ * Entries are separated by '|'. The key or the keys come first, then the
+ * action name (Raction_bind). An entry whose action is empty unbinds that
+ * key. Several chords separated by commas are a sequence: only the first
+ * chord is bound for now (the others are parsed and ignored).
+ * Returns: How many shortcuts were registered (unbound ones included).
+ */
+export function Rwindow_set_keybindings(window: Rid, bindings: string | null): number {
+	return _lib.Rwindow_set_keybindings(window, _s(bindings));
+}
+
+/**
+ * Parses one key name to a key and its modifiers: "Ctrl+S",
+ * "Ctrl+Shift+S", "F5", "PageUp", "Escape", "A". The modifiers are
+ * Ctrl, Shift, Alt and Super (Cmd and Win are accepted for Super).
+ * Returns: R_FALSE when the name is not a key.
+ */
+export function Rkey_from_name(name: string | null): [result: number, key: RKey, modifiers: number] {
+	const key_ = new Int32Array(1);
+	const modifiers_ = new Uint32Array(1);
+	const result_ = _lib.Rkey_from_name(_s(name), key_, modifiers_);
+	return [result_, key_[0]! as RKey, modifiers_[0]!];
+}
+
+/**
+ * The reverse, for showing a shortcut: "Ctrl+S". Super is written
+ * "Super" (the menus show it too).
+ * Returns: NULL when the key has no name. Valid until the next call.
+ */
+export function Rkey_to_name(key: RKey, modifiers: number): string | null {
+	return _lib.Rkey_to_name(key, modifiers);
+}
+
+/** How many shortcuts the window has (Rwindow_register_shortcut). */
+export function Rwindow_get_shortcut_count(window: Rid): number {
+	return _lib.Rwindow_get_shortcut_count(window);
+}
+
+/**
+ * Reads the index-th shortcut of the window, for a preferences
+ * window that lists them.
+ * action Receives the name of the action; may be NULL. Valid until
+ * the next call of this function (or until the window changes its
+ * shortcuts).
+ * Returns: R_FALSE when `index` is out of range.
+ */
+export function Rwindow_get_shortcut(window: Rid, index: number): [result: number, key: RKey, modifiers: number, action: string | null] {
+	const key_ = new Int32Array(1);
+	const modifiers_ = new Uint32Array(1);
+	const action_ = new BigUint64Array(1);
+	const result_ = _lib.Rwindow_get_shortcut(window, index, key_, modifiers_, action_);
+	return [result_, key_[0]! as RKey, modifiers_[0]!, _text(_address(action_[0]!))];
+}
+
 /** The settings every window follows, unless it has its own. */
 export function Rtouch_get_settings(settings: RTouchSettings | null): void {
 	_lib.Rtouch_get_settings(_p(settings));
@@ -7553,6 +8199,34 @@ export function Rtheme_get_count(): number {
 /** Name of the index-th one, or NULL. */
 export function Rtheme_get_name_at(index: number): string | null {
 	return _lib.Rtheme_get_name_at(index);
+}
+
+/**
+ * Remembers the theme of a project folder, so that opening the
+ * project again gives it its look back. The store is the one the
+ * application owns (Rsettings_open(app, "sessions.json") or its own): the
+ * library keeps no file of its own.
+ *
+ * The key is "theme." followed by the absolute, normalised path of the
+ * project (forward slashes).
+ * Returns: R_FALSE when there is no store or when the path is empty.
+ */
+export function Rtheme_remember_for(settings: Rid, project_path: string | null, theme_name: string | null): number {
+	return _lib.Rtheme_remember_for(settings, _s(project_path), _s(theme_name));
+}
+
+/** The theme remembered for a project, or NULL. Valid until the store changes. */
+export function Rtheme_get_remembered(settings: Rid, project_path: string | null): string | null {
+	return _lib.Rtheme_get_remembered(settings, _s(project_path));
+}
+
+/**
+ * Applies the theme remembered for a project (Rtheme_use).
+ * Returns: R_TRUE when one was remembered and Rtheme_use accepted it. When
+ * it did not, the theme in use is left as it was.
+ */
+export function Rtheme_apply_remembered(settings: Rid, project_path: string | null): number {
+	return _lib.Rtheme_apply_remembered(settings, _s(project_path));
 }
 
 /**
@@ -10174,6 +10848,243 @@ export function Rtext_editor_get_marker_count(editor: Rid): number {
 }
 
 /**
+ * The line, the columns and the kind of a marker, by index (0 ..
+ * Rtext_editor_get_marker_count - 1).
+ * Returns: The message of the marker, or NULL when `index` is out of range.
+ */
+export function Rtext_editor_get_marker(editor: Rid, index: number): [result: string | null, line: number, from_column: number, to_column: number, kind: RMarkerKind] {
+	const line_ = new Int32Array(1);
+	const from_column_ = new Int32Array(1);
+	const to_column_ = new Int32Array(1);
+	const kind_ = new Int32Array(1);
+	const result_ = _lib.Rtext_editor_get_marker(editor, index, line_, from_column_, to_column_, kind_);
+	return [result_, line_[0]!, from_column_[0]!, to_column_[0]!, kind_[0]! as RMarkerKind];
+}
+
+/** Removes the markers of one line and adds a list, as a compiler's report does. */
+export function Rtext_editor_clear_markers_of_line(editor: Rid, line: number): void {
+	_lib.Rtext_editor_clear_markers_of_line(editor, line);
+}
+
+/**
+ * Sets what is looked for, from now on. An empty pattern clears it.
+ * The flags are a bitmask of RSearchFlags. Invalid regular expressions are
+ * reported and leave the search as it was.
+ * Returns: R_TRUE when the pattern was taken.
+ */
+export function Rtext_editor_set_search(editor: Rid, pattern: string | null, flags: number): number {
+	return _lib.Rtext_editor_set_search(editor, _s(pattern), flags);
+}
+
+export function Rtext_editor_get_search(editor: Rid): string | null {
+	return _lib.Rtext_editor_get_search(editor);
+}
+
+export function Rtext_editor_get_search_flags(editor: Rid): number {
+	return _lib.Rtext_editor_get_search_flags(editor);
+}
+
+/**
+ * The next match after the caret (or before it, with
+ * `backwards`), selected; the text is scrolled to it. It wraps around
+ * the ends of the text. R_FALSE when nothing matches.
+ */
+export function Rtext_editor_find_next(editor: Rid, backwards: number): number {
+	return _lib.Rtext_editor_find_next(editor, backwards);
+}
+
+/** How many places match the search. */
+export function Rtext_editor_count_matches(editor: Rid): number {
+	return _lib.Rtext_editor_count_matches(editor);
+}
+
+/** Where a match is, by index (0 .. count - 1): its start and its end. R_FALSE when out of range. */
+export function Rtext_editor_get_match(editor: Rid, index: number): [result: number, from_line: number, from_column: number, to_line: number, to_column: number] {
+	const from_line_ = new Int32Array(1);
+	const from_column_ = new Int32Array(1);
+	const to_line_ = new Int32Array(1);
+	const to_column_ = new Int32Array(1);
+	const result_ = _lib.Rtext_editor_get_match(editor, index, from_line_, from_column_, to_line_, to_column_);
+	return [result_, from_line_[0]!, from_column_[0]!, to_line_[0]!, to_column_[0]!];
+}
+
+/**
+ * Replaces the current match (the selection, when it is one) and
+ * goes to the next one. R_FALSE when there is nothing to replace.
+ */
+export function Rtext_editor_replace(editor: Rid, text: string | null): number {
+	return _lib.Rtext_editor_replace(editor, _s(text));
+}
+
+/** Replaces every match, as one step of the history. Returns: How many were replaced. */
+export function Rtext_editor_replace_all(editor: Rid, text: string | null): number {
+	return _lib.Rtext_editor_replace_all(editor, _s(text));
+}
+
+/**
+ * The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
+ * (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
+ * with `matches`, the groups of the regex that matched. Pure: no editor needed.
+ * Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
+ */
+export function Rtext_editor_expand_replacement(replacement: string | null, text: string | null, from: number, to: number, groups: Int32Array | readonly number[] | null, group_count: number): string | null {
+	return _lib.Rtext_editor_expand_replacement(_s(replacement), _s(text), from, to, _n(groups, (list) => new Int32Array(list)), group_count);
+}
+
+/**
+ * R_TRUE (the default): with a language whose blocks can be folded
+ * (braces, brackets, \begin{...} ... \end{...}, <tag> ... </tag>,
+ * Markdown titles), a small arrow in the margin collapses the block;
+ * Ctrl+Shift+[ and Ctrl+Shift+] fold and unfold the block of the caret.
+ */
+export function Rtext_editor_set_folding(editor: Rid, enabled: number): void {
+	_lib.Rtext_editor_set_folding(editor, enabled);
+}
+
+export function Rtext_editor_get_folding(editor: Rid): number {
+	return _lib.Rtext_editor_get_folding(editor);
+}
+
+/** Folds the block of the caret (the one that holds it), or unfolds it. R_FALSE when there is none. */
+export function Rtext_editor_toggle_fold(editor: Rid): number {
+	return _lib.Rtext_editor_toggle_fold(editor);
+}
+
+/** Folds or unfolds the block that starts on a line (an opening brace, \begin, a title). */
+export function Rtext_editor_fold_line(editor: Rid, line: number): number {
+	return _lib.Rtext_editor_fold_line(editor, line);
+}
+
+export function Rtext_editor_unfold_line(editor: Rid, line: number): number {
+	return _lib.Rtext_editor_unfold_line(editor, line);
+}
+
+export function Rtext_editor_is_folded(editor: Rid, line: number): number {
+	return _lib.Rtext_editor_is_folded(editor, line);
+}
+
+/** Unfolds everything, and forgets the folded blocks. */
+export function Rtext_editor_unfold_all(editor: Rid): void {
+	_lib.Rtext_editor_unfold_all(editor);
+}
+
+export function Rtext_editor_get_folded_count(editor: Rid): number {
+	return _lib.Rtext_editor_get_folded_count(editor);
+}
+
+/**
+ * The first line of a folded block that holds `line` (the block's
+ * own line), or -1 when the line is not hidden by any fold.
+ */
+export function Rtext_editor_get_fold_start(editor: Rid, line: number): number {
+	return _lib.Rtext_editor_get_fold_start(editor, line);
+}
+
+export function Rsnippet_add(snippet: RSnippet | null): number {
+	return _lib.Rsnippet_add(_p(snippet));
+}
+
+export function Rsnippet_clear(): void {
+	_lib.Rsnippet_clear();
+}
+
+export function Rsnippet_get_count(): number {
+	return _lib.Rsnippet_get_count();
+}
+
+export function Rsnippet_get_name(index: number): string | null {
+	return _lib.Rsnippet_get_name(index);
+}
+
+export function Rsnippet_find(name: string | null): number {
+	return _lib.Rsnippet_find(_s(name));
+}
+
+/**
+ * Types the snippet at the caret, replacing the word before it
+ * when that word is its name. Sets the places; Tab and Shift+Tab walk
+ * them, Escape leaves them.
+ * Returns: R_FALSE when the editor is read-only or the snippet is unknown.
+ */
+export function Rtext_editor_insert_snippet(editor: Rid, name: string | null): number {
+	return _lib.Rtext_editor_insert_snippet(editor, _s(name));
+}
+
+/** The snippet whose name is what is being typed before the caret, or -1. */
+export function Rtext_editor_snippet_at_caret(editor: Rid): number {
+	return _lib.Rtext_editor_snippet_at_caret(editor);
+}
+
+/** R_FALSE stops the editor from offering snippets while typing. On by default. */
+export function Rtext_editor_set_snippet_completion(editor: Rid, enabled: number): void {
+	_lib.Rtext_editor_set_snippet_completion(editor, enabled);
+}
+
+/** R_TRUE while Tab and Shift+Tab walk the places of a snippet that was inserted. */
+export function Rtext_editor_is_in_snippet(editor: Rid): number {
+	return _lib.Rtext_editor_is_in_snippet(editor);
+}
+
+/**
+ * R_TRUE: Ctrl+click adds a caret where it is clicked, and every
+ * caret is selected and typed at once (Alt+drag selects a column, and
+ * Ctrl+D selects the next occurrence of the selection). Off by default.
+ */
+export function Rtext_editor_set_multi_cursor(editor: Rid, enabled: number): void {
+	_lib.Rtext_editor_set_multi_cursor(editor, enabled);
+}
+
+export function Rtext_editor_get_multi_cursor(editor: Rid): number {
+	return _lib.Rtext_editor_get_multi_cursor(editor);
+}
+
+export function Rtext_editor_get_caret_count(editor: Rid): number {
+	return _lib.Rtext_editor_get_caret_count(editor);
+}
+
+/** Where a caret is, by index (0 is the main one, which typing and scrolling follow). */
+export function Rtext_editor_get_caret(editor: Rid, index: number): [result: number, line: number, column: number] {
+	const line_ = new Int32Array(1);
+	const column_ = new Int32Array(1);
+	const result_ = _lib.Rtext_editor_get_caret(editor, index, line_, column_);
+	return [result_, line_[0]!, column_[0]!];
+}
+
+/** Adds a caret; the text at each of them is selected. R_FALSE when there are too many (256). */
+export function Rtext_editor_add_caret(editor: Rid, line: number, column: number): number {
+	return _lib.Rtext_editor_add_caret(editor, line, column);
+}
+
+export function Rtext_editor_clear_carets(editor: Rid): void {
+	_lib.Rtext_editor_clear_carets(editor);
+}
+
+/** Selects the next occurrence of the selected text, with a caret of its own. R_FALSE when there is none. */
+export function Rtext_editor_select_next_occurrence(editor: Rid): number {
+	return _lib.Rtext_editor_select_next_occurrence(editor);
+}
+
+/** Returns: How many words the text has, as an editor counts them: runs of letters and digits. */
+export function Rtext_editor_get_word_count(editor: Rid): number {
+	return _lib.Rtext_editor_get_word_count(editor);
+}
+
+/** Returns: The characters of the text, not the bytes (a UTF-8 code point counts one). */
+export function Rtext_editor_get_character_count(editor: Rid): number {
+	return _lib.Rtext_editor_get_character_count(editor);
+}
+
+/** Returns: How many lines have something besides blanks. */
+export function Rtext_editor_get_non_empty_line_count(editor: Rid): number {
+	return _lib.Rtext_editor_get_non_empty_line_count(editor);
+}
+
+/** Returns: The line that holds the caret, from 1 (for a status bar). */
+export function Rtext_editor_get_current_line(editor: Rid): number {
+	return _lib.Rtext_editor_get_current_line(editor);
+}
+
+/**
  * Color of a kind of token in the theme in use, instead of the
  * one Raven picks for dark and for light themes. Theme files set them
  * with <Syntax Keyword="#FF7AB2" String="..."/>.
@@ -11927,6 +12838,147 @@ export function Rdraw_pop_clip_rect(painter: RPointer): void {
 	_lib.Rdraw_pop_clip_rect(painter);
 }
 
+/** Creates an empty view. Give it its pages with Rpdf_view_set_page_count. */
+export function Rpdf_view_create(): Rid {
+	return _lib.Rpdf_view_create();
+}
+
+/**
+ * Number of pages of the document. 0 pages clears the view: the
+ * bitmaps are forgotten. New pages take the size of US Letter until
+ * Rpdf_view_set_page_size gives them their own.
+ */
+export function Rpdf_view_set_page_count(pdf_view: Rid, count: number): void {
+	_lib.Rpdf_view_set_page_count(pdf_view, count);
+}
+
+export function Rpdf_view_get_page_count(pdf_view: Rid): number {
+	return _lib.Rpdf_view_get_page_count(pdf_view);
+}
+
+export function Rpdf_view_set_page_size(pdf_view: Rid, page: number, width: number, height: number): void {
+	_lib.Rpdf_view_set_page_size(pdf_view, page, width, height);
+}
+
+/** The size of a page in points (1/72 inch); 0, 0 when there is no such page. */
+export function Rpdf_view_get_page_size(pdf_view: Rid, page: number): [width: number, height: number] {
+	const width_ = new Float32Array(1);
+	const height_ = new Float32Array(1);
+	_lib.Rpdf_view_get_page_size(pdf_view, page, width_, height_);
+	return [width_[0]!, height_[0]!];
+}
+
+/**
+ * The RGBA pixels of a page, rendered at `scale` pixels per point
+ * (2 fills a page drawn at zoom 2). The view keeps the texture and frees
+ * nothing. R_INVALID_ID forgets the bitmap of that page, which then shows
+ * as a placeholder again.
+ */
+export function Rpdf_view_set_page_bitmap(pdf_view: Rid, page: number, texture: Rid, scale: number): void {
+	_lib.Rpdf_view_set_page_bitmap(pdf_view, page, texture, scale);
+}
+
+/** Returns: R_TRUE when that page has a bitmap. */
+export function Rpdf_view_has_page_bitmap(pdf_view: Rid, page: number): number {
+	return _lib.Rpdf_view_has_page_bitmap(pdf_view, page);
+}
+
+/**
+ * The current page, from 0: it becomes the first one in view.
+ * Rpdf_view_set_page scrolls so that the page starts at the top.
+ */
+export function Rpdf_view_set_page(pdf_view: Rid, page: number): void {
+	_lib.Rpdf_view_set_page(pdf_view, page);
+}
+
+export function Rpdf_view_get_page(pdf_view: Rid): number {
+	return _lib.Rpdf_view_get_page(pdf_view);
+}
+
+/** Returns: The first and the last page whose rectangle is in the view, or 0 when there is none. */
+export function Rpdf_view_get_visible_first_page(pdf_view: Rid): number {
+	return _lib.Rpdf_view_get_visible_first_page(pdf_view);
+}
+
+export function Rpdf_view_get_visible_last_page(pdf_view: Rid): number {
+	return _lib.Rpdf_view_get_visible_last_page(pdf_view);
+}
+
+/**
+ * Zoom in pixels per point: 1 = 72 dpi (0.05 .. 16, clamped).
+ * Setting it leaves the fit mode. Rpdf_view_set_fit sets a mode that
+ * keeps following the size of the view.
+ */
+export function Rpdf_view_set_zoom(pdf_view: Rid, zoom: number): void {
+	_lib.Rpdf_view_set_zoom(pdf_view, zoom);
+}
+
+export function Rpdf_view_get_zoom(pdf_view: Rid): number {
+	return _lib.Rpdf_view_get_zoom(pdf_view);
+}
+
+export function Rpdf_view_set_fit(pdf_view: Rid, fit: RPdfFit): void {
+	_lib.Rpdf_view_set_fit(pdf_view, fit);
+}
+
+export function Rpdf_view_get_fit(pdf_view: Rid): RPdfFit {
+	return _lib.Rpdf_view_get_fit(pdf_view) as RPdfFit;
+}
+
+/** Space between pages, and around them, in points (default 16). */
+export function Rpdf_view_set_page_gap(pdf_view: Rid, gap: number): void {
+	_lib.Rpdf_view_set_page_gap(pdf_view, gap);
+}
+
+export function Rpdf_view_get_page_gap(pdf_view: Rid): number {
+	return _lib.Rpdf_view_get_page_gap(pdf_view);
+}
+
+export function Rpdf_view_set_page_needed_callback(pdf_view: Rid, callback: RPdfPageNeededCallback | Pointer | null, user_data: RPointer = null): void {
+	_lib.Rpdf_view_set_page_needed_callback(pdf_view, _adapt_RPdfPageNeededCallback(callback), user_data);
+}
+
+/**
+ * The page and the point of the page (in points, from its top-left
+ * corner) under a point of the widget, for SyncTeX inverse search.
+ * Returns: R_FALSE outside a page.
+ */
+export function Rpdf_view_get_page_at(pdf_view: Rid, x: number, y: number): [result: number, page: number, page_x: number, page_y: number] {
+	const page_ = new Int32Array(1);
+	const page_x_ = new Float32Array(1);
+	const page_y_ = new Float32Array(1);
+	const result_ = _lib.Rpdf_view_get_page_at(pdf_view, x, y, page_, page_x_, page_y_);
+	return [result_, page_[0]!, page_x_[0]!, page_y_[0]!];
+}
+
+export function Rpdf_view_set_page_clicked_callback(pdf_view: Rid, callback: RPdfPageClickedCallback | Pointer | null, user_data: RPointer = null): void {
+	_lib.Rpdf_view_set_page_clicked_callback(pdf_view, _adapt_RPdfPageClickedCallback(callback), user_data);
+}
+
+/** Asks for one page to be painted again, once its bitmap has arrived. */
+export function Rpdf_view_invalidate_page(pdf_view: Rid, page: number): void {
+	_lib.Rpdf_view_invalidate_page(pdf_view, page);
+}
+
+/** Scrolls so that a point of a page is in the middle of the view (SyncTeX forward search). */
+export function Rpdf_view_scroll_to_position(pdf_view: Rid, page: number, page_x: number, page_y: number): void {
+	_lib.Rpdf_view_scroll_to_position(pdf_view, page, page_x, page_y);
+}
+
+/**
+ * A rectangle of a page to show, in points from its top-left corner
+ * (where the source of what is selected is, in a forward search): one per
+ * view. A negative page removes it.
+ */
+export function Rpdf_view_set_highlight(pdf_view: Rid, page: number, x: number, y: number, width: number, height: number): void {
+	_lib.Rpdf_view_set_highlight(pdf_view, page, x, y, width, height);
+}
+
+/** Color behind the pages; the theme's by default (Rwidget_clear_color brings it back). */
+export function Rpdf_view_set_background_color(pdf_view: Rid, r: number, g: number, b: number, a: number): void {
+	_lib.Rpdf_view_set_background_color(pdf_view, r, g, b, a);
+}
+
 /**
  * A shader from SPIR-V code (a fragment shader written with
  * raven_effect.glsl, as in a .spv file): `size` bytes, copied. R_INVALID_ID
@@ -12492,6 +13544,349 @@ export function Rwidget_set_text_key(widget: Rid, attribute: string | null, key:
 /** A number written in the conventions of the language: decimal separator and digit grouping ("1 234,5" in French). */
 export function Rlocale_format_number(value: number, decimals: number): string | null {
 	return _lib.Rlocale_format_number(value, decimals);
+}
+
+/**
+ * Opens a settings store.
+ * path File the store is read from and written to, or NULL for a
+ * store that lives in memory only. The file is read when it exists.
+ * Returns: The store, or R_INVALID_ID (after reporting an error).
+ */
+export function Rsettings_create(path: string | null): Rid {
+	return _lib.Rsettings_create(_s(path));
+}
+
+/** Frees a store. Rshutdown frees the stores the application left alive. */
+export function Rsettings_destroy(settings: Rid): void {
+	_lib.Rsettings_destroy(settings);
+}
+
+/**
+ * Reads the file of the store again, replacing everything it holds.
+ * Returns: R_TRUE when the file existed and was valid JSON. When it did not,
+ * the store is emptied (a store with no file stays empty).
+ */
+export function Rsettings_load(settings: Rid): number {
+	return _lib.Rsettings_load(settings);
+}
+
+/**
+ * Writes the store to its file: a temporary file next to it, then a
+ * rename, so a reader never sees half a file. The folder is created when
+ * it does not exist.
+ * Returns: R_FALSE when the store has no file or when the file could not be
+ * written.
+ */
+export function Rsettings_save(settings: Rid): number {
+	return _lib.Rsettings_save(settings);
+}
+
+/** Path of the file of the store ("" for a store that lives in memory only). */
+export function Rsettings_get_path(settings: Rid): string | null {
+	return _lib.Rsettings_get_path(settings);
+}
+
+/** Returns: What the key holds, R_SETTING_NONE when it is not there (or holds an object, an array or null). */
+export function Rsettings_get_type(settings: Rid, key: string | null): RSettingType {
+	return _lib.Rsettings_get_type(settings, _s(key)) as RSettingType;
+}
+
+/** The value of the key; `fallback` when it is missing or holds another type. */
+export function Rsettings_get_bool(settings: Rid, key: string | null, fallback: number): number {
+	return _lib.Rsettings_get_bool(settings, _s(key), fallback);
+}
+
+export function Rsettings_get_int(settings: Rid, key: string | null, fallback: number): number {
+	return _lib.Rsettings_get_int(settings, _s(key), fallback);
+}
+
+export function Rsettings_get_number(settings: Rid, key: string | null, fallback: number): number {
+	return _lib.Rsettings_get_number(settings, _s(key), fallback);
+}
+
+/** Valid until the store changes. NULL only when the key is missing and `fallback` is NULL. */
+export function Rsettings_get_text(settings: Rid, key: string | null, fallback: string | null): string | null {
+	return _lib.Rsettings_get_text(settings, _s(key), _s(fallback));
+}
+
+export function Rsettings_set_bool(settings: Rid, key: string | null, value: number): void {
+	_lib.Rsettings_set_bool(settings, _s(key), value);
+}
+
+export function Rsettings_set_int(settings: Rid, key: string | null, value: number): void {
+	_lib.Rsettings_set_int(settings, _s(key), value);
+}
+
+export function Rsettings_set_number(settings: Rid, key: string | null, value: number): void {
+	_lib.Rsettings_set_number(settings, _s(key), value);
+}
+
+/** An empty text stores ""; a NULL text removes the key. */
+export function Rsettings_set_text(settings: Rid, key: string | null, value: string | null): void {
+	_lib.Rsettings_set_text(settings, _s(key), _s(value));
+}
+
+/** Removes a key. R_TRUE when it was there. */
+export function Rsettings_remove(settings: Rid, key: string | null): number {
+	return _lib.Rsettings_remove(settings, _s(key));
+}
+
+/** R_TRUE when the key is there, whatever it holds. */
+export function Rsettings_has(settings: Rid, key: string | null): number {
+	return _lib.Rsettings_has(settings, _s(key));
+}
+
+/**
+ * The whole document as text, for a project file that holds arrays
+ * and objects too. Valid until the store changes or the function is called
+ * again. "" when the store is empty.
+ */
+export function Rsettings_get_json(settings: Rid): string | null {
+	return _lib.Rsettings_get_json(settings);
+}
+
+/**
+ * Replaces the whole document.
+ * Returns: R_FALSE when `json` is not valid JSON: the store is not changed.
+ */
+export function Rsettings_set_json(settings: Rid, json: string | null): number {
+	return _lib.Rsettings_set_json(settings, _s(json));
+}
+
+/**
+ * How many keys the object at `prefix` has ("" for the whole
+ * document), or how many items the array at `prefix` has. 0 when there is
+ * nothing there.
+ */
+export function Rsettings_get_key_count(settings: Rid, prefix: string | null): number {
+	return _lib.Rsettings_get_key_count(settings, _s(prefix));
+}
+
+/**
+ * The index-th key of the object at `prefix` ("" for the whole
+ * document), or the index-th item of an array as "0", "1"... NULL when
+ * `index` is out of range. Valid until the next call of this function
+ * that returns a key.
+ */
+export function Rsettings_get_key(settings: Rid, prefix: string | null, index: number): string | null {
+	return _lib.Rsettings_get_key(settings, _s(prefix), index);
+}
+
+/**
+ * The folder where the settings of the application live:
+ * ~/.config/<app> ($XDG_CONFIG_HOME honoured),
+ * ~/Library/Application Support/<app> on macOS,
+ * %APPDATA%\<app> on Windows. Created when it does not exist; valid until
+ * the next call from the same thread.
+ */
+export function Rsettings_get_config_folder(app_name: string | null): string | null {
+	return _lib.Rsettings_get_config_folder(_s(app_name));
+}
+
+/** The folder for what can be made again (caches), by the same rules. */
+export function Rsettings_get_cache_folder(app_name: string | null): string | null {
+	return _lib.Rsettings_get_cache_folder(_s(app_name));
+}
+
+/**
+ * Opens <config folder>/<file_name> for the application, creating
+ * the folder when needed. Rsettings_open("myeditor", "sessions.json").
+ * Returns: R_INVALID_ID when the folder or the file cannot be opened.
+ */
+export function Rsettings_open(app_name: string | null, file_name: string | null): Rid {
+	return _lib.Rsettings_open(_s(app_name), _s(file_name));
+}
+
+/**
+ * Starts a program and returns at once.
+ * desc What to run. Copied: the strings may be freed after the call.
+ * output Called for every piece of output, or NULL. May be called
+ * several times, and not at all for a program that prints nothing.
+ * exited Called once when the program ends, or NULL.
+ * user_data Passed to both callbacks.
+ * Returns: The process, or R_INVALID_ID when it could not even be started
+ * (an empty description, no Raven). A program that does not exist is
+ * reported through `exited` with failed set, not here.
+ */
+export function Rprocess_start(desc: RProcessDesc | null, output: RProcessOutputCallback | Pointer | null, exited: RProcessExitCallback | Pointer | null, user_data: RPointer = null): Rid {
+	return _lib.Rprocess_start(_p(desc), _adapt_RProcessOutputCallback(output), _adapt_RProcessExitCallback(exited), user_data);
+}
+
+/** Returns: R_TRUE while the program runs. */
+export function Rprocess_is_running(process: Rid): number {
+	return _lib.Rprocess_is_running(process);
+}
+
+/** Returns: The exit code, or -1 while the program runs and when it could not be run. */
+export function Rprocess_get_exit_code(process: Rid): number {
+	return _lib.Rprocess_get_exit_code(process);
+}
+
+/** Returns: R_PROCESS_RUNNING, R_PROCESS_EXITED or R_PROCESS_FAILED. */
+export function Rprocess_get_state(process: Rid): RProcessState {
+	return _lib.Rprocess_get_state(process) as RProcessState;
+}
+
+/**
+ * Asks the program to stop (SIGTERM on POSIX, TerminateProcess on
+ * Windows), waits a moment, then kills it, and returns once its output has
+ * been read to the end. The exit callback still runs, during a frame.
+ * Does nothing when the program already ended.
+ */
+export function Rprocess_cancel(process: Rid): void {
+	_lib.Rprocess_cancel(process);
+}
+
+/**
+ * Blocks until the program ends. For tests and shutdown: never call
+ * it from the UI thread of a running application.
+ */
+export function Rprocess_wait(process: Rid): void {
+	_lib.Rprocess_wait(process);
+}
+
+/** Returns: R_TRUE when the program is found (PATH lookup only). */
+export function Rprocess_is_available(program: string | null): number {
+	return _lib.Rprocess_is_available(_s(program));
+}
+
+/**
+ * Finds a program without running it.
+ * Returns: An absolute path (in a buffer of the library, valid until the
+ * next call), or NULL when it is nowhere. A program with a separator in it
+ * is checked as given. The usual install folders of TeX are searched too,
+ * after PATH: /Library/TeX/texbin, /usr/local/texlive/ * /bin/ *,
+ * /opt/homebrew/bin, C:\\texlive\\ * \\bin\\windows and the bin folder of
+ * MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
+ */
+export function Rprocess_find(program: string | null): string | null {
+	return _lib.Rprocess_find(_s(program));
+}
+
+/**
+ * Runs a program to the end and collects what it printed.
+ * Blocking: for setup work (asking git for the state of a file, a tool for
+ * its version), never for a build. The window is frozen meanwhile.
+ * output Receives the output, NUL-terminated, allocated with the
+ * allocator of Raven: free it with Rmemory_free. May be NULL.
+ * size Receives its length, without the NUL. May be NULL.
+ * max_bytes Longest output kept; 0 selects 4 MiB. What comes after
+ * is read and dropped, so the program never blocks on a full pipe. A cut
+ * never leaves half of a UTF-8 character.
+ * Returns: The exit code, or -1 when the program could not be run.
+ */
+export function Rprocess_run(desc: RProcessDesc | null, max_bytes: number): Uint8Array | null {
+	const size_ = new BigUint64Array(1);
+	const address = _lib.Rprocess_run(_p(desc), size_, max_bytes) as Pointer | null;
+	if (!address) {
+		return null;
+	}
+	const size = Number(size_[0]!);
+	const data = size > 0 ? new Uint8Array(_toArrayBuffer(address, 0, size).slice(0)) : new Uint8Array(0);
+	_lib.Rmemory_free(address);
+	return data;
+}
+
+/**
+ * Parses the text of a log.
+ * log The bytes of the file; need not be NUL-terminated.
+ * size Their number.
+ * Returns: A list of messages, or R_INVALID_ID when the log has nothing
+ * to report (a log with no diagnostic parses to no list at all).
+ */
+export function Rlatex_log_parse(log: string | null): Rid {
+	const log_ = _s(log);
+	return _lib.Rlatex_log_parse(log_, log_ === null ? 0 : log_.length - 1);
+}
+
+/** Reads a log file and parses it. R_INVALID_ID when it cannot be read or has nothing to report. */
+export function Rlatex_log_parse_file(path: string | null): Rid {
+	return _lib.Rlatex_log_parse_file(_s(path));
+}
+
+/** Returns: How many messages the list holds, or 0 for R_INVALID_ID. */
+export function Rlatex_log_get_count(log: Rid): number {
+	return _lib.Rlatex_log_get_count(log);
+}
+
+/**
+ * One message of the list.
+ * message Receives the fields; its strings are owned by the list.
+ * Returns: R_FALSE when `index` is out of range.
+ */
+export function Rlatex_log_get_message(log: Rid, index: number, message: RLogMessage | null): number {
+	return _lib.Rlatex_log_get_message(log, index, _p(message));
+}
+
+/** Frees a list given by Rlatex_log_parse. Its messages are no longer valid. */
+export function Rlatex_log_destroy(log: Rid): void {
+	_lib.Rlatex_log_destroy(log);
+}
+
+/**
+ * Starts a build and returns at once.
+ * desc What to build; copied.
+ * output Called with what the tool prints, as it prints it, on the
+ * UI thread. May be NULL.
+ * user_data Passed to `output`.
+ * Returns: The build, or R_INVALID_ID when it cannot start (no root file).
+ * When the process ends the log is parsed, then `finished` runs.
+ */
+export function Rlatex_build_start(desc: RLatexBuildDesc | null, output: RProcessOutputCallback | Pointer | null, finished: RLatexBuildFinishedCallback | Pointer | null, user_data: RPointer = null): Rid {
+	return _lib.Rlatex_build_start(_p(desc), _adapt_RProcessOutputCallback(output), _adapt_RLatexBuildFinishedCallback(finished), user_data);
+}
+
+/** Returns: R_TRUE while the tool runs. */
+export function Rlatex_build_is_running(build: Rid): number {
+	return _lib.Rlatex_build_is_running(build);
+}
+
+/** Stops the tool and waits for it. The messages parsed so far stay. */
+export function Rlatex_build_cancel(build: Rid): void {
+	_lib.Rlatex_build_cancel(build);
+}
+
+/**
+ * The diagnostics of the last finished build, as a list that
+ * belongs to the build: read it with Rlatex_log_get_message, and do not
+ * destroy it. Valid until the build runs again or is destroyed.
+ * Returns: The list, or R_INVALID_ID before the first build ends.
+ */
+export function Rlatex_build_get_messages(build: Rid): Rid {
+	return _lib.Rlatex_build_get_messages(build);
+}
+
+/** Returns: The .pdf the build wrote, or NULL when it wrote none. Owned by the build. */
+export function Rlatex_build_get_pdf_path(build: Rid): string | null {
+	return _lib.Rlatex_build_get_pdf_path(build);
+}
+
+/** Returns: The .log the build read, or NULL. Owned by the build. */
+export function Rlatex_build_get_log_path(build: Rid): string | null {
+	return _lib.Rlatex_build_get_log_path(build);
+}
+
+/** Returns: R_TRUE when the build ended and its tool exited with 0. */
+export function Rlatex_build_succeeded(build: Rid): number {
+	return _lib.Rlatex_build_succeeded(build);
+}
+
+/**
+ * Cancels the build if it still runs, frees it and its messages.
+ * The handle is invalid afterwards.
+ */
+export function Rlatex_build_destroy(build: Rid): void {
+	_lib.Rlatex_build_destroy(build);
+}
+
+/**
+ * Finds a tool of the trade: "latexmk", "pdflatex", "xelatex",
+ * "lualatex", "synctex", "bibtex", "biber", "hunspell", "git"...
+ * Same lookup as Rprocess_find, which it forwards to.
+ * Returns: An absolute path valid until the next call, or NULL.
+ */
+export function Rlatex_find_tool(name: string | null): string | null {
+	return _lib.Rlatex_find_tool(_s(name));
 }
 
 /** Size of every text, 1 = as designed (0.5 to 4). Controls grow with their text. */

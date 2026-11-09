@@ -28,7 +28,13 @@ typedef enum rvn_handle_type_t {
 	/** A fragment shader of the application or a built-in effect (raven_shader.h). */
 	RVN_HANDLE_SHADER,
 	/** An icon beside the clock (raven_shell.h, platform/tray.c). */
-	RVN_HANDLE_TRAY
+	RVN_HANDLE_TRAY,
+	/** A program run by the library (raven_process.h, core/process.c). */
+	RVN_HANDLE_PROCESS,
+	/** A LaTeX build (raven_latex.h, core/latex_build.c). */
+	RVN_HANDLE_BUILD,
+	/** A list of diagnostics of a LaTeX log (raven_latex.h). */
+	RVN_HANDLE_LOG
 } rvn_handle_type_t;
 
 #define RVN_HANDLE_INDEX_BITS 20u

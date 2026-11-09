@@ -385,6 +385,26 @@ extern "C" {
 	RAVEN_API const char* Rtheme_get_name_at(int index);
 
 	/**
+	 * @brief Remembers the theme of a project folder, so that opening the
+	 * project again gives it its look back. The store is the one the
+	 * application owns (Rsettings_open(app, "sessions.json") or its own): the
+	 * library keeps no file of its own.
+	 *
+	 * The key is "theme." followed by the absolute, normalised path of the
+	 * project (forward slashes).
+	 * @return R_FALSE when there is no store or when the path is empty.
+	 */
+	RAVEN_API int Rtheme_remember_for(Rid settings, const char* project_path, const char* theme_name);
+	/** @brief The theme remembered for a project, or NULL. Valid until the store changes. */
+	RAVEN_API const char* Rtheme_get_remembered(Rid settings, const char* project_path);
+	/**
+	 * @brief Applies the theme remembered for a project (Rtheme_use).
+	 * @return R_TRUE when one was remembered and Rtheme_use accepted it. When
+	 * it did not, the theme in use is left as it was.
+	 */
+	RAVEN_API int Rtheme_apply_remembered(Rid settings, const char* project_path);
+
+	/**
 	 * @brief Writes the theme in use, with every change made since it was
 	 * applied, as a theme file.
 	 * @param name Name given to the theme in the file; NULL keeps the current one.

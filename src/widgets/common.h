@@ -65,6 +65,7 @@ extern const rvn_widget_class_t rvn_class_breadcrumb;
 extern const rvn_widget_class_t rvn_class_rating;
 extern const rvn_widget_class_t rvn_class_pagination;
 extern const rvn_widget_class_t rvn_class_plot;
+extern const rvn_widget_class_t rvn_class_pdf_view;
 
 /** Internal class types, outside of the public enum. */
 #define RVN_WIDGET_INTERNAL_COMBO_LIST ((RWidgetType)((int)R_WIDGET_LAST_ + 1))
@@ -356,7 +357,11 @@ uint32_t rvn_language_generation(void);
 /** The words of a language: list 0 = keywords, 1 = types, 2 = constants. */
 int rvn_language_word_count(const rvn_language_t* language, int list);
 const char* rvn_language_word(const rvn_language_t* language, int list, int index);
+/** R_TRUE when a byte is part of a name in the language (a backslash is, in TeX). */
+int rvn_language_is_word_char(const rvn_language_t* language, char c);
 void rvn_languages_shutdown(void);
+/** Frees what the text editor keeps between calls: the snippets, the text of a replacement (Rshutdown). */
+void rvn_text_editor_shutdown(void);
 
 /**
  * Cuts one line into spans, in order. `state` is what the line starts in (0

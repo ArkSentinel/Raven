@@ -823,6 +823,8 @@ constset WidgetType : CInt
 	PAGINATION = 0x0231,
 	<* Curves of X / Y data: legend, line styles, markers, log axes, a second X and Y axis, pan and zoom. *>
 	PLOT = 0x0232,
+	<* The pages of a document, rendered by the application: zoom, scroll, page navigation. *>
+	PDF_VIEW = 0x0233,
 }
 
 constset HAlign : CInt
@@ -1080,6 +1082,17 @@ constset LanguageFlags : CInt
 	 and titles in bold: what will be formatted is seen while typing.
 	*>
 	FORMATTED_TEXT = 0x0080,
+	<*
+	 TeX and LaTeX: a backslash starts a command, a percent sign starts a
+	 comment that ends with its line, $...$ is mathematics. A line that
+	 ends with \begin{...} indents the next one, and \end{...} comes back.
+	*>
+	TEX = 0x0100,
+	<*
+	 BibTeX: type{key, field = {value}}. The entries and their fields are
+	 colored, and a citation key is a word of its own.
+	*>
+	BIBTEX = 0x0200,
 }
 
 <* Whether every flag of `flags` is set. *>
@@ -1118,6 +1131,20 @@ constset MarkerKind : CInt
 	WARNING = 0x0351,
 	INFO = 0x0352,
 }
+
+constset SearchFlags : CInt
+{
+	NONE = 0,
+	<* A regular expression, in the syntax of the editor: see raven_text_editor.h. *>
+	REGEX = 1,
+	<* Case is ignored (and, with R_SEARCH_REGEX, the pattern is not sensitive to case). *>
+	IGNORE_CASE = 2,
+	<* Only whole words match ("cat" does not match "concatenate"). *>
+	WHOLE_WORD = 4,
+}
+
+<* Whether every flag of `flags` is set. *>
+fn bool SearchFlags.has(self, SearchFlags flags) @inline => (self & flags) == flags;
 
 <* Buttons of a header bar. *>
 constset HeaderButtons : CInt
@@ -1268,6 +1295,17 @@ constset Motion : CInt
 	WOBBLY = 0x0323,
 }
 
+<* How the view keeps the pages in its place when it is resized. *>
+constset PdfFit : CInt
+{
+	<* The zoom given is used as it is (the default). *>
+	NONE = 0x0570,
+	<* The zoom follows the width of the view, with a scrollbar for the height. *>
+	WIDTH = 0x0571,
+	<* The zoom follows the width or the height, whichever is smaller: the whole page shows. *>
+	PAGE = 0x0572,
+}
+
 <* The effects that come with Raven (Reffect_get). *>
 constset Effect : CInt
 {
@@ -1321,6 +1359,51 @@ constset XmlValueType : CInt
 	<* Texts separated by '|': "One|Two|Three". *>
 	LIST = 0x03C8,
 }
+
+<* What a key holds. *>
+constset SettingType : CInt
+{
+	<* No such key, or a value that is an object, an array or null. *>
+	NONE = 0x0300,
+	BOOL = 0x0301,
+	INT = 0x0302,
+	NUMBER = 0x0303,
+	TEXT = 0x0304,
+}
+
+constset ProcessState : CInt
+{
+	<* Started, its output is still being read. *>
+	RUNNING = 0x0400,
+	<* Ended by itself: Rprocess_get_exit_code says how. *>
+	EXITED = 0x0401,
+	<* Could not be run at all (not found, no permission): the exit code is -1. *>
+	FAILED = 0x0402,
+}
+
+<* What a line of a log is worth to an editor. *>
+constset LogKind : CInt
+{
+	<* TeX stopped here ("! Undefined control sequence."). *>
+	ERROR = 0x0500,
+	<* Something that may be wrong (an undefined reference, a font substitution). *>
+	WARNING = 0x0501,
+	<* Neither: a file opened, the pages written, how much memory TeX used. *>
+	INFO = 0x0502,
+	<* Overfull or underfull \hbox or \vbox: not an error, but the page will show it. *>
+	BAD_BOX = 0x0503,
+}
+
+<* The engines an editor offers. All of them take the same command line. *>
+constset LatexEngine : CInt
+{
+	PDFLATEX = 0,
+	XELATEX = 1,
+	LUALATEX = 2,
+}
+
+<* Whether every flag of `flags` is set. *>
+fn bool LatexEngine.has(self, LatexEngine flags) @inline => (self & flags) == flags;
 
 constset ColorFilter : CInt
 {
@@ -1618,6 +1701,17 @@ alias ViewportResizeCallback = fn void(Id viewport, CInt width, CInt height, voi
 alias PaintCallback = fn void(Id widget, Painter* painter, float width, float height, void* user_data);
 alias MeasureCallback = fn void(Id widget, float* width, float* height, void* user_data);
 <*
+ Called when a page must be rendered, with `scale` pixels per
+ point (the zoom, times the scale of the window) and the index of the
+ page. It may call Rpdf_view_set_page_bitmap from inside. A page is
+ asked for once while it stays visible at a given scale; it is asked for
+ again when the scale changes by more than 1 % or when it comes back
+ into view.
+*>
+alias PdfPageNeededCallback = fn void(Id pdf_view, CInt page, float scale, void* user_data);
+<* Called when the user clicks on a page. This also fires the action of the widget. *>
+alias PdfPageClickedCallback = fn void(Id pdf_view, CInt page, float page_x, float page_y, void* user_data);
+<*
  Called each time a file was loaded again.
  path The file given when the interface was created.
  ok   R_FALSE when the file could not be used (the interface is unchanged).
@@ -1641,6 +1735,12 @@ alias XmlReloadCallback = fn void(ZString path, CInt ok, void* user_data);
 alias XmlTagCreateCallback = fn Id(ZString tag, void* user_data);
 alias XmlTagAttributeCallback = fn CInt(Id widget, ZString name, ZString value, void* user_data);
 alias LocaleChangedCallback = fn void(ZString language, void* user_data);
+<* A piece of output, as it arrives. `text` is not null-terminated. Runs on the UI thread. *>
+alias ProcessOutputCallback = fn void(ZString text, usz length, CInt is_stderr, void* user_data);
+<* The process ended. `failed` is R_TRUE when it could not be run at all. Runs on the UI thread. *>
+alias ProcessExitCallback = fn void(CInt exit_code, CInt failed, void* user_data);
+<* Called on the UI thread when a build ended. `success` is R_TRUE when the process exited with 0. *>
+alias LatexBuildFinishedCallback = fn void(Id build, CInt success, void* user_data);
 
 <*
  Optional settings for Rinit_ex. A zero-initialized structure selects the
@@ -1978,6 +2078,34 @@ struct LanguageDesc
 	 NULL: JavaScript, as in HTML.
 	*>
 	ZString script_language;
+	<*
+	 Characters that belong to a name besides letters, digits and the
+	 underscore: "\\" for TeX commands (so that completing "\\sec" proposes
+	 "\\section", and a command is one word), "-" and ":" for the names of
+	 a BibTeX entry. NULL keeps the usual ones.
+	*>
+	ZString word_characters;
+}
+
+<*
+ A block of text typed by a name.
+
+ The body may hold `$1` .. `$9` (places the caret goes to, in order,
+ with Tab) and `$0` (where the caret ends), the same place twice to
+ edit the two copies at once, `${1:text}` for a place with a text
+ selected, and `$NAME` for a variable given here (date, author...).
+ `\t` and `\n` in the body are a tab and a line break.
+*>
+struct Snippet
+{
+	<* The word that is typed and replaced ("sec", "fig"...). Case is ignored. *>
+	ZString name;
+	<* What the snippet is, shown in the list ("Section"). May be NULL. *>
+	ZString description;
+	<* A few words before the caret that make the snippet apply ("\\begin{", "\\"). May be NULL. *>
+	ZString prefix;
+	<* The text it types, with its places. *>
+	ZString body;
 }
 
 <* A task of the jump list of Windows (Rtaskbar_set_jump_list). *>
@@ -2106,6 +2234,73 @@ struct XmlAttributeInfo
 	ZString group;
 	<* One line saying what it does. *>
 	ZString description;
+}
+
+<* What to run and how. A zero-initialized structure is a valid, empty description. *>
+struct ProcessDesc
+{
+	<* "latexmk", or an absolute path. Looked up in PATH when it has no separator. *>
+	ZString program;
+	<* NULL-terminated argv, NOT including argv[0]. May be NULL. *>
+	ZString* arguments;
+	<* How many arguments there are, argv[0] not counted. 0 = count them up to the NULL. *>
+	CInt argument_count;
+	<* NULL = the current one. *>
+	ZString working_directory;
+	<*
+	 R_TRUE: stderr goes to the same stream as stdout, which is what a
+	 build log wants (the warnings of a compiler are as interesting as
+	 its errors, and the order between them is kept).
+	*>
+	CInt merge_stderr;
+}
+
+<* One diagnostic of a log. The strings belong to the list: copy them to keep them. *>
+struct LogMessage
+{
+	LogKind kind;
+	<* The file as the log writes it (often "./chapter.tex"), or NULL. *>
+	ZString file;
+	<* The line, or 0 when the log does not say. *>
+	CInt line;
+	<* One line, trimmed: "Undefined control sequence." *>
+	ZString message;
+	<*
+	 The lines TeX printed around it (what the error happened in, what
+	 follows), or NULL. Several lines, separated by '\n'.
+	*>
+	ZString context;
+}
+
+<*
+ What to build. A zero-initialized structure builds `root_file` with
+ pdflatex, once; an editor usually sets `use_latexmk` too.
+*>
+struct LatexBuildDesc
+{
+	<* Path to the main .tex: its folder is the working directory, its name gives the .pdf and the .log. *>
+	ZString root_file;
+	LatexEngine engine;
+	<*
+	 R_TRUE runs latexmk, which does the several passes LaTeX needs (a
+	 table of contents, references); R_FALSE runs the engine once. Since
+	 R_FALSE is 0, a zero-initialized structure runs the engine once.
+	*>
+	CInt use_latexmk;
+	<* R_TRUE adds -shell-escape: the document may run programs of its own. *>
+	CInt shell_escape;
+	<*
+	 For tests and unusual tools: the program that runs instead of the
+	 engine and latexmk, with its arguments in `arguments_override`
+	 (NULL-terminated, without argv[0]). The working directory is still
+	 the folder of the root file.
+	*>
+	ZString command_override;
+	ZString* arguments_override;
+	<* How many there are. 0 = count them up to the NULL. *>
+	CInt arguments_override_count;
+	<* For tests: the log to read when the process ends, instead of the one guessed from the root file. *>
+	ZString log_path_override;
 }
 
 <* What the system asks for. *>
@@ -3298,6 +3493,140 @@ fn void TextEditor.add_marker(self, CInt line, CInt from_column, CInt to_column,
 fn void TextEditor.clear_markers(self) @inline => c::text_editor_clear_markers(self);
 
 fn CInt TextEditor.get_marker_count(self) @inline => c::text_editor_get_marker_count(self);
+
+<*
+ The line, the columns and the kind of a marker, by index (0 ..
+ Rtext_editor_get_marker_count - 1).
+ Returns: The message of the marker, or NULL when `index` is out of range.
+*>
+fn ZString TextEditor.get_marker(self, CInt index, CInt* line, CInt* from_column, CInt* to_column, MarkerKind* kind) @inline => c::text_editor_get_marker(self, index, line, from_column, to_column, kind);
+
+<* Removes the markers of one line and adds a list, as a compiler's report does. *>
+fn void TextEditor.clear_markers_of_line(self, CInt line) @inline => c::text_editor_clear_markers_of_line(self, line);
+
+<*
+ Sets what is looked for, from now on. An empty pattern clears it.
+ The flags are a bitmask of RSearchFlags. Invalid regular expressions are
+ reported and leave the search as it was.
+ Returns: R_TRUE when the pattern was taken.
+*>
+fn bool TextEditor.set_search(self, ZString pattern, SearchFlags flags) @inline => c::text_editor_set_search(self, pattern, flags) != 0;
+
+fn ZString TextEditor.get_search(self) @inline => c::text_editor_get_search(self);
+
+fn SearchFlags TextEditor.get_search_flags(self) @inline => c::text_editor_get_search_flags(self);
+
+<*
+ The next match after the caret (or before it, with
+ `backwards`), selected; the text is scrolled to it. It wraps around
+ the ends of the text. R_FALSE when nothing matches.
+*>
+fn CInt TextEditor.find_next(self, CInt backwards) @inline => c::text_editor_find_next(self, backwards);
+
+<* How many places match the search. *>
+fn CInt TextEditor.count_matches(self) @inline => c::text_editor_count_matches(self);
+
+<* Where a match is, by index (0 .. count - 1): its start and its end. R_FALSE when out of range. *>
+fn CInt TextEditor.get_match(self, CInt index, CInt* from_line, CInt* from_column, CInt* to_line, CInt* to_column) @inline => c::text_editor_get_match(self, index, from_line, from_column, to_line, to_column);
+
+<*
+ Replaces the current match (the selection, when it is one) and
+ goes to the next one. R_FALSE when there is nothing to replace.
+*>
+fn CInt TextEditor.replace(self, ZString text) @inline => c::text_editor_replace(self, text);
+
+<* Replaces every match, as one step of the history. Returns: How many were replaced. *>
+fn CInt TextEditor.replace_all(self, ZString text) @inline => c::text_editor_replace_all(self, text);
+
+<*
+ The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
+ (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
+ with `matches`, the groups of the regex that matched. Pure: no editor needed.
+ Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
+*>
+alias text_editor_expand_replacement = c::text_editor_expand_replacement;
+
+<*
+ R_TRUE (the default): with a language whose blocks can be folded
+ (braces, brackets, \begin{...} ... \end{...}, <tag> ... </tag>,
+ Markdown titles), a small arrow in the margin collapses the block;
+ Ctrl+Shift+[ and Ctrl+Shift+] fold and unfold the block of the caret.
+*>
+fn void TextEditor.set_folding(self, bool enabled) @inline => c::text_editor_set_folding(self, (CInt)enabled);
+
+fn CInt TextEditor.get_folding(self) @inline => c::text_editor_get_folding(self);
+
+<* Folds the block of the caret (the one that holds it), or unfolds it. R_FALSE when there is none. *>
+fn CInt TextEditor.toggle_fold(self) @inline => c::text_editor_toggle_fold(self);
+
+<* Folds or unfolds the block that starts on a line (an opening brace, \begin, a title). *>
+fn CInt TextEditor.fold_line(self, CInt line) @inline => c::text_editor_fold_line(self, line);
+
+fn CInt TextEditor.unfold_line(self, CInt line) @inline => c::text_editor_unfold_line(self, line);
+
+fn bool TextEditor.is_folded(self, CInt line) @inline => c::text_editor_is_folded(self, line) != 0;
+
+<* Unfolds everything, and forgets the folded blocks. *>
+fn void TextEditor.unfold_all(self) @inline => c::text_editor_unfold_all(self);
+
+fn CInt TextEditor.get_folded_count(self) @inline => c::text_editor_get_folded_count(self);
+
+<*
+ The first line of a folded block that holds `line` (the block's
+ own line), or -1 when the line is not hidden by any fold.
+*>
+fn CInt TextEditor.get_fold_start(self, CInt line) @inline => c::text_editor_get_fold_start(self, line);
+
+<*
+ Types the snippet at the caret, replacing the word before it
+ when that word is its name. Sets the places; Tab and Shift+Tab walk
+ them, Escape leaves them.
+ Returns: R_FALSE when the editor is read-only or the snippet is unknown.
+*>
+fn bool TextEditor.insert_snippet(self, ZString name) @inline => c::text_editor_insert_snippet(self, name) != 0;
+
+<* The snippet whose name is what is being typed before the caret, or -1. *>
+fn CInt TextEditor.snippet_at_caret(self) @inline => c::text_editor_snippet_at_caret(self);
+
+<* R_FALSE stops the editor from offering snippets while typing. On by default. *>
+fn void TextEditor.set_snippet_completion(self, bool enabled) @inline => c::text_editor_set_snippet_completion(self, (CInt)enabled);
+
+<* R_TRUE while Tab and Shift+Tab walk the places of a snippet that was inserted. *>
+fn bool TextEditor.is_in_snippet(self) @inline => c::text_editor_is_in_snippet(self) != 0;
+
+<*
+ R_TRUE: Ctrl+click adds a caret where it is clicked, and every
+ caret is selected and typed at once (Alt+drag selects a column, and
+ Ctrl+D selects the next occurrence of the selection). Off by default.
+*>
+fn void TextEditor.set_multi_cursor(self, bool enabled) @inline => c::text_editor_set_multi_cursor(self, (CInt)enabled);
+
+fn CInt TextEditor.get_multi_cursor(self) @inline => c::text_editor_get_multi_cursor(self);
+
+fn CInt TextEditor.get_caret_count(self) @inline => c::text_editor_get_caret_count(self);
+
+<* Where a caret is, by index (0 is the main one, which typing and scrolling follow). *>
+fn CInt TextEditor.get_caret(self, CInt index, CInt* line, CInt* column) @inline => c::text_editor_get_caret(self, index, line, column);
+
+<* Adds a caret; the text at each of them is selected. R_FALSE when there are too many (256). *>
+fn CInt TextEditor.add_caret(self, CInt line, CInt column) @inline => c::text_editor_add_caret(self, line, column);
+
+fn void TextEditor.clear_carets(self) @inline => c::text_editor_clear_carets(self);
+
+<* Selects the next occurrence of the selected text, with a caret of its own. R_FALSE when there is none. *>
+fn CInt TextEditor.select_next_occurrence(self) @inline => c::text_editor_select_next_occurrence(self);
+
+<* Returns: How many words the text has, as an editor counts them: runs of letters and digits. *>
+fn CInt TextEditor.get_word_count(self) @inline => c::text_editor_get_word_count(self);
+
+<* Returns: The characters of the text, not the bytes (a UTF-8 code point counts one). *>
+fn CInt TextEditor.get_character_count(self) @inline => c::text_editor_get_character_count(self);
+
+<* Returns: How many lines have something besides blanks. *>
+fn CInt TextEditor.get_non_empty_line_count(self) @inline => c::text_editor_get_non_empty_line_count(self);
+
+<* Returns: The line that holds the caret, from 1 (for a status bar). *>
+fn CInt TextEditor.get_current_line(self) @inline => c::text_editor_get_current_line(self);
 
 fn void TextEditor.set_changed_callback(self, TextEditorChangedCallback callback, void* user_data) @inline => c::text_editor_set_changed_callback(self, callback, user_data);
 
@@ -4722,6 +5051,96 @@ fn void Plot.set_drag_line_callback(self, PlotDragLineCallback callback, void* u
 
 fn void Plot.set_series_toggled_callback(self, PlotSeriesCallback callback, void* user_data) @inline => c::plot_set_series_toggled_callback(self, callback, user_data);
 
+// ---- PdfView
+
+typedef PdfView = inline Widget;
+
+<* Creates an empty view. Give it its pages with Rpdf_view_set_page_count. *>
+fn PdfView pdf_view_create() @inline => (PdfView)c::pdf_view_create();
+
+<*
+ Number of pages of the document. 0 pages clears the view: the
+ bitmaps are forgotten. New pages take the size of US Letter until
+ Rpdf_view_set_page_size gives them their own.
+*>
+fn void PdfView.set_page_count(self, CInt count) @inline => c::pdf_view_set_page_count(self, count);
+
+fn CInt PdfView.get_page_count(self) @inline => c::pdf_view_get_page_count(self);
+
+fn void PdfView.set_page_size(self, CInt page, float width, float height) @inline => c::pdf_view_set_page_size(self, page, width, height);
+
+<* The size of a page in points (1/72 inch); 0, 0 when there is no such page. *>
+fn void PdfView.get_page_size(self, CInt page, float* width, float* height) @inline => c::pdf_view_get_page_size(self, page, width, height);
+
+<*
+ The RGBA pixels of a page, rendered at `scale` pixels per point
+ (2 fills a page drawn at zoom 2). The view keeps the texture and frees
+ nothing. R_INVALID_ID forgets the bitmap of that page, which then shows
+ as a placeholder again.
+*>
+fn void PdfView.set_page_bitmap(self, CInt page, Id texture, float scale) @inline => c::pdf_view_set_page_bitmap(self, page, texture, scale);
+
+<* Returns: R_TRUE when that page has a bitmap. *>
+fn bool PdfView.has_page_bitmap(self, CInt page) @inline => c::pdf_view_has_page_bitmap(self, page) != 0;
+
+<*
+ The current page, from 0: it becomes the first one in view.
+ Rpdf_view_set_page scrolls so that the page starts at the top.
+*>
+fn void PdfView.set_page(self, CInt page) @inline => c::pdf_view_set_page(self, page);
+
+fn CInt PdfView.get_page(self) @inline => c::pdf_view_get_page(self);
+
+<* Returns: The first and the last page whose rectangle is in the view, or 0 when there is none. *>
+fn CInt PdfView.get_visible_first_page(self) @inline => c::pdf_view_get_visible_first_page(self);
+
+fn CInt PdfView.get_visible_last_page(self) @inline => c::pdf_view_get_visible_last_page(self);
+
+<*
+ Zoom in pixels per point: 1 = 72 dpi (0.05 .. 16, clamped).
+ Setting it leaves the fit mode. Rpdf_view_set_fit sets a mode that
+ keeps following the size of the view.
+*>
+fn void PdfView.set_zoom(self, float zoom) @inline => c::pdf_view_set_zoom(self, zoom);
+
+fn float PdfView.get_zoom(self) @inline => c::pdf_view_get_zoom(self);
+
+fn void PdfView.set_fit(self, PdfFit fit) @inline => c::pdf_view_set_fit(self, fit);
+
+fn PdfFit PdfView.get_fit(self) @inline => c::pdf_view_get_fit(self);
+
+<* Space between pages, and around them, in points (default 16). *>
+fn void PdfView.set_page_gap(self, float gap) @inline => c::pdf_view_set_page_gap(self, gap);
+
+fn float PdfView.get_page_gap(self) @inline => c::pdf_view_get_page_gap(self);
+
+fn void PdfView.set_page_needed_callback(self, PdfPageNeededCallback callback, void* user_data) @inline => c::pdf_view_set_page_needed_callback(self, callback, user_data);
+
+<*
+ The page and the point of the page (in points, from its top-left
+ corner) under a point of the widget, for SyncTeX inverse search.
+ Returns: R_FALSE outside a page.
+*>
+fn bool PdfView.get_page_at(self, float x, float y, CInt* page, float* page_x, float* page_y) @inline => c::pdf_view_get_page_at(self, x, y, page, page_x, page_y) != 0;
+
+fn void PdfView.set_page_clicked_callback(self, PdfPageClickedCallback callback, void* user_data) @inline => c::pdf_view_set_page_clicked_callback(self, callback, user_data);
+
+<* Asks for one page to be painted again, once its bitmap has arrived. *>
+fn void PdfView.invalidate_page(self, CInt page) @inline => c::pdf_view_invalidate_page(self, page);
+
+<* Scrolls so that a point of a page is in the middle of the view (SyncTeX forward search). *>
+fn void PdfView.scroll_to_position(self, CInt page, float page_x, float page_y) @inline => c::pdf_view_scroll_to_position(self, page, page_x, page_y);
+
+<*
+ A rectangle of a page to show, in points from its top-left corner
+ (where the source of what is selected is, in a forward search): one per
+ view. A negative page removes it.
+*>
+fn void PdfView.set_highlight(self, CInt page, float x, float y, float width, float height) @inline => c::pdf_view_set_highlight(self, page, x, y, width, height);
+
+<* Color behind the pages; the theme's by default (Rwidget_clear_color brings it back). *>
+fn void PdfView.set_background_color(self, float r, float g, float b, float a) @inline => c::pdf_view_set_background_color(self, r, g, b, a);
+
 // ---- Window
 
 typedef Window = inline Id;
@@ -5023,6 +5442,33 @@ fn void Window.set_event_hook(self, WindowEventHook hook, void* user_data) @inli
 fn void Window.register_shortcut(self, Key key, Modifier modifiers, ZString action) @inline => c::window_register_shortcut(self, key, modifiers, action);
 
 fn void Window.unregister_shortcut(self, Key key, Modifier modifiers) @inline => c::window_unregister_shortcut(self, key, modifiers);
+
+<*
+ Registers a whole set of shortcuts from a text, as a preferences
+ window writes it:
+
+     "Ctrl+S save | Ctrl+Shift+S save_as | F5 build | Ctrl+K,Ctrl+B clear"
+
+ Entries are separated by '|'. The key or the keys come first, then the
+ action name (Raction_bind). An entry whose action is empty unbinds that
+ key. Several chords separated by commas are a sequence: only the first
+ chord is bound for now (the others are parsed and ignored).
+ Returns: How many shortcuts were registered (unbound ones included).
+*>
+fn CInt Window.set_keybindings(self, ZString bindings) @inline => c::window_set_keybindings(self, bindings);
+
+<* How many shortcuts the window has (Rwindow_register_shortcut). *>
+fn CInt Window.get_shortcut_count(self) @inline => c::window_get_shortcut_count(self);
+
+<*
+ Reads the index-th shortcut of the window, for a preferences
+ window that lists them.
+ action Receives the name of the action; may be NULL. Valid until
+ the next call of this function (or until the window changes its
+ shortcuts).
+ Returns: R_FALSE when `index` is out of range.
+*>
+fn bool Window.get_shortcut(self, CInt index, Key* key, uint* modifiers, ZString* action) @inline => c::window_get_shortcut(self, index, key, modifiers, action) != 0;
 
 <* Settings of one window; NULL: it follows Rtouch_set_settings again. *>
 fn void Window.set_touch_settings(self, TouchSettings* settings) @inline => c::window_set_touch_settings(self, settings);
@@ -5807,6 +6253,17 @@ fn void set_animations_enabled(bool enabled) @inline => c::set_animations_enable
 
 alias get_animations_enabled = c::get_animations_enabled;
 
+<*
+ R_TRUE: the highlight that follows the selection in lists, tables
+ and trees moves with a spring; R_FALSE (the default) it is there at once,
+ which is what a list that follows the pointer needs. A window resize and
+ the text caret are never animated: they follow the input exactly.
+ XML and theme files cannot set it.
+*>
+fn void set_selection_animation(bool enabled) @inline => c::set_selection_animation((CInt)enabled);
+
+alias get_selection_animation = c::get_selection_animation;
+
 <* Multiplies the speed of every animation. 1 is the default, 0.25 a slow motion. *>
 alias set_animation_speed = c::set_animation_speed;
 
@@ -5954,6 +6411,21 @@ alias drag_get_data = c::drag_get_data;
 <* Ends the drag in progress without dropping (the target receives R_DROP_LEAVE). *>
 alias drag_cancel = c::drag_cancel;
 
+<*
+ Parses one key name to a key and its modifiers: "Ctrl+S",
+ "Ctrl+Shift+S", "F5", "PageUp", "Escape", "A". The modifiers are
+ Ctrl, Shift, Alt and Super (Cmd and Win are accepted for Super).
+ Returns: R_FALSE when the name is not a key.
+*>
+fn bool key_from_name(ZString name, Key* key, uint* modifiers) @inline => c::key_from_name(name, key, modifiers) != 0;
+
+<*
+ The reverse, for showing a shortcut: "Ctrl+S". Super is written
+ "Super" (the menus show it too).
+ Returns: NULL when the key has no name. Valid until the next call.
+*>
+alias key_to_name = c::key_to_name;
+
 <* The settings every window follows, unless it has its own. *>
 alias touch_get_settings = c::touch_get_settings;
 
@@ -6086,6 +6558,28 @@ alias theme_get_count = c::theme_get_count;
 alias theme_get_name_at = c::theme_get_name_at;
 
 <*
+ Remembers the theme of a project folder, so that opening the
+ project again gives it its look back. The store is the one the
+ application owns (Rsettings_open(app, "sessions.json") or its own): the
+ library keeps no file of its own.
+
+ The key is "theme." followed by the absolute, normalised path of the
+ project (forward slashes).
+ Returns: R_FALSE when there is no store or when the path is empty.
+*>
+fn bool theme_remember_for(Id settings, ZString project_path, ZString theme_name) @inline => c::theme_remember_for(settings, project_path, theme_name) != 0;
+
+<* The theme remembered for a project, or NULL. Valid until the store changes. *>
+alias theme_get_remembered = c::theme_get_remembered;
+
+<*
+ Applies the theme remembered for a project (Rtheme_use).
+ Returns: R_TRUE when one was remembered and Rtheme_use accepted it. When
+ it did not, the theme in use is left as it was.
+*>
+fn bool theme_apply_remembered(Id settings, ZString project_path) @inline => c::theme_apply_remembered(settings, project_path) != 0;
+
+<*
  Writes the theme in use, with every change made since it was
  applied, as a theme file.
  name Name given to the theme in the file; NULL keeps the current one.
@@ -6117,6 +6611,16 @@ alias language_get_name = c::language_get_name;
 
 <* Returns: The name of the language of a file, from its extension, or NULL. *>
 alias language_for_file = c::language_for_file;
+
+alias snippet_add = c::snippet_add;
+
+alias snippet_clear = c::snippet_clear;
+
+alias snippet_get_count = c::snippet_get_count;
+
+alias snippet_get_name = c::snippet_get_name;
+
+alias snippet_find = c::snippet_find;
 
 <*
  Color of a kind of token in the theme in use, instead of the
@@ -6429,6 +6933,263 @@ alias tr_plural = c::tr_plural;
 
 <* A number written in the conventions of the language: decimal separator and digit grouping ("1 234,5" in French). *>
 alias locale_format_number = c::locale_format_number;
+
+<*
+ Opens a settings store.
+ path File the store is read from and written to, or NULL for a
+ store that lives in memory only. The file is read when it exists.
+ Returns: The store, or R_INVALID_ID (after reporting an error).
+*>
+fn Id? settings_create(ZString path)
+{
+	Id result = c::settings_create(path);
+	if (result == INVALID_ID) return last_fault()~;
+	return result;
+}
+
+<* Frees a store. Rshutdown frees the stores the application left alive. *>
+alias settings_destroy = c::settings_destroy;
+
+<*
+ Reads the file of the store again, replacing everything it holds.
+ Returns: R_TRUE when the file existed and was valid JSON. When it did not,
+ the store is emptied (a store with no file stays empty).
+*>
+fn bool settings_load(Id settings) @inline => c::settings_load(settings) != 0;
+
+<*
+ Writes the store to its file: a temporary file next to it, then a
+ rename, so a reader never sees half a file. The folder is created when
+ it does not exist.
+ Returns: R_FALSE when the store has no file or when the file could not be
+ written.
+*>
+fn bool settings_save(Id settings) @inline => c::settings_save(settings) != 0;
+
+<* Path of the file of the store ("" for a store that lives in memory only). *>
+alias settings_get_path = c::settings_get_path;
+
+<* Returns: What the key holds, R_SETTING_NONE when it is not there (or holds an object, an array or null). *>
+alias settings_get_type = c::settings_get_type;
+
+<* The value of the key; `fallback` when it is missing or holds another type. *>
+alias settings_get_bool = c::settings_get_bool;
+
+alias settings_get_int = c::settings_get_int;
+
+alias settings_get_number = c::settings_get_number;
+
+<* Valid until the store changes. NULL only when the key is missing and `fallback` is NULL. *>
+alias settings_get_text = c::settings_get_text;
+
+alias settings_set_bool = c::settings_set_bool;
+
+alias settings_set_int = c::settings_set_int;
+
+alias settings_set_number = c::settings_set_number;
+
+<* An empty text stores ""; a NULL text removes the key. *>
+alias settings_set_text = c::settings_set_text;
+
+<* Removes a key. R_TRUE when it was there. *>
+alias settings_remove = c::settings_remove;
+
+<* R_TRUE when the key is there, whatever it holds. *>
+alias settings_has = c::settings_has;
+
+<*
+ The whole document as text, for a project file that holds arrays
+ and objects too. Valid until the store changes or the function is called
+ again. "" when the store is empty.
+*>
+alias settings_get_json = c::settings_get_json;
+
+<*
+ Replaces the whole document.
+ Returns: R_FALSE when `json` is not valid JSON: the store is not changed.
+*>
+fn bool settings_set_json(Id settings, ZString json) @inline => c::settings_set_json(settings, json) != 0;
+
+<*
+ How many keys the object at `prefix` has ("" for the whole
+ document), or how many items the array at `prefix` has. 0 when there is
+ nothing there.
+*>
+alias settings_get_key_count = c::settings_get_key_count;
+
+<*
+ The index-th key of the object at `prefix` ("" for the whole
+ document), or the index-th item of an array as "0", "1"... NULL when
+ `index` is out of range. Valid until the next call of this function
+ that returns a key.
+*>
+alias settings_get_key = c::settings_get_key;
+
+<*
+ The folder where the settings of the application live:
+ ~/.config/<app> ($XDG_CONFIG_HOME honoured),
+ ~/Library/Application Support/<app> on macOS,
+ %APPDATA%\<app> on Windows. Created when it does not exist; valid until
+ the next call from the same thread.
+*>
+alias settings_get_config_folder = c::settings_get_config_folder;
+
+<* The folder for what can be made again (caches), by the same rules. *>
+alias settings_get_cache_folder = c::settings_get_cache_folder;
+
+<*
+ Opens <config folder>/<file_name> for the application, creating
+ the folder when needed. Rsettings_open("myeditor", "sessions.json").
+ Returns: R_INVALID_ID when the folder or the file cannot be opened.
+*>
+alias settings_open = c::settings_open;
+
+<*
+ Starts a program and returns at once.
+ desc What to run. Copied: the strings may be freed after the call.
+ output Called for every piece of output, or NULL. May be called
+ several times, and not at all for a program that prints nothing.
+ exited Called once when the program ends, or NULL.
+ user_data Passed to both callbacks.
+ Returns: The process, or R_INVALID_ID when it could not even be started
+ (an empty description, no Raven). A program that does not exist is
+ reported through `exited` with failed set, not here.
+*>
+alias process_start = c::process_start;
+
+<* Returns: R_TRUE while the program runs. *>
+fn bool process_is_running(Id process) @inline => c::process_is_running(process) != 0;
+
+<* Returns: The exit code, or -1 while the program runs and when it could not be run. *>
+alias process_get_exit_code = c::process_get_exit_code;
+
+<* Returns: R_PROCESS_RUNNING, R_PROCESS_EXITED or R_PROCESS_FAILED. *>
+alias process_get_state = c::process_get_state;
+
+<*
+ Asks the program to stop (SIGTERM on POSIX, TerminateProcess on
+ Windows), waits a moment, then kills it, and returns once its output has
+ been read to the end. The exit callback still runs, during a frame.
+ Does nothing when the program already ended.
+*>
+alias process_cancel = c::process_cancel;
+
+<*
+ Blocks until the program ends. For tests and shutdown: never call
+ it from the UI thread of a running application.
+*>
+alias process_wait = c::process_wait;
+
+<* Returns: R_TRUE when the program is found (PATH lookup only). *>
+fn bool process_is_available(ZString program) @inline => c::process_is_available(program) != 0;
+
+<*
+ Finds a program without running it.
+ Returns: An absolute path (in a buffer of the library, valid until the
+ next call), or NULL when it is nowhere. A program with a separator in it
+ is checked as given. The usual install folders of TeX are searched too,
+ after PATH: /Library/TeX/texbin, /usr/local/texlive/ * /bin/ *,
+ /opt/homebrew/bin, C:\\texlive\\ * \\bin\\windows and the bin folder of
+ MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
+*>
+alias process_find = c::process_find;
+
+<*
+ Runs a program to the end and collects what it printed.
+ Blocking: for setup work (asking git for the state of a file, a tool for
+ its version), never for a build. The window is frozen meanwhile.
+ output Receives the output, NUL-terminated, allocated with the
+ allocator of Raven: free it with Rmemory_free. May be NULL.
+ size Receives its length, without the NUL. May be NULL.
+ max_bytes Longest output kept; 0 selects 4 MiB. What comes after
+ is read and dropped, so the program never blocks on a full pipe. A cut
+ never leaves half of a UTF-8 character.
+ Returns: The exit code, or -1 when the program could not be run.
+*>
+alias process_run = c::process_run;
+
+<*
+ Parses the text of a log.
+ log The bytes of the file; need not be NUL-terminated.
+ size Their number.
+ Returns: A list of messages, or R_INVALID_ID when the log has nothing
+ to report (a log with no diagnostic parses to no list at all).
+*>
+fn Id? latex_log_parse(ZString log, usz size)
+{
+	Id result = c::latex_log_parse(log, size);
+	if (result == INVALID_ID) return last_fault()~;
+	return result;
+}
+
+<* Reads a log file and parses it. R_INVALID_ID when it cannot be read or has nothing to report. *>
+fn Id? latex_log_parse_file(ZString path)
+{
+	Id result = c::latex_log_parse_file(path);
+	if (result == INVALID_ID) return last_fault()~;
+	return result;
+}
+
+<* Returns: How many messages the list holds, or 0 for R_INVALID_ID. *>
+alias latex_log_get_count = c::latex_log_get_count;
+
+<*
+ One message of the list.
+ message Receives the fields; its strings are owned by the list.
+ Returns: R_FALSE when `index` is out of range.
+*>
+fn bool latex_log_get_message(Id log, CInt index, LogMessage* message) @inline => c::latex_log_get_message(log, index, message) != 0;
+
+<* Frees a list given by Rlatex_log_parse. Its messages are no longer valid. *>
+alias latex_log_destroy = c::latex_log_destroy;
+
+<*
+ Starts a build and returns at once.
+ desc What to build; copied.
+ output Called with what the tool prints, as it prints it, on the
+ UI thread. May be NULL.
+ user_data Passed to `output`.
+ Returns: The build, or R_INVALID_ID when it cannot start (no root file).
+ When the process ends the log is parsed, then `finished` runs.
+*>
+alias latex_build_start = c::latex_build_start;
+
+<* Returns: R_TRUE while the tool runs. *>
+fn bool latex_build_is_running(Id build) @inline => c::latex_build_is_running(build) != 0;
+
+<* Stops the tool and waits for it. The messages parsed so far stay. *>
+alias latex_build_cancel = c::latex_build_cancel;
+
+<*
+ The diagnostics of the last finished build, as a list that
+ belongs to the build: read it with Rlatex_log_get_message, and do not
+ destroy it. Valid until the build runs again or is destroyed.
+ Returns: The list, or R_INVALID_ID before the first build ends.
+*>
+alias latex_build_get_messages = c::latex_build_get_messages;
+
+<* Returns: The .pdf the build wrote, or NULL when it wrote none. Owned by the build. *>
+alias latex_build_get_pdf_path = c::latex_build_get_pdf_path;
+
+<* Returns: The .log the build read, or NULL. Owned by the build. *>
+alias latex_build_get_log_path = c::latex_build_get_log_path;
+
+<* Returns: R_TRUE when the build ended and its tool exited with 0. *>
+fn bool latex_build_succeeded(Id build) @inline => c::latex_build_succeeded(build) != 0;
+
+<*
+ Cancels the build if it still runs, frees it and its messages.
+ The handle is invalid afterwards.
+*>
+alias latex_build_destroy = c::latex_build_destroy;
+
+<*
+ Finds a tool of the trade: "latexmk", "pdflatex", "xelatex",
+ "lualatex", "synctex", "bibtex", "biber", "hunspell", "git"...
+ Same lookup as Rprocess_find, which it forwards to.
+ Returns: An absolute path valid until the next call, or NULL.
+*>
+alias latex_find_tool = c::latex_find_tool;
 
 <* Size of every text, 1 = as designed (0.5 to 4). Controls grow with their text. *>
 alias accessibility_set_text_scale = c::accessibility_set_text_scale;

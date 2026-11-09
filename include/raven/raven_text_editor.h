@@ -65,7 +65,18 @@ typedef enum RLanguageFlags{
 	 * marks included, with strong text in bold, emphasized text in italic
 	 * and titles in bold: what will be formatted is seen while typing.
 	 */
-	R_LANGUAGE_FORMATTED_TEXT  = (1 << 7)
+	R_LANGUAGE_FORMATTED_TEXT  = (1 << 7),
+	/**
+	 * TeX and LaTeX: a backslash starts a command, a percent sign starts a
+	 * comment that ends with its line, $...$ is mathematics. A line that
+	 * ends with \begin{...} indents the next one, and \end{...} comes back.
+	 */
+	R_LANGUAGE_TEX             = (1 << 8),
+	/**
+	 * BibTeX: @type{key, field = {value}}. The entries and their fields are
+	 * colored, and a citation key is a word of its own.
+	 */
+	R_LANGUAGE_BIBTEX          = (1 << 9)
 }RLanguageFlags;
 
 /**
@@ -108,6 +119,13 @@ typedef struct RLanguageDesc {
 	 * NULL: JavaScript, as in HTML.
 	 */
 	const char* script_language;
+	/**
+	 * Characters that belong to a name besides letters, digits and the
+	 * underscore: "\\" for TeX commands (so that completing "\\sec" proposes
+	 * "\\section", and a command is one word), "-" and ":" for the names of
+	 * a BibTeX entry. NULL keeps the usual ones.
+	 */
+	const char* word_characters;
 } RLanguageDesc;
 
 /** What a part of the text is, for the language of the editor (Rtext_editor_get_token). */
@@ -314,6 +332,156 @@ extern "C" {
 	RAVEN_API void Rtext_editor_add_marker(Rid editor, int line, int from_column, int to_column, RMarkerKind kind, const char* message);
 	RAVEN_API void Rtext_editor_clear_markers(Rid editor);
 	RAVEN_API int Rtext_editor_get_marker_count(Rid editor);
+	/**
+	 * @brief The line, the columns and the kind of a marker, by index (0 ..
+	 * Rtext_editor_get_marker_count - 1).
+	 * @return The message of the marker, or NULL when `index` is out of range.
+	 */
+	RAVEN_API const char* Rtext_editor_get_marker(Rid editor, int index, int* line, int* from_column, int* to_column, RMarkerKind* kind);
+	/** @brief Removes the markers of one line and adds a list, as a compiler's report does. */
+	RAVEN_API void Rtext_editor_clear_markers_of_line(Rid editor, int line);
+
+	/* ---- search and replace ---- */
+
+	typedef enum RSearchFlags {
+		R_SEARCH_NONE = 0,
+		/** A regular expression, in the syntax of the editor: see raven_text_editor.h. */
+		R_SEARCH_REGEX = (1 << 0),
+		/** Case is ignored (and, with R_SEARCH_REGEX, the pattern is not sensitive to case). */
+		R_SEARCH_IGNORE_CASE = (1 << 1),
+		/** Only whole words match ("cat" does not match "concatenate"). */
+		R_SEARCH_WHOLE_WORD = (1 << 2)
+	} RSearchFlags;
+
+	/**
+	 * @brief Sets what is looked for, from now on. An empty pattern clears it.
+	 * The flags are a bitmask of RSearchFlags. Invalid regular expressions are
+	 * reported and leave the search as it was.
+	 * @return R_TRUE when the pattern was taken.
+	 */
+	RAVEN_API int Rtext_editor_set_search(Rid editor, const char* pattern, Ruint flags);
+	RAVEN_API const char* Rtext_editor_get_search(Rid editor);
+	RAVEN_API Ruint Rtext_editor_get_search_flags(Rid editor);
+	/**
+	 * @brief The next match after the caret (or before it, with
+	 * `backwards`), selected; the text is scrolled to it. It wraps around
+	 * the ends of the text. R_FALSE when nothing matches.
+	 */
+	RAVEN_API int Rtext_editor_find_next(Rid editor, int backwards);
+	/** @brief How many places match the search. */
+	RAVEN_API int Rtext_editor_count_matches(Rid editor);
+	/** @brief Where a match is, by index (0 .. count - 1): its start and its end. R_FALSE when out of range. */
+	RAVEN_API int Rtext_editor_get_match(Rid editor, int index, int* from_line, int* from_column, int* to_line, int* to_column);
+	/**
+	 * @brief Replaces the current match (the selection, when it is one) and
+	 * goes to the next one. R_FALSE when there is nothing to replace.
+	 */
+	RAVEN_API int Rtext_editor_replace(Rid editor, const char* text);
+	/** @brief Replaces every match, as one step of the history. @return How many were replaced. */
+	RAVEN_API int Rtext_editor_replace_all(Rid editor, const char* text);
+	/**
+	 * @brief The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
+	 * (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
+	 * with `matches`, the groups of the regex that matched. Pure: no editor needed.
+	 * @return The text, in a buffer of the editor (valid until the next call), or NULL.
+	 */
+	RAVEN_API const char* Rtext_editor_expand_replacement(const char* replacement, const char* text, int from, int to,
+		const int* groups, int group_count);
+
+	/* ---- folding ---- */
+
+	/**
+	 * @brief R_TRUE (the default): with a language whose blocks can be folded
+	 * (braces, brackets, \begin{...} ... \end{...}, <tag> ... </tag>,
+	 * Markdown titles), a small arrow in the margin collapses the block;
+	 * Ctrl+Shift+[ and Ctrl+Shift+] fold and unfold the block of the caret.
+	 */
+	RAVEN_API void Rtext_editor_set_folding(Rid editor, int enabled);
+	RAVEN_API int Rtext_editor_get_folding(Rid editor);
+	/** @brief Folds the block of the caret (the one that holds it), or unfolds it. R_FALSE when there is none. */
+	RAVEN_API int Rtext_editor_toggle_fold(Rid editor);
+	/** @brief Folds or unfolds the block that starts on a line (an opening brace, \begin, a title). */
+	RAVEN_API int Rtext_editor_fold_line(Rid editor, int line);
+	RAVEN_API int Rtext_editor_unfold_line(Rid editor, int line);
+	RAVEN_API int Rtext_editor_is_folded(Rid editor, int line);
+	/** @brief Unfolds everything, and forgets the folded blocks. */
+	RAVEN_API void Rtext_editor_unfold_all(Rid editor);
+	RAVEN_API int Rtext_editor_get_folded_count(Rid editor);
+	/**
+	 * @brief The first line of a folded block that holds `line` (the block's
+	 * own line), or -1 when the line is not hidden by any fold.
+	 */
+	RAVEN_API int Rtext_editor_get_fold_start(Rid editor, int line);
+
+	/* ---- snippets ---- */
+
+	/**
+	 * @brief A block of text typed by a name.
+	 *
+	 * The body may hold `$1` .. `$9` (places the caret goes to, in order,
+	 * with Tab) and `$0` (where the caret ends), the same place twice to
+	 * edit the two copies at once, `${1:text}` for a place with a text
+	 * selected, and `$NAME` for a variable given here (date, author...).
+	 * `\t` and `\n` in the body are a tab and a line break.
+	 */
+	typedef struct RSnippet {
+		/** The word that is typed and replaced ("sec", "fig"...). Case is ignored. */
+		const char* name;
+		/** What the snippet is, shown in the list ("Section"). May be NULL. */
+		const char* description;
+		/** A few words before the caret that make the snippet apply ("\\begin{", "\\"). May be NULL. */
+		const char* prefix;
+		/** The text it types, with its places. */
+		const char* body;
+	} RSnippet;
+
+	RAVEN_API int Rsnippet_add(const RSnippet* snippet);
+	RAVEN_API void Rsnippet_clear(void);
+	RAVEN_API int Rsnippet_get_count(void);
+	RAVEN_API const char* Rsnippet_get_name(int index);
+	RAVEN_API int Rsnippet_find(const char* name);
+	/**
+	 * @brief Types the snippet at the caret, replacing the word before it
+	 * when that word is its name. Sets the places; Tab and Shift+Tab walk
+	 * them, Escape leaves them.
+	 * @return R_FALSE when the editor is read-only or the snippet is unknown.
+	 */
+	RAVEN_API int Rtext_editor_insert_snippet(Rid editor, const char* name);
+	/** @brief The snippet whose name is what is being typed before the caret, or -1. */
+	RAVEN_API int Rtext_editor_snippet_at_caret(Rid editor);
+	/** @brief R_FALSE stops the editor from offering snippets while typing. On by default. */
+	RAVEN_API void Rtext_editor_set_snippet_completion(Rid editor, int enabled);
+	/** @brief R_TRUE while Tab and Shift+Tab walk the places of a snippet that was inserted. */
+	RAVEN_API int Rtext_editor_is_in_snippet(Rid editor);
+
+	/* ---- several cursors ---- */
+
+	/**
+	 * @brief R_TRUE: Ctrl+click adds a caret where it is clicked, and every
+	 * caret is selected and typed at once (Alt+drag selects a column, and
+	 * Ctrl+D selects the next occurrence of the selection). Off by default.
+	 */
+	RAVEN_API void Rtext_editor_set_multi_cursor(Rid editor, int enabled);
+	RAVEN_API int Rtext_editor_get_multi_cursor(Rid editor);
+	RAVEN_API int Rtext_editor_get_caret_count(Rid editor);
+	/** @brief Where a caret is, by index (0 is the main one, which typing and scrolling follow). */
+	RAVEN_API int Rtext_editor_get_caret(Rid editor, int index, int* line, int* column);
+	/** @brief Adds a caret; the text at each of them is selected. R_FALSE when there are too many (256). */
+	RAVEN_API int Rtext_editor_add_caret(Rid editor, int line, int column);
+	RAVEN_API void Rtext_editor_clear_carets(Rid editor);
+	/** @brief Selects the next occurrence of the selected text, with a caret of its own. R_FALSE when there is none. */
+	RAVEN_API int Rtext_editor_select_next_occurrence(Rid editor);
+
+	/* ---- words and lines, for a status bar ---- */
+
+	/** @return How many words the text has, as an editor counts them: runs of letters and digits. */
+	RAVEN_API int Rtext_editor_get_word_count(Rid editor);
+	/** @return The characters of the text, not the bytes (a UTF-8 code point counts one). */
+	RAVEN_API int Rtext_editor_get_character_count(Rid editor);
+	/** @return How many lines have something besides blanks. */
+	RAVEN_API int Rtext_editor_get_non_empty_line_count(Rid editor);
+	/** @return The line that holds the caret, from 1 (for a status bar). */
+	RAVEN_API int Rtext_editor_get_current_line(Rid editor);
 
 	/* ---- colors ---- */
 

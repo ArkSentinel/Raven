@@ -26,6 +26,8 @@ struct rvn_language_t {
 	/** The description given to Rlanguage_register; its strings are owned by `strings`. */
 	RLanguageDesc desc;
 	rvn_arena_t strings;
+	/** The characters of word_characters, as a byte table for the lexer and the completion. */
+	uint8_t word_char[256];
 	/** keywords, types, constants: sorted, for searching. */
 	const char** words[3];
 	uint32_t word_count[3];
@@ -53,9 +55,7 @@ typedef struct rvn_lexer_t {
 	rvn_span_t* spans;
 	int max;
 	int count;
-} rvn_lexer_t;
-
-static void rvn_lex_emit(rvn_lexer_t* lexer, int start, int end, rvn_token_t token) {
+} rvn_lexer_t;static void rvn_lex_emit(rvn_lexer_t* lexer, int start, int end, rvn_token_t token) {
 	if (end <= start || !lexer->spans || lexer->count >= lexer->max) return;
 	lexer->spans[lexer->count].start = start;
 	lexer->spans[lexer->count].end = end;
@@ -663,6 +663,286 @@ static uint8_t rvn_lex_markup(rvn_lexer_t* lexer, const rvn_language_t* language
 }
 
 /* ---------------------------------------------------------------------------
+ *  TeX and LaTeX
+ *
+ *  State: 0 in the text; 1 inside \begin{verbatim} ... \end{verbatim}, whose
+ *  lines are a text and not markup.
+ * ------------------------------------------------------------------------- */
+
+#define RVN_TEX_VERBATIM 1
+
+/* Is the command named at `at` the one given ("begin", "verb")? */
+static int rvn_tex_command_is(const rvn_lexer_t* lexer, int at, int to, const char* word) {
+	int length = (int)strlen(word);
+	if (at + length > to) return R_FALSE;
+	if (memcmp(lexer->text + at, word, (size_t)length) != 0) return R_FALSE;
+	return at + length >= to || !((lexer->text[at + length] >= 'a' && lexer->text[at + length] <= 'z') ||
+		(lexer->text[at + length] >= 'A' && lexer->text[at + length] <= 'Z'));
+}
+
+/* Commands whose braced argument names something: \documentclass{article}, \ref{fig:one}. */
+static int rvn_tex_named_command(const char* name, int length) {
+	static const char* const names[] = {
+		"documentclass", "usepackage", "RequirePackage", "ref", "eqref", "pageref", "autoref", "cite", "citep", "citet",
+		"nocite", "label", "input", "include", "includeonly", "includegraphics", "bibliography", "bibliographystyle",
+		"url", "href", "usepackage", "newenvironment", "renewenvironment", "newcommand", "renewcommand"
+	};
+	size_t i;
+	for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+		if ((int)strlen(names[i]) == length && memcmp(names[i], name, (size_t)length) == 0) return R_TRUE;
+	}
+	return R_FALSE;
+}
+
+/* End of a \begin{...} argument at `at` (on the command): the offset after its '}', or -1. */
+static int rvn_tex_argument(const rvn_lexer_t* lexer, int at, int to, int* name_at, int* name_length) {
+	int i = at;
+	while (i < to && lexer->text[i] != '{' && lexer->text[i] != '\\' && lexer->text[i] != ' ') i++;
+	if (i >= to || lexer->text[i] != '{') return -1;
+	*name_at = i + 1;
+	while (i < to && lexer->text[i] != '}') i++;
+	if (i >= to) return -1;
+	*name_length = i - *name_at;
+	return i + 1;
+}
+
+static uint8_t rvn_lex_tex(rvn_lexer_t* lexer, uint8_t state, int from, int to) {
+	const char* text = lexer->text;
+	int i = from, end;
+
+	while (i < to) {
+		char c = text[i];
+		if (state == RVN_TEX_VERBATIM) {
+			end = rvn_lex_find(lexer, i, to, "\\end{verbatim}");
+			if (end < 0) {
+				rvn_lex_emit(lexer, i, to, RVN_TOKEN_STRING);
+				return state;
+			}
+			rvn_lex_emit(lexer, i, end + 14, RVN_TOKEN_STRING);
+			i = end + 14;
+			state = 0;
+			continue;
+		}
+		if (c == '%') {
+			/* a comment to the end of the line: unless the % is escaped with a backslash */
+			int backslashes = 0, k = i;
+			while (k > 0 && text[k - 1] == '\\') {
+				backslashes++;
+				k--;
+			}
+			if (backslashes % 2 == 0) {
+				rvn_lex_emit(lexer, i, to, RVN_TOKEN_COMMENT);
+				return state;
+			}
+			i++;
+			continue;
+		}
+		if (c == '\\') {
+			int start = i, name_at = -1, name_length = 0, after;
+			i++;
+			if (i >= to) {
+				rvn_lex_emit(lexer, start, to, RVN_TOKEN_KEYWORD);
+				return state;
+			}
+			if (!((text[i] >= 'a' && text[i] <= 'z') || (text[i] >= 'A' && text[i] <= 'Z'))) {
+				/* one character: \\, \%, \{, \$, \ , \@ */
+				rvn_lex_emit(lexer, start, i + 1, (text[i] == '\\' || text[i] == '&') ? RVN_TOKEN_PUNCTUATION : RVN_TOKEN_KEYWORD);
+				i++;
+				continue;
+			}
+			while (i < to && ((text[i] >= 'a' && text[i] <= 'z') || (text[i] >= 'A' && text[i] <= 'Z'))) i++;
+			/* \begin{...} and \end{...}: the environment is a tag */
+			if (rvn_tex_command_is(lexer, start + 1, to, "begin") || rvn_tex_command_is(lexer, start + 1, to, "end")) {
+				int is_end = rvn_tex_command_is(lexer, start + 1, to, "end");
+				after = rvn_tex_argument(lexer, i, to, &name_at, &name_length);
+				if (after > 0) {
+					rvn_lex_emit(lexer, start, i, RVN_TOKEN_KEYWORD);
+					rvn_lex_emit(lexer, i, after, RVN_TOKEN_TAG);
+					i = after;
+					if (!is_end && name_length == 8 && memcmp(text + name_at, "verbatim", 8) == 0) {
+						end = rvn_lex_find(lexer, i, to, "\\end{verbatim}");
+						if (end < 0) {
+							rvn_lex_emit(lexer, i, to, RVN_TOKEN_STRING);
+							return RVN_TEX_VERBATIM;
+						}
+						rvn_lex_emit(lexer, i, end + 14, RVN_TOKEN_STRING);
+						i = end + 14;
+					}
+					continue;
+				}
+			}
+			/* \verb|...|: the delimiter, then a text */
+			if (rvn_tex_command_is(lexer, start + 1, to, "verb")) {
+				int delimiter_at = i;
+				char delimiter;
+				if (delimiter_at < to && text[delimiter_at] == '*') delimiter_at++;
+				if (delimiter_at < to) {
+					delimiter = text[delimiter_at];
+					end = delimiter_at + 1;
+					while (end < to && text[end] != delimiter) end++;
+					if (end < to) {
+						rvn_lex_emit(lexer, start, delimiter_at, RVN_TOKEN_KEYWORD);
+						rvn_lex_emit(lexer, delimiter_at, end + 1, RVN_TOKEN_STRING);
+						i = end + 1;
+						continue;
+					}
+				}
+			}
+			while (i < to && text[i] == '*') i++;
+			{
+				int command_length = i - (start + 1);
+				rvn_lex_emit(lexer, start, i, RVN_TOKEN_KEYWORD);
+				/* (the name in braces of \documentclass{...}, \ref{...}: a tag) */
+				if (rvn_tex_named_command(text + start + 1, command_length)) {
+					int argument = i;
+					while (argument < to && (text[argument] == ' ' || text[argument] == '\t')) argument++;
+					if (argument < to && text[argument] == '{') {
+						int close = argument + 1;
+						while (close < to && text[close] != '}') close++;
+						if (close < to) {
+							rvn_lex_emit(lexer, argument, close + 1, RVN_TOKEN_TAG);
+							i = close + 1;
+						}
+					}
+				}
+			}
+			continue;
+		}
+		if (c >= '0' && c <= '9') {
+			/* a number: a length, a count, a value in a table */
+			end = i;
+			while (end < to && ((text[end] >= '0' && text[end] <= '9') || text[end] == '.' ||
+				((text[end] == 'p' || text[end] == 'e') && end + 1 < to && text[end + 1] == 'x'))) end++;
+			rvn_lex_emit(lexer, i, end, RVN_TOKEN_NUMBER);
+			i = end;
+			continue;
+		}
+		if (c == '$') {
+			/* mathematics: on one line with $...$, or between $$ and $$ */
+			int double_dollar = i + 1 < to && text[i + 1] == '$';
+			int close = -1, k;
+			if (double_dollar) {
+				close = rvn_lex_find(lexer, i + 2, to, "$$");
+				if (close >= 0) close += 2;
+			} else {
+				for (k = i + 1; k < to; k++) {
+					if (text[k] == '\\' && k + 1 < to) k++;
+					else if (text[k] == '$') {
+						close = k + 1;
+						break;
+					}
+				}
+			}
+			if (close < 0) close = to;
+			rvn_lex_emit(lexer, i, close, RVN_TOKEN_STRING);
+			i = close;
+			continue;
+		}
+		if (c == '{' || c == '}' || c == '[' || c == ']' || c == '&' || c == '^' || c == '_' || c == '~') {
+			rvn_lex_emit(lexer, i, i + 1, RVN_TOKEN_PUNCTUATION);
+			i++;
+			continue;
+		}
+		i++;
+	}
+	return state;
+}
+
+/* ---------------------------------------------------------------------------
+ *  BibTeX
+ *
+ *  @article{key, author = {A Name}, title = "A title", year = 2026}
+ *  State: 0 outside an entry; 1 inside the braces of one; 2 inside a value
+ *  between braces or quotes, which may span lines.
+ * ------------------------------------------------------------------------- */
+
+#define RVN_BIB_ENTRY 1
+#define RVN_BIB_VALUE 2
+
+static uint8_t rvn_lex_bibtex(rvn_lexer_t* lexer, uint8_t state, int from, int to) {
+	const char* text = lexer->text;
+	int i = from, end;
+
+	while (i < to) {
+		char c = text[i];
+		if (c == '%') {
+			rvn_lex_emit(lexer, i, to, RVN_TOKEN_COMMENT);
+			return state;
+		}
+		if (state == RVN_BIB_VALUE) {
+			/* the value of a field: a text, to the brace or the quote that closes it */
+			char close = c;
+			int depth = 1;
+			if (c != '{' && c != '"') {
+				state = RVN_BIB_ENTRY;
+				continue;
+			}
+			end = i + 1;
+			while (end < to && depth > 0) {
+				if (text[end] == close) depth--;
+				else if (close == '}' && text[end] == '{') depth++;
+				end++;
+			}
+			rvn_lex_emit(lexer, i, end, RVN_TOKEN_STRING);
+			i = end;
+			state = RVN_BIB_ENTRY;
+			continue;
+		}
+		if (c == '@') {
+			/* the kind of the entry, then its key */
+			int begin;
+			end = i + 1;
+			while (end < to && ((text[end] >= 'a' && text[end] <= 'z') || (text[end] >= 'A' && text[end] <= 'Z'))) end++;
+			rvn_lex_emit(lexer, i, end, RVN_TOKEN_KEYWORD);
+			i = end;
+			while (i < to && text[i] != '{' && text[i] != '(') i++;
+			if (i < to) {
+				begin = ++i;
+				while (i < to && text[i] != ',' && text[i] != '}' && text[i] != ')') i++;
+				if (i > begin) rvn_lex_emit(lexer, begin, i, RVN_TOKEN_TAG);
+				state = RVN_BIB_ENTRY;
+			}
+			continue;
+		}
+		if (state == RVN_BIB_ENTRY && (c == '{' || c == '"')) {
+			/* (the start of a value: the next turn reads it) */
+			state = RVN_BIB_VALUE;
+			continue;
+		}
+		if (c == '}' || c == '{' || c == '=' || c == ',' || c == '(' || c == ')') {
+			if (c == '}') state = 0;
+			rvn_lex_emit(lexer, i, i + 1, RVN_TOKEN_PUNCTUATION);
+			i++;
+			continue;
+		}
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '-') {
+			/* a field name (before '='), or a macro or a value without braces */
+			int begin = i;
+			end = i;
+			while (end < to && ((text[end] >= 'a' && text[end] <= 'z') || (text[end] >= 'A' && text[end] <= 'Z') ||
+				(text[end] >= '0' && text[end] <= '9') || text[end] == '_' || text[end] == '-')) end++;
+			{
+				int next = end;
+				while (next < to && (text[next] == ' ' || text[next] == '\t')) next++;
+				if (next < to && text[next] == '=') rvn_lex_emit(lexer, begin, end, RVN_TOKEN_ATTRIBUTE);
+				else if (begin > 0 && text[begin - 1] == '=') rvn_lex_emit(lexer, begin, end, RVN_TOKEN_NUMBER);
+			}
+			i = end;
+			continue;
+		}
+		if (c >= '0' && c <= '9') {
+			end = i;
+			while (end < to && text[end] >= '0' && text[end] <= '9') end++;
+			rvn_lex_emit(lexer, i, end, RVN_TOKEN_NUMBER);
+			i = end;
+			continue;
+		}
+		i++;
+	}
+	return state;
+}
+
+/* ---------------------------------------------------------------------------
  *  Entry points of the editor
  * ------------------------------------------------------------------------- */
 
@@ -879,6 +1159,8 @@ uint8_t rvn_syntax_line(const rvn_language_t* language, const char* text, int le
 	else if (language->desc.flags & R_LANGUAGE_FORMATTED_TEXT) state = rvn_lex_markdown(&lexer, state);
 	else if (language->desc.flags & R_LANGUAGE_MARKUP) state = rvn_lex_markup(&lexer, language, state);
 	else if (language->desc.flags & R_LANGUAGE_STYLE_SHEET) state = rvn_lex_css(&lexer, language, state, 0, length);
+	else if (language->desc.flags & R_LANGUAGE_TEX) state = rvn_lex_tex(&lexer, state, 0, length);
+	else if (language->desc.flags & R_LANGUAGE_BIBTEX) state = rvn_lex_bibtex(&lexer, state, 0, length);
 	else state = rvn_lex_code(&lexer, language, state, 0, length);
 	if (count) *count = lexer.count;
 	return state;
@@ -967,6 +1249,15 @@ const char* rvn_language_word(const rvn_language_t* language, int list, int inde
 	return language->words[list][index];
 }
 
+/** R_TRUE when a byte belongs to a name in a language: a letter, a digit, an underscore or one of its own characters. */
+int rvn_language_is_word_char(const rvn_language_t* language, char c) {
+	unsigned char byte = (unsigned char)c;
+	if ((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') || (byte >= '0' && byte <= '9') || byte == '_' || byte >= 0x80) {
+		return R_TRUE;
+	}
+	return language && language->word_char[byte];
+}
+
 /* ---------------------------------------------------------------------------
  *  Registry
  * ------------------------------------------------------------------------- */
@@ -1019,6 +1310,11 @@ static rvn_language_t* rvn_language_build(const RLanguageDesc* desc) {
 	language->desc.annotation = rvn_language_keep(language, desc->annotation && desc->annotation[0] ? desc->annotation : NULL);
 	language->desc.flags = desc->flags;
 	language->desc.script_language = rvn_language_keep(language, desc->script_language && desc->script_language[0] ? desc->script_language : NULL);
+	language->desc.word_characters = rvn_language_keep(language, desc->word_characters && desc->word_characters[0] ? desc->word_characters : NULL);
+	if (desc->word_characters) {
+		const unsigned char* c = (const unsigned char*)desc->word_characters;
+		while (*c) language->word_char[(unsigned char)*c++] = 1;
+	}
 	rvn_language_words(language, 0, desc->keywords);
 	rvn_language_words(language, 1, desc->types);
 	rvn_language_words(language, 2, desc->constants);
@@ -1254,6 +1550,46 @@ static void rvn_languages_built_in(void) {
 	d.block_comment_start = "<!--";
 	d.block_comment_end = "-->";
 	d.flags = R_LANGUAGE_FORMATTED_TEXT;
+	rvn_language_add(&d);
+
+	memset(&d, 0, sizeof(d));
+	d.name = "LaTeX";
+	d.extensions = "tex;sty;cls;ltx;dtx;ins";
+	d.keywords = "\\begin \\end \\documentclass \\usepackage \\section \\section* \\subsection \\subsection* \\subsubsection "
+		"\\paragraph \\chapter \\part \\title \\author \\date \\maketitle \\tableofcontents \\listoffigures \\listoftables "
+		"\\label \\ref \\eqref \\pageref \\cite \\citep \\citet \\nocite \\bibliography \\bibliographystyle \\include "
+		"\\input \\includegraphics \\caption \\footnote \\item \\newpage \\clearpage \\pagebreak \\linebreak \\newline "
+		"\\textbf \\textit \\texttt \\textsc \\textrm \\textsf \\textsl \\textup \\emph \\underline \\mbox \\hbox \\vbox "
+		"\\frac \\dfrac \\tfrac \\sqrt \\sum \\int \\prod \\lim \\log \\ln \\exp \\sin \\cos \\tan \\mathrm \\mathbf "
+		"\\mathit \\mathcal \\mathbb \\mathsf \\mathtt \\left \\right \\cdot \\times \\div \\pm \\mp \\leq \\geq \\neq "
+		"\\approx \\infty \\partial \\nabla \\alpha \\beta \\gamma \\delta \\epsilon \\theta \\lambda \\mu \\pi \\sigma "
+		"\\phi \\omega \\Gamma \\Delta \\Theta \\Lambda \\Pi \\Sigma \\Phi \\Omega \\centering \\raggedright "
+		"\\raggedleft \\hfill \\vfill \\noindent \\indent \\setlength \\addtolength \\renewcommand \\newcommand "
+		"\\def \\let \\makeatletter \\makeatother \\usepackage \\RequirePackage \\ProvidesPackage \\DeclareOption "
+		"\\ProcessOptions \\newenvironment \\renewenvironment \\vspace \\hspace \\smallskip \\medskip \\bigskip "
+		"\\textwidth \\linewidth \\columnwidth \\textheight \\parindent \\parskip \\baselineskip \\today \\LaTeX "
+		"\\TeX \\ldots \\dots \\quad \\qquad \\, \\; \\: \\! \\\\ \\newline"
+		/* (an environment name is a tag; the words below are the usual ones, for completion) */
+		"document figure table tabular itemize enumerate description equation align array matrix cases verbatim "
+		"center flushleft flushright minipage quote abstract theorem proof lstlisting tikzpicture";
+	d.types = "article report book letter beamer memoir standalone scrartcl scrreprt scrbook";
+	d.constants = "true false";
+	d.line_comment = "%";
+	d.flags = R_LANGUAGE_TEX;
+	d.word_characters = "\\";
+	rvn_language_add(&d);
+
+	memset(&d, 0, sizeof(d));
+	d.name = "BibTeX";
+	d.extensions = "bib";
+	d.keywords = "@article @book @booklet @conference @inbook @incollection @inproceedings @manual @mastersthesis "
+		"@misc @phdthesis @proceedings @techreport @unpublished @string @preamble @comment";
+	d.types = "author title journal year volume number pages month note publisher editor series address edition "
+		"howpublished institution school organization booktitle chapter type doi isbn issn url urldate eprint "
+		"archiveprefix primaryclass keywords abstract language";
+	d.line_comment = "%";
+	d.flags = R_LANGUAGE_BIBTEX;
+	d.word_characters = "@-";
 	rvn_language_add(&d);
 }
 

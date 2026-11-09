@@ -102,7 +102,11 @@ static const char* rvn_key_name(RKey key, char buffer[2]) {
 	return "";
 }
 
-static void rvn_shortcut_format(RKey key, uint32_t modifiers, char* out, size_t size) {
+const char* rvn_key_text(RKey key, char buffer[2]) {
+	return rvn_key_name(key, buffer);
+}
+
+void rvn_shortcut_format(RKey key, uint32_t modifiers, char* out, size_t size) {
 	char single[2];
 	snprintf(out, size, "%s%s%s%s%s", (modifiers & R_MOD_CTRL) ? "Ctrl+" : "", (modifiers & R_MOD_SUPER) ? "Super+" : "",
 		(modifiers & R_MOD_ALT) ? "Alt+" : "", (modifiers & R_MOD_SHIFT) ? "Shift+" : "", rvn_key_name(key, single));

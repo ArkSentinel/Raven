@@ -663,6 +663,8 @@ R_WIDGET_RATING :: 0x0230
 R_WIDGET_PAGINATION :: 0x0231
 // Curves of X / Y data: legend, line styles, markers, log axes, a second X and Y axis, pan and zoom.
 R_WIDGET_PLOT :: 0x0232
+// The pages of a document, rendered by the application: zoom, scroll, page navigation.
+R_WIDGET_PDF_VIEW :: 0x0233
 
 RHAlign :: i32
 R_HALIGN_FILL :: 0x0240
@@ -866,6 +868,13 @@ R_LANGUAGE_EMBEDS :: 0x0040
 // marks included, with strong text in bold, emphasized text in italic
 // and titles in bold: what will be formatted is seen while typing.
 R_LANGUAGE_FORMATTED_TEXT :: 0x0080
+// TeX and LaTeX: a backslash starts a command, a percent sign starts a
+// comment that ends with its line, $...$ is mathematics. A line that
+// ends with \begin{...} indents the next one, and \end{...} comes back.
+R_LANGUAGE_TEX :: 0x0100
+// BibTeX: @type{key, field = {value}}. The entries and their fields are
+// colored, and a citation key is a word of its own.
+R_LANGUAGE_BIBTEX :: 0x0200
 
 // What a part of the text is, for the language of the editor (Rtext_editor_get_token).
 RToken :: i32
@@ -896,6 +905,15 @@ RMarkerKind :: i32
 R_MARKER_ERROR :: 0x0350
 R_MARKER_WARNING :: 0x0351
 R_MARKER_INFO :: 0x0352
+
+RSearchFlags :: i32
+R_SEARCH_NONE :: 0
+// A regular expression, in the syntax of the editor: see raven_text_editor.h.
+R_SEARCH_REGEX :: 1
+// Case is ignored (and, with R_SEARCH_REGEX, the pattern is not sensitive to case).
+R_SEARCH_IGNORE_CASE :: 2
+// Only whole words match ("cat" does not match "concatenate").
+R_SEARCH_WHOLE_WORD :: 4
 
 // Buttons of a header bar.
 RHeaderButtons :: i32
@@ -1012,6 +1030,15 @@ R_MOTION_BOUNCY :: 0x0322
 // Swings several times around the target: things that fly in or get dropped.
 R_MOTION_WOBBLY :: 0x0323
 
+// How the view keeps the pages in its place when it is resized.
+RPdfFit :: i32
+// The zoom given is used as it is (the default).
+R_PDF_FIT_NONE :: 0x0570
+// The zoom follows the width of the view, with a scrollbar for the height.
+R_PDF_FIT_WIDTH :: 0x0571
+// The zoom follows the width or the height, whichever is smaller: the whole page shows.
+R_PDF_FIT_PAGE :: 0x0572
+
 // The effects that come with Raven (Reffect_get).
 REffect :: i32
 // Soft lights that drift slowly: color, color2; params: speed, scale, intensity, -. Animated.
@@ -1056,6 +1083,40 @@ R_XML_FILE :: 0x03C6
 R_XML_NUMBERS :: 0x03C7
 // Texts separated by '|': "One|Two|Three".
 R_XML_LIST :: 0x03C8
+
+// What a key holds.
+RSettingType :: i32
+// No such key, or a value that is an object, an array or null.
+R_SETTING_NONE :: 0x0300
+R_SETTING_BOOL :: 0x0301
+R_SETTING_INT :: 0x0302
+R_SETTING_NUMBER :: 0x0303
+R_SETTING_TEXT :: 0x0304
+
+RProcessState :: i32
+// Started, its output is still being read.
+R_PROCESS_RUNNING :: 0x0400
+// Ended by itself: Rprocess_get_exit_code says how.
+R_PROCESS_EXITED :: 0x0401
+// Could not be run at all (not found, no permission): the exit code is -1.
+R_PROCESS_FAILED :: 0x0402
+
+// What a line of a log is worth to an editor.
+RLogKind :: i32
+// TeX stopped here ("! Undefined control sequence.").
+R_LOG_ERROR :: 0x0500
+// Something that may be wrong (an undefined reference, a font substitution).
+R_LOG_WARNING :: 0x0501
+// Neither: a file opened, the pages written, how much memory TeX used.
+R_LOG_INFO :: 0x0502
+// Overfull or underfull \hbox or \vbox: not an error, but the page will show it.
+R_LOG_BAD_BOX :: 0x0503
+
+// The engines an editor offers. All of them take the same command line.
+RLatexEngine :: i32
+R_LATEX_PDFLATEX :: 0
+R_LATEX_XELATEX :: 1
+R_LATEX_LUALATEX :: 2
 
 RColorFilter :: i32
 R_COLOR_FILTER_NONE :: 0x0740
@@ -1299,6 +1360,15 @@ RViewportDrawCallback :: #type proc "c" (info: ^RViewportDrawInfo, user_data: ra
 RViewportResizeCallback :: #type proc "c" (viewport: Rid, width: i32, height: i32, user_data: rawptr)
 RPaintCallback :: #type proc "c" (widget: Rid, painter: ^RPainter, width: f32, height: f32, user_data: rawptr)
 RMeasureCallback :: #type proc "c" (widget: Rid, width: ^f32, height: ^f32, user_data: rawptr)
+// Called when a page must be rendered, with `scale` pixels per
+// point (the zoom, times the scale of the window) and the index of the
+// page. It may call Rpdf_view_set_page_bitmap from inside. A page is
+// asked for once while it stays visible at a given scale; it is asked for
+// again when the scale changes by more than 1 % or when it comes back
+// into view.
+RPdfPageNeededCallback :: #type proc "c" (pdf_view: Rid, page: i32, scale: f32, user_data: rawptr)
+// Called when the user clicks on a page. This also fires the action of the widget.
+RPdfPageClickedCallback :: #type proc "c" (pdf_view: Rid, page: i32, page_x: f32, page_y: f32, user_data: rawptr)
 // Called each time a file was loaded again.
 // path The file given when the interface was created.
 // ok   R_FALSE when the file could not be used (the interface is unchanged).
@@ -1319,6 +1389,12 @@ RXmlReloadCallback :: #type proc "c" (path: cstring, ok: i32, user_data: rawptr)
 RXmlTagCreateCallback :: #type proc "c" (tag: cstring, user_data: rawptr) -> Rid
 RXmlTagAttributeCallback :: #type proc "c" (widget: Rid, name: cstring, value: cstring, user_data: rawptr) -> i32
 RLocaleChangedCallback :: #type proc "c" (language: cstring, user_data: rawptr)
+// A piece of output, as it arrives. `text` is not null-terminated. Runs on the UI thread.
+RProcessOutputCallback :: #type proc "c" (text: cstring, length: uint, is_stderr: i32, user_data: rawptr)
+// The process ended. `failed` is R_TRUE when it could not be run at all. Runs on the UI thread.
+RProcessExitCallback :: #type proc "c" (exit_code: i32, failed: i32, user_data: rawptr)
+// Called on the UI thread when a build ended. `success` is R_TRUE when the process exited with 0.
+RLatexBuildFinishedCallback :: #type proc "c" (build: Rid, success: i32, user_data: rawptr)
 
 // Optional settings for Rinit_ex. A zero-initialized structure selects the
 // default for every field, so new fields can be added without breaking code.
@@ -1625,6 +1701,29 @@ RLanguageDesc :: struct {
 	// <script> and </script> (the name of a language: "C", "Rust"...).
 	// NULL: JavaScript, as in HTML.
 	script_language: cstring,
+	// Characters that belong to a name besides letters, digits and the
+	// underscore: "\\" for TeX commands (so that completing "\\sec" proposes
+	// "\\section", and a command is one word), "-" and ":" for the names of
+	// a BibTeX entry. NULL keeps the usual ones.
+	word_characters: cstring,
+}
+
+// A block of text typed by a name.
+//
+// The body may hold `$1` .. `$9` (places the caret goes to, in order,
+// with Tab) and `$0` (where the caret ends), the same place twice to
+// edit the two copies at once, `${1:text}` for a place with a text
+// selected, and `$NAME` for a variable given here (date, author...).
+// `\t` and `\n` in the body are a tab and a line break.
+RSnippet :: struct {
+	// The word that is typed and replaced ("sec", "fig"...). Case is ignored.
+	name: cstring,
+	// What the snippet is, shown in the list ("Section"). May be NULL.
+	description: cstring,
+	// A few words before the caret that make the snippet apply ("\\begin{", "\\"). May be NULL.
+	prefix: cstring,
+	// The text it types, with its places.
+	body: cstring,
 }
 
 // A task of the jump list of Windows (Rtaskbar_set_jump_list).
@@ -1745,6 +1844,60 @@ RXmlAttributeInfo :: struct {
 	description: cstring,
 }
 
+// What to run and how. A zero-initialized structure is a valid, empty description.
+RProcessDesc :: struct {
+	// "latexmk", or an absolute path. Looked up in PATH when it has no separator.
+	program: cstring,
+	// NULL-terminated argv, NOT including argv[0]. May be NULL.
+	arguments: [^]cstring,
+	// How many arguments there are, argv[0] not counted. 0 = count them up to the NULL.
+	argument_count: i32,
+	// NULL = the current one.
+	working_directory: cstring,
+	// R_TRUE: stderr goes to the same stream as stdout, which is what a
+	// build log wants (the warnings of a compiler are as interesting as
+	// its errors, and the order between them is kept).
+	merge_stderr: i32,
+}
+
+// One diagnostic of a log. The strings belong to the list: copy them to keep them.
+RLogMessage :: struct {
+	kind: RLogKind,
+	// The file as the log writes it (often "./chapter.tex"), or NULL.
+	file: cstring,
+	// The line, or 0 when the log does not say.
+	line: i32,
+	// One line, trimmed: "Undefined control sequence."
+	message: cstring,
+	// The lines TeX printed around it (what the error happened in, what
+	// follows), or NULL. Several lines, separated by '\n'.
+	context_: cstring,
+}
+
+// What to build. A zero-initialized structure builds `root_file` with
+// pdflatex, once; an editor usually sets `use_latexmk` too.
+RLatexBuildDesc :: struct {
+	// Path to the main .tex: its folder is the working directory, its name gives the .pdf and the .log.
+	root_file: cstring,
+	engine: RLatexEngine,
+	// R_TRUE runs latexmk, which does the several passes LaTeX needs (a
+	// table of contents, references); R_FALSE runs the engine once. Since
+	// R_FALSE is 0, a zero-initialized structure runs the engine once.
+	use_latexmk: i32,
+	// R_TRUE adds -shell-escape: the document may run programs of its own.
+	shell_escape: i32,
+	// For tests and unusual tools: the program that runs instead of the
+	// engine and latexmk, with its arguments in `arguments_override`
+	// (NULL-terminated, without argv[0]). The working directory is still
+	// the folder of the root file.
+	command_override: cstring,
+	arguments_override: [^]cstring,
+	// How many there are. 0 = count them up to the NULL.
+	arguments_override_count: i32,
+	// For tests: the log to read when the process ends, instead of the one guessed from the root file.
+	log_path_override: cstring,
+}
+
 // What the system asks for.
 RAccessibilitySettings :: struct {
 	// Size of the texts asked by the user (1 = normal).
@@ -1855,6 +2008,13 @@ foreign lib {
 	// read the state right after an input.
 	Rset_animations_enabled :: proc(enabled: i32) ---
 	Rget_animations_enabled :: proc() -> i32 ---
+	// R_TRUE: the highlight that follows the selection in lists, tables
+	// and trees moves with a spring; R_FALSE (the default) it is there at once,
+	// which is what a list that follows the pointer needs. A window resize and
+	// the text caret are never animated: they follow the input exactly.
+	// XML and theme files cannot set it.
+	Rset_selection_animation :: proc(enabled: i32) ---
+	Rget_selection_animation :: proc() -> i32 ---
 	// Multiplies the speed of every animation. 1 is the default, 0.25 a slow motion.
 	Rset_animation_speed :: proc(speed: f32) ---
 	Rget_animation_speed :: proc() -> f32 ---
@@ -2139,6 +2299,35 @@ foreign lib {
 	Rdrag_cancel :: proc(window: Rid) ---
 	Rwindow_register_shortcut :: proc(window: Rid, key: RKey, modifiers: u32, action: cstring) ---
 	Rwindow_unregister_shortcut :: proc(window: Rid, key: RKey, modifiers: u32) ---
+	// Registers a whole set of shortcuts from a text, as a preferences
+	// window writes it:
+	//
+	//     "Ctrl+S save | Ctrl+Shift+S save_as | F5 build | Ctrl+K,Ctrl+B clear"
+	//
+	// Entries are separated by '|'. The key or the keys come first, then the
+	// action name (Raction_bind). An entry whose action is empty unbinds that
+	// key. Several chords separated by commas are a sequence: only the first
+	// chord is bound for now (the others are parsed and ignored).
+	// Returns: How many shortcuts were registered (unbound ones included).
+	Rwindow_set_keybindings :: proc(window: Rid, bindings: cstring) -> i32 ---
+	// Parses one key name to a key and its modifiers: "Ctrl+S",
+	// "Ctrl+Shift+S", "F5", "PageUp", "Escape", "A". The modifiers are
+	// Ctrl, Shift, Alt and Super (Cmd and Win are accepted for Super).
+	// Returns: R_FALSE when the name is not a key.
+	Rkey_from_name :: proc(name: cstring, key: ^RKey, modifiers: ^u32) -> i32 ---
+	// The reverse, for showing a shortcut: "Ctrl+S". Super is written
+	// "Super" (the menus show it too).
+	// Returns: NULL when the key has no name. Valid until the next call.
+	Rkey_to_name :: proc(key: RKey, modifiers: u32) -> cstring ---
+	// How many shortcuts the window has (Rwindow_register_shortcut).
+	Rwindow_get_shortcut_count :: proc(window: Rid) -> i32 ---
+	// Reads the index-th shortcut of the window, for a preferences
+	// window that lists them.
+	// action Receives the name of the action; may be NULL. Valid until
+	// the next call of this function (or until the window changes its
+	// shortcuts).
+	// Returns: R_FALSE when `index` is out of range.
+	Rwindow_get_shortcut :: proc(window: Rid, index: i32, key: ^RKey, modifiers: ^u32, action: ^cstring) -> i32 ---
 	// The settings every window follows, unless it has its own.
 	Rtouch_get_settings :: proc(settings: ^RTouchSettings) ---
 	// Changes them; NULL puts back the defaults.
@@ -2264,6 +2453,21 @@ foreign lib {
 	Rtheme_get_count :: proc() -> i32 ---
 	// Name of the index-th one, or NULL.
 	Rtheme_get_name_at :: proc(index: i32) -> cstring ---
+	// Remembers the theme of a project folder, so that opening the
+	// project again gives it its look back. The store is the one the
+	// application owns (Rsettings_open(app, "sessions.json") or its own): the
+	// library keeps no file of its own.
+	//
+	// The key is "theme." followed by the absolute, normalised path of the
+	// project (forward slashes).
+	// Returns: R_FALSE when there is no store or when the path is empty.
+	Rtheme_remember_for :: proc(settings: Rid, project_path: cstring, theme_name: cstring) -> i32 ---
+	// The theme remembered for a project, or NULL. Valid until the store changes.
+	Rtheme_get_remembered :: proc(settings: Rid, project_path: cstring) -> cstring ---
+	// Applies the theme remembered for a project (Rtheme_use).
+	// Returns: R_TRUE when one was remembered and Rtheme_use accepted it. When
+	// it did not, the theme in use is left as it was.
+	Rtheme_apply_remembered :: proc(settings: Rid, project_path: cstring) -> i32 ---
 	// Writes the theme in use, with every change made since it was
 	// applied, as a theme file.
 	// name Name given to the theme in the file; NULL keeps the current one.
@@ -3209,6 +3413,92 @@ foreign lib {
 	Rtext_editor_add_marker :: proc(editor: Rid, line: i32, from_column: i32, to_column: i32, kind: RMarkerKind, message: cstring) ---
 	Rtext_editor_clear_markers :: proc(editor: Rid) ---
 	Rtext_editor_get_marker_count :: proc(editor: Rid) -> i32 ---
+	// The line, the columns and the kind of a marker, by index (0 ..
+	// Rtext_editor_get_marker_count - 1).
+	// Returns: The message of the marker, or NULL when `index` is out of range.
+	Rtext_editor_get_marker :: proc(editor: Rid, index: i32, line: ^i32, from_column: ^i32, to_column: ^i32, kind: ^RMarkerKind) -> cstring ---
+	// Removes the markers of one line and adds a list, as a compiler's report does.
+	Rtext_editor_clear_markers_of_line :: proc(editor: Rid, line: i32) ---
+	// Sets what is looked for, from now on. An empty pattern clears it.
+	// The flags are a bitmask of RSearchFlags. Invalid regular expressions are
+	// reported and leave the search as it was.
+	// Returns: R_TRUE when the pattern was taken.
+	Rtext_editor_set_search :: proc(editor: Rid, pattern: cstring, flags: u32) -> i32 ---
+	Rtext_editor_get_search :: proc(editor: Rid) -> cstring ---
+	Rtext_editor_get_search_flags :: proc(editor: Rid) -> u32 ---
+	// The next match after the caret (or before it, with
+	// `backwards`), selected; the text is scrolled to it. It wraps around
+	// the ends of the text. R_FALSE when nothing matches.
+	Rtext_editor_find_next :: proc(editor: Rid, backwards: i32) -> i32 ---
+	// How many places match the search.
+	Rtext_editor_count_matches :: proc(editor: Rid) -> i32 ---
+	// Where a match is, by index (0 .. count - 1): its start and its end. R_FALSE when out of range.
+	Rtext_editor_get_match :: proc(editor: Rid, index: i32, from_line: ^i32, from_column: ^i32, to_line: ^i32, to_column: ^i32) -> i32 ---
+	// Replaces the current match (the selection, when it is one) and
+	// goes to the next one. R_FALSE when there is nothing to replace.
+	Rtext_editor_replace :: proc(editor: Rid, text: cstring) -> i32 ---
+	// Replaces every match, as one step of the history. Returns: How many were replaced.
+	Rtext_editor_replace_all :: proc(editor: Rid, text: cstring) -> i32 ---
+	// The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
+	// (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
+	// with `matches`, the groups of the regex that matched. Pure: no editor needed.
+	// Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
+	Rtext_editor_expand_replacement :: proc(replacement: cstring, text: cstring, from: i32, to: i32, groups: [^]i32, group_count: i32) -> cstring ---
+	// R_TRUE (the default): with a language whose blocks can be folded
+	// (braces, brackets, \begin{...} ... \end{...}, <tag> ... </tag>,
+	// Markdown titles), a small arrow in the margin collapses the block;
+	// Ctrl+Shift+[ and Ctrl+Shift+] fold and unfold the block of the caret.
+	Rtext_editor_set_folding :: proc(editor: Rid, enabled: i32) ---
+	Rtext_editor_get_folding :: proc(editor: Rid) -> i32 ---
+	// Folds the block of the caret (the one that holds it), or unfolds it. R_FALSE when there is none.
+	Rtext_editor_toggle_fold :: proc(editor: Rid) -> i32 ---
+	// Folds or unfolds the block that starts on a line (an opening brace, \begin, a title).
+	Rtext_editor_fold_line :: proc(editor: Rid, line: i32) -> i32 ---
+	Rtext_editor_unfold_line :: proc(editor: Rid, line: i32) -> i32 ---
+	Rtext_editor_is_folded :: proc(editor: Rid, line: i32) -> i32 ---
+	// Unfolds everything, and forgets the folded blocks.
+	Rtext_editor_unfold_all :: proc(editor: Rid) ---
+	Rtext_editor_get_folded_count :: proc(editor: Rid) -> i32 ---
+	// The first line of a folded block that holds `line` (the block's
+	// own line), or -1 when the line is not hidden by any fold.
+	Rtext_editor_get_fold_start :: proc(editor: Rid, line: i32) -> i32 ---
+	Rsnippet_add :: proc(snippet: ^RSnippet) -> i32 ---
+	Rsnippet_clear :: proc() ---
+	Rsnippet_get_count :: proc() -> i32 ---
+	Rsnippet_get_name :: proc(index: i32) -> cstring ---
+	Rsnippet_find :: proc(name: cstring) -> i32 ---
+	// Types the snippet at the caret, replacing the word before it
+	// when that word is its name. Sets the places; Tab and Shift+Tab walk
+	// them, Escape leaves them.
+	// Returns: R_FALSE when the editor is read-only or the snippet is unknown.
+	Rtext_editor_insert_snippet :: proc(editor: Rid, name: cstring) -> i32 ---
+	// The snippet whose name is what is being typed before the caret, or -1.
+	Rtext_editor_snippet_at_caret :: proc(editor: Rid) -> i32 ---
+	// R_FALSE stops the editor from offering snippets while typing. On by default.
+	Rtext_editor_set_snippet_completion :: proc(editor: Rid, enabled: i32) ---
+	// R_TRUE while Tab and Shift+Tab walk the places of a snippet that was inserted.
+	Rtext_editor_is_in_snippet :: proc(editor: Rid) -> i32 ---
+	// R_TRUE: Ctrl+click adds a caret where it is clicked, and every
+	// caret is selected and typed at once (Alt+drag selects a column, and
+	// Ctrl+D selects the next occurrence of the selection). Off by default.
+	Rtext_editor_set_multi_cursor :: proc(editor: Rid, enabled: i32) ---
+	Rtext_editor_get_multi_cursor :: proc(editor: Rid) -> i32 ---
+	Rtext_editor_get_caret_count :: proc(editor: Rid) -> i32 ---
+	// Where a caret is, by index (0 is the main one, which typing and scrolling follow).
+	Rtext_editor_get_caret :: proc(editor: Rid, index: i32, line: ^i32, column: ^i32) -> i32 ---
+	// Adds a caret; the text at each of them is selected. R_FALSE when there are too many (256).
+	Rtext_editor_add_caret :: proc(editor: Rid, line: i32, column: i32) -> i32 ---
+	Rtext_editor_clear_carets :: proc(editor: Rid) ---
+	// Selects the next occurrence of the selected text, with a caret of its own. R_FALSE when there is none.
+	Rtext_editor_select_next_occurrence :: proc(editor: Rid) -> i32 ---
+	// Returns: How many words the text has, as an editor counts them: runs of letters and digits.
+	Rtext_editor_get_word_count :: proc(editor: Rid) -> i32 ---
+	// Returns: The characters of the text, not the bytes (a UTF-8 code point counts one).
+	Rtext_editor_get_character_count :: proc(editor: Rid) -> i32 ---
+	// Returns: How many lines have something besides blanks.
+	Rtext_editor_get_non_empty_line_count :: proc(editor: Rid) -> i32 ---
+	// Returns: The line that holds the caret, from 1 (for a status bar).
+	Rtext_editor_get_current_line :: proc(editor: Rid) -> i32 ---
 	// Color of a kind of token in the theme in use, instead of the
 	// one Raven picks for dark and for light themes. Theme files set them
 	// with <Syntax Keyword="#FF7AB2" String="..."/>.
@@ -3873,6 +4163,56 @@ foreign lib {
 	// Restricts the following draws to a rectangle, intersected with the current one.
 	Rdraw_push_clip_rect :: proc(painter: ^RPainter, x: f32, y: f32, width: f32, height: f32) ---
 	Rdraw_pop_clip_rect :: proc(painter: ^RPainter) ---
+	// Creates an empty view. Give it its pages with Rpdf_view_set_page_count.
+	Rpdf_view_create :: proc() -> Rid ---
+	// Number of pages of the document. 0 pages clears the view: the
+	// bitmaps are forgotten. New pages take the size of US Letter until
+	// Rpdf_view_set_page_size gives them their own.
+	Rpdf_view_set_page_count :: proc(pdf_view: Rid, count: i32) ---
+	Rpdf_view_get_page_count :: proc(pdf_view: Rid) -> i32 ---
+	Rpdf_view_set_page_size :: proc(pdf_view: Rid, page: i32, width: f32, height: f32) ---
+	// The size of a page in points (1/72 inch); 0, 0 when there is no such page.
+	Rpdf_view_get_page_size :: proc(pdf_view: Rid, page: i32, width: ^f32, height: ^f32) ---
+	// The RGBA pixels of a page, rendered at `scale` pixels per point
+	// (2 fills a page drawn at zoom 2). The view keeps the texture and frees
+	// nothing. R_INVALID_ID forgets the bitmap of that page, which then shows
+	// as a placeholder again.
+	Rpdf_view_set_page_bitmap :: proc(pdf_view: Rid, page: i32, texture: Rid, scale: f32) ---
+	// Returns: R_TRUE when that page has a bitmap.
+	Rpdf_view_has_page_bitmap :: proc(pdf_view: Rid, page: i32) -> i32 ---
+	// The current page, from 0: it becomes the first one in view.
+	// Rpdf_view_set_page scrolls so that the page starts at the top.
+	Rpdf_view_set_page :: proc(pdf_view: Rid, page: i32) ---
+	Rpdf_view_get_page :: proc(pdf_view: Rid) -> i32 ---
+	// Returns: The first and the last page whose rectangle is in the view, or 0 when there is none.
+	Rpdf_view_get_visible_first_page :: proc(pdf_view: Rid) -> i32 ---
+	Rpdf_view_get_visible_last_page :: proc(pdf_view: Rid) -> i32 ---
+	// Zoom in pixels per point: 1 = 72 dpi (0.05 .. 16, clamped).
+	// Setting it leaves the fit mode. Rpdf_view_set_fit sets a mode that
+	// keeps following the size of the view.
+	Rpdf_view_set_zoom :: proc(pdf_view: Rid, zoom: f32) ---
+	Rpdf_view_get_zoom :: proc(pdf_view: Rid) -> f32 ---
+	Rpdf_view_set_fit :: proc(pdf_view: Rid, fit: RPdfFit) ---
+	Rpdf_view_get_fit :: proc(pdf_view: Rid) -> RPdfFit ---
+	// Space between pages, and around them, in points (default 16).
+	Rpdf_view_set_page_gap :: proc(pdf_view: Rid, gap: f32) ---
+	Rpdf_view_get_page_gap :: proc(pdf_view: Rid) -> f32 ---
+	Rpdf_view_set_page_needed_callback :: proc(pdf_view: Rid, callback: RPdfPageNeededCallback, user_data: rawptr) ---
+	// The page and the point of the page (in points, from its top-left
+	// corner) under a point of the widget, for SyncTeX inverse search.
+	// Returns: R_FALSE outside a page.
+	Rpdf_view_get_page_at :: proc(pdf_view: Rid, x: f32, y: f32, page: ^i32, page_x: ^f32, page_y: ^f32) -> i32 ---
+	Rpdf_view_set_page_clicked_callback :: proc(pdf_view: Rid, callback: RPdfPageClickedCallback, user_data: rawptr) ---
+	// Asks for one page to be painted again, once its bitmap has arrived.
+	Rpdf_view_invalidate_page :: proc(pdf_view: Rid, page: i32) ---
+	// Scrolls so that a point of a page is in the middle of the view (SyncTeX forward search).
+	Rpdf_view_scroll_to_position :: proc(pdf_view: Rid, page: i32, page_x: f32, page_y: f32) ---
+	// A rectangle of a page to show, in points from its top-left corner
+	// (where the source of what is selected is, in a forward search): one per
+	// view. A negative page removes it.
+	Rpdf_view_set_highlight :: proc(pdf_view: Rid, page: i32, x: f32, y: f32, width: f32, height: f32) ---
+	// Color behind the pages; the theme's by default (Rwidget_clear_color brings it back).
+	Rpdf_view_set_background_color :: proc(pdf_view: Rid, r: f32, g: f32, b: f32, a: f32) ---
 	// A shader from SPIR-V code (a fragment shader written with
 	// raven_effect.glsl, as in a .spv file): `size` bytes, copied. R_INVALID_ID
 	// when the code is not SPIR-V; a backend that refuses it reports an error
@@ -4094,6 +4434,162 @@ foreign lib {
 	Rwidget_set_text_key :: proc(widget: Rid, attribute: cstring, key: cstring) ---
 	// A number written in the conventions of the language: decimal separator and digit grouping ("1 234,5" in French).
 	Rlocale_format_number :: proc(value: f64, decimals: i32) -> cstring ---
+	// Opens a settings store.
+	// path File the store is read from and written to, or NULL for a
+	// store that lives in memory only. The file is read when it exists.
+	// Returns: The store, or R_INVALID_ID (after reporting an error).
+	Rsettings_create :: proc(path: cstring) -> Rid ---
+	// Frees a store. Rshutdown frees the stores the application left alive.
+	Rsettings_destroy :: proc(settings: Rid) ---
+	// Reads the file of the store again, replacing everything it holds.
+	// Returns: R_TRUE when the file existed and was valid JSON. When it did not,
+	// the store is emptied (a store with no file stays empty).
+	Rsettings_load :: proc(settings: Rid) -> i32 ---
+	// Writes the store to its file: a temporary file next to it, then a
+	// rename, so a reader never sees half a file. The folder is created when
+	// it does not exist.
+	// Returns: R_FALSE when the store has no file or when the file could not be
+	// written.
+	Rsettings_save :: proc(settings: Rid) -> i32 ---
+	// Path of the file of the store ("" for a store that lives in memory only).
+	Rsettings_get_path :: proc(settings: Rid) -> cstring ---
+	// Returns: What the key holds, R_SETTING_NONE when it is not there (or holds an object, an array or null).
+	Rsettings_get_type :: proc(settings: Rid, key: cstring) -> RSettingType ---
+	// The value of the key; `fallback` when it is missing or holds another type.
+	Rsettings_get_bool :: proc(settings: Rid, key: cstring, fallback: i32) -> i32 ---
+	Rsettings_get_int :: proc(settings: Rid, key: cstring, fallback: i32) -> i32 ---
+	Rsettings_get_number :: proc(settings: Rid, key: cstring, fallback: f64) -> f64 ---
+	// Valid until the store changes. NULL only when the key is missing and `fallback` is NULL.
+	Rsettings_get_text :: proc(settings: Rid, key: cstring, fallback: cstring) -> cstring ---
+	Rsettings_set_bool :: proc(settings: Rid, key: cstring, value: i32) ---
+	Rsettings_set_int :: proc(settings: Rid, key: cstring, value: i32) ---
+	Rsettings_set_number :: proc(settings: Rid, key: cstring, value: f64) ---
+	// An empty text stores ""; a NULL text removes the key.
+	Rsettings_set_text :: proc(settings: Rid, key: cstring, value: cstring) ---
+	// Removes a key. R_TRUE when it was there.
+	Rsettings_remove :: proc(settings: Rid, key: cstring) -> i32 ---
+	// R_TRUE when the key is there, whatever it holds.
+	Rsettings_has :: proc(settings: Rid, key: cstring) -> i32 ---
+	// The whole document as text, for a project file that holds arrays
+	// and objects too. Valid until the store changes or the function is called
+	// again. "" when the store is empty.
+	Rsettings_get_json :: proc(settings: Rid) -> cstring ---
+	// Replaces the whole document.
+	// Returns: R_FALSE when `json` is not valid JSON: the store is not changed.
+	Rsettings_set_json :: proc(settings: Rid, json: cstring) -> i32 ---
+	// How many keys the object at `prefix` has ("" for the whole
+	// document), or how many items the array at `prefix` has. 0 when there is
+	// nothing there.
+	Rsettings_get_key_count :: proc(settings: Rid, prefix: cstring) -> i32 ---
+	// The index-th key of the object at `prefix` ("" for the whole
+	// document), or the index-th item of an array as "0", "1"... NULL when
+	// `index` is out of range. Valid until the next call of this function
+	// that returns a key.
+	Rsettings_get_key :: proc(settings: Rid, prefix: cstring, index: i32) -> cstring ---
+	// The folder where the settings of the application live:
+	// ~/.config/<app> ($XDG_CONFIG_HOME honoured),
+	// ~/Library/Application Support/<app> on macOS,
+	// %APPDATA%\<app> on Windows. Created when it does not exist; valid until
+	// the next call from the same thread.
+	Rsettings_get_config_folder :: proc(app_name: cstring) -> cstring ---
+	// The folder for what can be made again (caches), by the same rules.
+	Rsettings_get_cache_folder :: proc(app_name: cstring) -> cstring ---
+	// Opens <config folder>/<file_name> for the application, creating
+	// the folder when needed. Rsettings_open("myeditor", "sessions.json").
+	// Returns: R_INVALID_ID when the folder or the file cannot be opened.
+	Rsettings_open :: proc(app_name: cstring, file_name: cstring) -> Rid ---
+	// Starts a program and returns at once.
+	// desc What to run. Copied: the strings may be freed after the call.
+	// output Called for every piece of output, or NULL. May be called
+	// several times, and not at all for a program that prints nothing.
+	// exited Called once when the program ends, or NULL.
+	// user_data Passed to both callbacks.
+	// Returns: The process, or R_INVALID_ID when it could not even be started
+	// (an empty description, no Raven). A program that does not exist is
+	// reported through `exited` with failed set, not here.
+	Rprocess_start :: proc(desc: ^RProcessDesc, output: RProcessOutputCallback, exited: RProcessExitCallback, user_data: rawptr) -> Rid ---
+	// Returns: R_TRUE while the program runs.
+	Rprocess_is_running :: proc(process: Rid) -> i32 ---
+	// Returns: The exit code, or -1 while the program runs and when it could not be run.
+	Rprocess_get_exit_code :: proc(process: Rid) -> i32 ---
+	// Returns: R_PROCESS_RUNNING, R_PROCESS_EXITED or R_PROCESS_FAILED.
+	Rprocess_get_state :: proc(process: Rid) -> RProcessState ---
+	// Asks the program to stop (SIGTERM on POSIX, TerminateProcess on
+	// Windows), waits a moment, then kills it, and returns once its output has
+	// been read to the end. The exit callback still runs, during a frame.
+	// Does nothing when the program already ended.
+	Rprocess_cancel :: proc(process: Rid) ---
+	// Blocks until the program ends. For tests and shutdown: never call
+	// it from the UI thread of a running application.
+	Rprocess_wait :: proc(process: Rid) ---
+	// Returns: R_TRUE when the program is found (PATH lookup only).
+	Rprocess_is_available :: proc(program: cstring) -> i32 ---
+	// Finds a program without running it.
+	// Returns: An absolute path (in a buffer of the library, valid until the
+	// next call), or NULL when it is nowhere. A program with a separator in it
+	// is checked as given. The usual install folders of TeX are searched too,
+	// after PATH: /Library/TeX/texbin, /usr/local/texlive/ * /bin/ *,
+	// /opt/homebrew/bin, C:\\texlive\\ * \\bin\\windows and the bin folder of
+	// MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
+	Rprocess_find :: proc(program: cstring) -> cstring ---
+	// Runs a program to the end and collects what it printed.
+	// Blocking: for setup work (asking git for the state of a file, a tool for
+	// its version), never for a build. The window is frozen meanwhile.
+	// output Receives the output, NUL-terminated, allocated with the
+	// allocator of Raven: free it with Rmemory_free. May be NULL.
+	// size Receives its length, without the NUL. May be NULL.
+	// max_bytes Longest output kept; 0 selects 4 MiB. What comes after
+	// is read and dropped, so the program never blocks on a full pipe. A cut
+	// never leaves half of a UTF-8 character.
+	// Returns: The exit code, or -1 when the program could not be run.
+	Rprocess_run :: proc(desc: ^RProcessDesc, size: ^uint, max_bytes: uint) -> cstring ---
+	// Parses the text of a log.
+	// log The bytes of the file; need not be NUL-terminated.
+	// size Their number.
+	// Returns: A list of messages, or R_INVALID_ID when the log has nothing
+	// to report (a log with no diagnostic parses to no list at all).
+	Rlatex_log_parse :: proc(log: cstring, size: uint) -> Rid ---
+	// Reads a log file and parses it. R_INVALID_ID when it cannot be read or has nothing to report.
+	Rlatex_log_parse_file :: proc(path: cstring) -> Rid ---
+	// Returns: How many messages the list holds, or 0 for R_INVALID_ID.
+	Rlatex_log_get_count :: proc(log: Rid) -> i32 ---
+	// One message of the list.
+	// message Receives the fields; its strings are owned by the list.
+	// Returns: R_FALSE when `index` is out of range.
+	Rlatex_log_get_message :: proc(log: Rid, index: i32, message: ^RLogMessage) -> i32 ---
+	// Frees a list given by Rlatex_log_parse. Its messages are no longer valid.
+	Rlatex_log_destroy :: proc(log: Rid) ---
+	// Starts a build and returns at once.
+	// desc What to build; copied.
+	// output Called with what the tool prints, as it prints it, on the
+	// UI thread. May be NULL.
+	// user_data Passed to `output`.
+	// Returns: The build, or R_INVALID_ID when it cannot start (no root file).
+	// When the process ends the log is parsed, then `finished` runs.
+	Rlatex_build_start :: proc(desc: ^RLatexBuildDesc, output: RProcessOutputCallback, finished: RLatexBuildFinishedCallback, user_data: rawptr) -> Rid ---
+	// Returns: R_TRUE while the tool runs.
+	Rlatex_build_is_running :: proc(build: Rid) -> i32 ---
+	// Stops the tool and waits for it. The messages parsed so far stay.
+	Rlatex_build_cancel :: proc(build: Rid) ---
+	// The diagnostics of the last finished build, as a list that
+	// belongs to the build: read it with Rlatex_log_get_message, and do not
+	// destroy it. Valid until the build runs again or is destroyed.
+	// Returns: The list, or R_INVALID_ID before the first build ends.
+	Rlatex_build_get_messages :: proc(build: Rid) -> Rid ---
+	// Returns: The .pdf the build wrote, or NULL when it wrote none. Owned by the build.
+	Rlatex_build_get_pdf_path :: proc(build: Rid) -> cstring ---
+	// Returns: The .log the build read, or NULL. Owned by the build.
+	Rlatex_build_get_log_path :: proc(build: Rid) -> cstring ---
+	// Returns: R_TRUE when the build ended and its tool exited with 0.
+	Rlatex_build_succeeded :: proc(build: Rid) -> i32 ---
+	// Cancels the build if it still runs, frees it and its messages.
+	// The handle is invalid afterwards.
+	Rlatex_build_destroy :: proc(build: Rid) ---
+	// Finds a tool of the trade: "latexmk", "pdflatex", "xelatex",
+	// "lualatex", "synctex", "bibtex", "biber", "hunspell", "git"...
+	// Same lookup as Rprocess_find, which it forwards to.
+	// Returns: An absolute path valid until the next call, or NULL.
+	Rlatex_find_tool :: proc(name: cstring) -> cstring ---
 	// Size of every text, 1 = as designed (0.5 to 4). Controls grow with their text.
 	Raccessibility_set_text_scale :: proc(scale: f32) ---
 	Raccessibility_get_text_scale :: proc() -> f32 ---

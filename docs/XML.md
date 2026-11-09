@@ -279,7 +279,7 @@ panel uses the attributes that make sense for it.
 | `MenuItem` | `Text`, `Shortcut`, `Checkable`, `Checked` |
 | `Viewport` | `Source` (image shown until the application sets a texture), `Stretch`, `FlipY`, `Realtime` |
 | `Custom` | drawn by the application: `Rcustom_set_paint_callback` |
-| `TextEditor` (`TextArea`) | `Text` (or the text inside the element), `Language` (`C`, `C++`, `C#`, `Java`, `JavaScript`, `TypeScript`, `Python`, `Rust`, `GLSL`, `JSON`, `CSS`, `XML`, `HTML`, one declared with `Rlanguage_register`, or `None`), `LineNumbers`, `Wrap`, `ReadOnly`, `Placeholder`, `TabSize`, `TabSpaces`, `Completion` (`false`: proposes words only on Ctrl+Space), `AutoPairs` (`false`: does not close brackets and quotes), `TextSize`, `Font`, `Markdown` (`true`: the same as `Language="Markdown"`: the text stays as typed, styled in place) |
+| `TextEditor` (`TextArea`) | `Text` (or the text inside the element), `Language` (`C`, `C++`, `C#`, `Java`, `JavaScript`, `TypeScript`, `Python`, `Rust`, `GLSL`, `JSON`, `CSS`, `XML`, `HTML`, `LaTeX`, `BibTeX`, one declared with `Rlanguage_register`, or `None`), `LineNumbers`, `Wrap`, `ReadOnly`, `Placeholder`, `TabSize`, `TabSpaces`, `Completion` (`false`: proposes words only on Ctrl+Space), `AutoPairs` (`false`: does not close brackets and quotes, nor writes `\end{...}` after `\begin{...}`), `Folding` (`false`: no arrow in the margin to fold a block of braces, of `\begin`/`\end`, of tags, of a Markdown title), `Snippets` (`false`: does not offer snippets while typing), `MultiCursor` (`true`: Ctrl+click adds a caret), `TextSize`, `Font`, `Markdown` (`true`: the same as `Language="Markdown"`: the text stays as typed, styled in place) |
 | `FileBrowser` | `Directory`, `Mode` (`Open`, `Save`, `Folder`), `Filter` (`*.png;*.jpg`), `FileName`, `DefaultExtension`, `ShowHidden`, `Multiple`, `Controls` (`false` hides the name, the filter and the buttons), `Places` (`false` hides the list of places) |
 
 A `MenuItem` shortcut works without any `<Shortcut>` element: the window
@@ -329,6 +329,28 @@ then those of an item. `Part.Property` names any part and any property:
     </Track>
     <Marker Time="4" Label="Intro"/>
 </Timeline>
+```
+
+## A document as pages (PDF view)
+
+`PdfView` shows the pages of a document the application renders: Raven has no
+PDF decoder, so each page is handed to it as a texture.
+
+| Tag | Attributes |
+|---|---|
+| `PdfView` (`Pdf`, `PdfPreview`) | `PageCount`, `Page` (0 is the first), `Zoom` (pixels per point of a page: 1 is 72 dpi), `Fit` (`None`, `Width`, `Page`), `PageGap` (points between pages), `Background` (a color), `OnPageClicked` |
+
+The application calls `Rpdf_view_set_page_size` for every page and
+`Rpdf_view_set_page_bitmap` with the pixels it rendered, at the scale it
+rendered them. `Rpdf_view_set_page_needed_callback` tells it which pages are
+visible and at what scale, so that a long document renders only what the
+user is looking at. `Rpdf_view_get_page_at` and the page-clicked callback
+give the page and the point of the page under the pointer, which is what a
+SyncTeX inverse search needs; `Rpdf_view_set_highlight` and
+`Rpdf_view_scroll_to_position` are the other way (source to page).
+
+```xml
+<PdfView Name="preview" Fit="Width" PageGap="12"/>
 ```
 
 ## Markdown

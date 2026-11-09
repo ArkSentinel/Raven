@@ -318,6 +318,14 @@ static const rvn_schema_attribute_t g_pagination[] = {
 	N("Siblings", "Page numbers shown on each side of the current one."),
 	A("OnChanged", "Action fired when the user goes to another page."),
 };
+static const rvn_schema_attribute_t g_pdf_view[] = {
+	N("PageCount", "Number of pages of the document."),
+	N("Page", "The current page, from 0: it is scrolled to the top of the view."),
+	N("Zoom", "Pixels per point: 1 = 72 dpi (0.05 .. 16)."),
+	C("Fit", "None|Width|Page", "The zoom follows the size of the view, on the width or on the whole page."),
+	N("PageGap", "Space between the pages and around them, in points."),
+	A("OnChanged", "Action fired when the user clicks a page."),
+};
 static const rvn_schema_attribute_t g_plot[] = {
 	T("Title", "The title over the data."),
 	C("Legend", "Hidden|TopLeft|Top|TopRight|Right|BottomRight|Bottom|BottomLeft|Left|Outside", "Where the legend is."),
@@ -375,7 +383,7 @@ static const rvn_schema_attribute_t g_viewport[] = {
 };
 static const rvn_schema_attribute_t g_text_editor[] = {
 	T("Text", "The text."),
-	C("Language", "None|C|C++|C#|Java|JavaScript|TypeScript|Python|Rust|GLSL|JSON|CSS|XML|HTML", "Colors the text and helps while typing."),
+	C("Language", "None|C|C++|C#|Java|JavaScript|TypeScript|Python|Rust|GLSL|JSON|CSS|XML|HTML|LaTeX|BibTeX", "Colors the text and helps while typing."),
 	B("LineNumbers", "Shows the line numbers in a margin."),
 	B("Wrap", "Long lines continue on the next row."),
 	B("ReadOnly", "Can be scrolled, selected and copied, not changed."),
@@ -383,7 +391,10 @@ static const rvn_schema_attribute_t g_text_editor[] = {
 	N("TabSize", "Width of a tab, in spaces."),
 	B("TabSpaces", "The Tab key writes spaces."),
 	B("Completion", "Proposes words while typing."),
-	B("AutoPairs", "Closes brackets and quotes, indents after them."),
+	B("AutoPairs", "Closes brackets and quotes, indents after them (\\begin{...} with its \\end)."),
+	B("Folding", "The blocks (braces, \\begin ... \\end, tags, titles) can be folded with the arrow of the margin (on)."),
+	B("Snippets", "The editor proposes the snippets while typing (on)."),
+	B("MultiCursor", "Ctrl+click adds a caret, and all of them are typed at once (off)."),
 	N("TextSize", "Size of the text; 0 uses the theme."),
 	N("Zoom", "Zoom of the text, 1 = 100 % (0.5 .. 4): Ctrl + wheel changes it."),
 	B("Zoomable", "Ctrl + wheel, Ctrl + '+' / '-' / 0 zoom the text (on by default)."),
@@ -552,6 +563,7 @@ static const rvn_schema_tag_t g_tags[] = {
 	TAG("Breadcrumb", g_breadcrumb, "The path to the current place: links separated by chevrons."),
 	TAG("Rating", g_rating, "A score shown and chosen with stars."),
 	TAG("Pagination", g_pagination, "Page numbers with previous and next."),
+	TAG("PdfView", g_pdf_view, "The pages of a document, rendered by the application as textures: zoom, scroll, page navigation, SyncTeX callbacks."),
 	TAG("Plot", g_plot, "Curves of X / Y data: Series elements (Name, Color, Line, LineWidth, Marker, MarkerSize, MarkerFilled, Step, Fill, XAxis, Axis, MaxPoints, X and Y lists or Points \"x,y x,y\"), Scatter elements, and DragLine elements (Axis, Value, Label, Color)."),
 	TAG("NodeGraph", g_node_graph, "Nodes linked by wires: Node elements (Input, Output, any widget), Link and Type elements."),
 };

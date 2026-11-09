@@ -653,6 +653,8 @@ pub const R_WIDGET_RATING: RWidgetType = 0x0230;
 pub const R_WIDGET_PAGINATION: RWidgetType = 0x0231;
 /// Curves of X / Y data: legend, line styles, markers, log axes, a second X and Y axis, pan and zoom.
 pub const R_WIDGET_PLOT: RWidgetType = 0x0232;
+/// The pages of a document, rendered by the application: zoom, scroll, page navigation.
+pub const R_WIDGET_PDF_VIEW: RWidgetType = 0x0233;
 
 pub const RHAlign = c_int;
 pub const R_HALIGN_FILL: RHAlign = 0x0240;
@@ -856,6 +858,13 @@ pub const R_LANGUAGE_EMBEDS: RLanguageFlags = 0x0040;
 /// marks included, with strong text in bold, emphasized text in italic
 /// and titles in bold: what will be formatted is seen while typing.
 pub const R_LANGUAGE_FORMATTED_TEXT: RLanguageFlags = 0x0080;
+/// TeX and LaTeX: a backslash starts a command, a percent sign starts a
+/// comment that ends with its line, $...$ is mathematics. A line that
+/// ends with \begin{...} indents the next one, and \end{...} comes back.
+pub const R_LANGUAGE_TEX: RLanguageFlags = 0x0100;
+/// BibTeX: @type{key, field = {value}}. The entries and their fields are
+/// colored, and a citation key is a word of its own.
+pub const R_LANGUAGE_BIBTEX: RLanguageFlags = 0x0200;
 
 /// What a part of the text is, for the language of the editor (Rtext_editor_get_token).
 pub const RToken = c_int;
@@ -886,6 +895,15 @@ pub const RMarkerKind = c_int;
 pub const R_MARKER_ERROR: RMarkerKind = 0x0350;
 pub const R_MARKER_WARNING: RMarkerKind = 0x0351;
 pub const R_MARKER_INFO: RMarkerKind = 0x0352;
+
+pub const RSearchFlags = c_int;
+pub const R_SEARCH_NONE: RSearchFlags = 0;
+/// A regular expression, in the syntax of the editor: see raven_text_editor.h.
+pub const R_SEARCH_REGEX: RSearchFlags = 1;
+/// Case is ignored (and, with R_SEARCH_REGEX, the pattern is not sensitive to case).
+pub const R_SEARCH_IGNORE_CASE: RSearchFlags = 2;
+/// Only whole words match ("cat" does not match "concatenate").
+pub const R_SEARCH_WHOLE_WORD: RSearchFlags = 4;
 
 /// Buttons of a header bar.
 pub const RHeaderButtons = c_int;
@@ -1002,6 +1020,15 @@ pub const R_MOTION_BOUNCY: RMotion = 0x0322;
 /// Swings several times around the target: things that fly in or get dropped.
 pub const R_MOTION_WOBBLY: RMotion = 0x0323;
 
+/// How the view keeps the pages in its place when it is resized.
+pub const RPdfFit = c_int;
+/// The zoom given is used as it is (the default).
+pub const R_PDF_FIT_NONE: RPdfFit = 0x0570;
+/// The zoom follows the width of the view, with a scrollbar for the height.
+pub const R_PDF_FIT_WIDTH: RPdfFit = 0x0571;
+/// The zoom follows the width or the height, whichever is smaller: the whole page shows.
+pub const R_PDF_FIT_PAGE: RPdfFit = 0x0572;
+
 /// The effects that come with Raven (Reffect_get).
 pub const REffect = c_int;
 /// Soft lights that drift slowly: color, color2; params: speed, scale, intensity, -. Animated.
@@ -1046,6 +1073,40 @@ pub const R_XML_FILE: RXmlValueType = 0x03C6;
 pub const R_XML_NUMBERS: RXmlValueType = 0x03C7;
 /// Texts separated by '|': "One|Two|Three".
 pub const R_XML_LIST: RXmlValueType = 0x03C8;
+
+/// What a key holds.
+pub const RSettingType = c_int;
+/// No such key, or a value that is an object, an array or null.
+pub const R_SETTING_NONE: RSettingType = 0x0300;
+pub const R_SETTING_BOOL: RSettingType = 0x0301;
+pub const R_SETTING_INT: RSettingType = 0x0302;
+pub const R_SETTING_NUMBER: RSettingType = 0x0303;
+pub const R_SETTING_TEXT: RSettingType = 0x0304;
+
+pub const RProcessState = c_int;
+/// Started, its output is still being read.
+pub const R_PROCESS_RUNNING: RProcessState = 0x0400;
+/// Ended by itself: Rprocess_get_exit_code says how.
+pub const R_PROCESS_EXITED: RProcessState = 0x0401;
+/// Could not be run at all (not found, no permission): the exit code is -1.
+pub const R_PROCESS_FAILED: RProcessState = 0x0402;
+
+/// What a line of a log is worth to an editor.
+pub const RLogKind = c_int;
+/// TeX stopped here ("! Undefined control sequence.").
+pub const R_LOG_ERROR: RLogKind = 0x0500;
+/// Something that may be wrong (an undefined reference, a font substitution).
+pub const R_LOG_WARNING: RLogKind = 0x0501;
+/// Neither: a file opened, the pages written, how much memory TeX used.
+pub const R_LOG_INFO: RLogKind = 0x0502;
+/// Overfull or underfull \hbox or \vbox: not an error, but the page will show it.
+pub const R_LOG_BAD_BOX: RLogKind = 0x0503;
+
+/// The engines an editor offers. All of them take the same command line.
+pub const RLatexEngine = c_int;
+pub const R_LATEX_PDFLATEX: RLatexEngine = 0;
+pub const R_LATEX_XELATEX: RLatexEngine = 1;
+pub const R_LATEX_LUALATEX: RLatexEngine = 2;
 
 pub const RColorFilter = c_int;
 pub const R_COLOR_FILTER_NONE: RColorFilter = 0x0740;
@@ -1289,6 +1350,15 @@ pub const RViewportDrawCallback = ?*const fn (info: ?*const RViewportDrawInfo, u
 pub const RViewportResizeCallback = ?*const fn (viewport: Rid, width: c_int, height: c_int, user_data: ?*anyopaque) callconv(.c) void;
 pub const RPaintCallback = ?*const fn (widget: Rid, painter: ?*RPainter, width: f32, height: f32, user_data: ?*anyopaque) callconv(.c) void;
 pub const RMeasureCallback = ?*const fn (widget: Rid, width: ?*f32, height: ?*f32, user_data: ?*anyopaque) callconv(.c) void;
+/// Called when a page must be rendered, with `scale` pixels per
+/// point (the zoom, times the scale of the window) and the index of the
+/// page. It may call Rpdf_view_set_page_bitmap from inside. A page is
+/// asked for once while it stays visible at a given scale; it is asked for
+/// again when the scale changes by more than 1 % or when it comes back
+/// into view.
+pub const RPdfPageNeededCallback = ?*const fn (pdf_view: Rid, page: c_int, scale: f32, user_data: ?*anyopaque) callconv(.c) void;
+/// Called when the user clicks on a page. This also fires the action of the widget.
+pub const RPdfPageClickedCallback = ?*const fn (pdf_view: Rid, page: c_int, page_x: f32, page_y: f32, user_data: ?*anyopaque) callconv(.c) void;
 /// Called each time a file was loaded again.
 /// path The file given when the interface was created.
 /// ok   R_FALSE when the file could not be used (the interface is unchanged).
@@ -1309,6 +1379,12 @@ pub const RXmlReloadCallback = ?*const fn (path: ?[*:0]const u8, ok: c_int, user
 pub const RXmlTagCreateCallback = ?*const fn (tag: ?[*:0]const u8, user_data: ?*anyopaque) callconv(.c) Rid;
 pub const RXmlTagAttributeCallback = ?*const fn (widget: Rid, name: ?[*:0]const u8, value: ?[*:0]const u8, user_data: ?*anyopaque) callconv(.c) c_int;
 pub const RLocaleChangedCallback = ?*const fn (language: ?[*:0]const u8, user_data: ?*anyopaque) callconv(.c) void;
+/// A piece of output, as it arrives. `text` is not null-terminated. Runs on the UI thread.
+pub const RProcessOutputCallback = ?*const fn (text: ?[*:0]const u8, length: usize, is_stderr: c_int, user_data: ?*anyopaque) callconv(.c) void;
+/// The process ended. `failed` is R_TRUE when it could not be run at all. Runs on the UI thread.
+pub const RProcessExitCallback = ?*const fn (exit_code: c_int, failed: c_int, user_data: ?*anyopaque) callconv(.c) void;
+/// Called on the UI thread when a build ended. `success` is R_TRUE when the process exited with 0.
+pub const RLatexBuildFinishedCallback = ?*const fn (build: Rid, success: c_int, user_data: ?*anyopaque) callconv(.c) void;
 
 /// Optional settings for Rinit_ex. A zero-initialized structure selects the
 /// default for every field, so new fields can be added without breaking code.
@@ -1615,6 +1691,29 @@ pub const RLanguageDesc = extern struct {
     /// <script> and </script> (the name of a language: "C", "Rust"...).
     /// NULL: JavaScript, as in HTML.
     script_language: ?[*:0]const u8 = null,
+    /// Characters that belong to a name besides letters, digits and the
+    /// underscore: "\\" for TeX commands (so that completing "\\sec" proposes
+    /// "\\section", and a command is one word), "-" and ":" for the names of
+    /// a BibTeX entry. NULL keeps the usual ones.
+    word_characters: ?[*:0]const u8 = null,
+};
+
+/// A block of text typed by a name.
+///
+/// The body may hold `$1` .. `$9` (places the caret goes to, in order,
+/// with Tab) and `$0` (where the caret ends), the same place twice to
+/// edit the two copies at once, `${1:text}` for a place with a text
+/// selected, and `$NAME` for a variable given here (date, author...).
+/// `\t` and `\n` in the body are a tab and a line break.
+pub const RSnippet = extern struct {
+    /// The word that is typed and replaced ("sec", "fig"...). Case is ignored.
+    name: ?[*:0]const u8 = null,
+    /// What the snippet is, shown in the list ("Section"). May be NULL.
+    description: ?[*:0]const u8 = null,
+    /// A few words before the caret that make the snippet apply ("\\begin{", "\\"). May be NULL.
+    prefix: ?[*:0]const u8 = null,
+    /// The text it types, with its places.
+    body: ?[*:0]const u8 = null,
 };
 
 /// A task of the jump list of Windows (Rtaskbar_set_jump_list).
@@ -1735,6 +1834,60 @@ pub const RXmlAttributeInfo = extern struct {
     description: ?[*:0]const u8 = null,
 };
 
+/// What to run and how. A zero-initialized structure is a valid, empty description.
+pub const RProcessDesc = extern struct {
+    /// "latexmk", or an absolute path. Looked up in PATH when it has no separator.
+    program: ?[*:0]const u8 = null,
+    /// NULL-terminated argv, NOT including argv[0]. May be NULL.
+    arguments: ?[*]const ?[*:0]const u8 = null,
+    /// How many arguments there are, argv[0] not counted. 0 = count them up to the NULL.
+    argument_count: c_int = 0,
+    /// NULL = the current one.
+    working_directory: ?[*:0]const u8 = null,
+    /// R_TRUE: stderr goes to the same stream as stdout, which is what a
+    /// build log wants (the warnings of a compiler are as interesting as
+    /// its errors, and the order between them is kept).
+    merge_stderr: c_int = 0,
+};
+
+/// One diagnostic of a log. The strings belong to the list: copy them to keep them.
+pub const RLogMessage = extern struct {
+    kind: RLogKind = 0,
+    /// The file as the log writes it (often "./chapter.tex"), or NULL.
+    file: ?[*:0]const u8 = null,
+    /// The line, or 0 when the log does not say.
+    line: c_int = 0,
+    /// One line, trimmed: "Undefined control sequence."
+    message: ?[*:0]const u8 = null,
+    /// The lines TeX printed around it (what the error happened in, what
+    /// follows), or NULL. Several lines, separated by '\n'.
+    context: ?[*:0]const u8 = null,
+};
+
+/// What to build. A zero-initialized structure builds `root_file` with
+/// pdflatex, once; an editor usually sets `use_latexmk` too.
+pub const RLatexBuildDesc = extern struct {
+    /// Path to the main .tex: its folder is the working directory, its name gives the .pdf and the .log.
+    root_file: ?[*:0]const u8 = null,
+    engine: RLatexEngine = 0,
+    /// R_TRUE runs latexmk, which does the several passes LaTeX needs (a
+    /// table of contents, references); R_FALSE runs the engine once. Since
+    /// R_FALSE is 0, a zero-initialized structure runs the engine once.
+    use_latexmk: c_int = 0,
+    /// R_TRUE adds -shell-escape: the document may run programs of its own.
+    shell_escape: c_int = 0,
+    /// For tests and unusual tools: the program that runs instead of the
+    /// engine and latexmk, with its arguments in `arguments_override`
+    /// (NULL-terminated, without argv[0]). The working directory is still
+    /// the folder of the root file.
+    command_override: ?[*:0]const u8 = null,
+    arguments_override: ?[*]const ?[*:0]const u8 = null,
+    /// How many there are. 0 = count them up to the NULL.
+    arguments_override_count: c_int = 0,
+    /// For tests: the log to read when the process ends, instead of the one guessed from the root file.
+    log_path_override: ?[*:0]const u8 = null,
+};
+
 /// What the system asks for.
 pub const RAccessibilitySettings = extern struct {
     /// Size of the texts asked by the user (1 = normal).
@@ -1843,6 +1996,13 @@ pub extern fn Rget_ui_scale() f32;
 /// read the state right after an input.
 pub extern fn Rset_animations_enabled(enabled: c_int) void;
 pub extern fn Rget_animations_enabled() c_int;
+/// R_TRUE: the highlight that follows the selection in lists, tables
+/// and trees moves with a spring; R_FALSE (the default) it is there at once,
+/// which is what a list that follows the pointer needs. A window resize and
+/// the text caret are never animated: they follow the input exactly.
+/// XML and theme files cannot set it.
+pub extern fn Rset_selection_animation(enabled: c_int) void;
+pub extern fn Rget_selection_animation() c_int;
 /// Multiplies the speed of every animation. 1 is the default, 0.25 a slow motion.
 pub extern fn Rset_animation_speed(speed: f32) void;
 pub extern fn Rget_animation_speed() f32;
@@ -2127,6 +2287,35 @@ pub extern fn Rdrag_get_data(window: Rid) ?[*:0]const u8;
 pub extern fn Rdrag_cancel(window: Rid) void;
 pub extern fn Rwindow_register_shortcut(window: Rid, key: RKey, modifiers: u32, action: ?[*:0]const u8) void;
 pub extern fn Rwindow_unregister_shortcut(window: Rid, key: RKey, modifiers: u32) void;
+/// Registers a whole set of shortcuts from a text, as a preferences
+/// window writes it:
+///
+///     "Ctrl+S save | Ctrl+Shift+S save_as | F5 build | Ctrl+K,Ctrl+B clear"
+///
+/// Entries are separated by '|'. The key or the keys come first, then the
+/// action name (Raction_bind). An entry whose action is empty unbinds that
+/// key. Several chords separated by commas are a sequence: only the first
+/// chord is bound for now (the others are parsed and ignored).
+/// Returns: How many shortcuts were registered (unbound ones included).
+pub extern fn Rwindow_set_keybindings(window: Rid, bindings: ?[*:0]const u8) c_int;
+/// Parses one key name to a key and its modifiers: "Ctrl+S",
+/// "Ctrl+Shift+S", "F5", "PageUp", "Escape", "A". The modifiers are
+/// Ctrl, Shift, Alt and Super (Cmd and Win are accepted for Super).
+/// Returns: R_FALSE when the name is not a key.
+pub extern fn Rkey_from_name(name: ?[*:0]const u8, key: ?*RKey, modifiers: ?*u32) c_int;
+/// The reverse, for showing a shortcut: "Ctrl+S". Super is written
+/// "Super" (the menus show it too).
+/// Returns: NULL when the key has no name. Valid until the next call.
+pub extern fn Rkey_to_name(key: RKey, modifiers: u32) ?[*:0]const u8;
+/// How many shortcuts the window has (Rwindow_register_shortcut).
+pub extern fn Rwindow_get_shortcut_count(window: Rid) c_int;
+/// Reads the index-th shortcut of the window, for a preferences
+/// window that lists them.
+/// action Receives the name of the action; may be NULL. Valid until
+/// the next call of this function (or until the window changes its
+/// shortcuts).
+/// Returns: R_FALSE when `index` is out of range.
+pub extern fn Rwindow_get_shortcut(window: Rid, index: c_int, key: ?*RKey, modifiers: ?*u32, action: ?*?[*:0]const u8) c_int;
 /// The settings every window follows, unless it has its own.
 pub extern fn Rtouch_get_settings(settings: ?*RTouchSettings) void;
 /// Changes them; NULL puts back the defaults.
@@ -2252,6 +2441,21 @@ pub extern fn Rtheme_get_name() ?[*:0]const u8;
 pub extern fn Rtheme_get_count() c_int;
 /// Name of the index-th one, or NULL.
 pub extern fn Rtheme_get_name_at(index: c_int) ?[*:0]const u8;
+/// Remembers the theme of a project folder, so that opening the
+/// project again gives it its look back. The store is the one the
+/// application owns (Rsettings_open(app, "sessions.json") or its own): the
+/// library keeps no file of its own.
+///
+/// The key is "theme." followed by the absolute, normalised path of the
+/// project (forward slashes).
+/// Returns: R_FALSE when there is no store or when the path is empty.
+pub extern fn Rtheme_remember_for(settings: Rid, project_path: ?[*:0]const u8, theme_name: ?[*:0]const u8) c_int;
+/// The theme remembered for a project, or NULL. Valid until the store changes.
+pub extern fn Rtheme_get_remembered(settings: Rid, project_path: ?[*:0]const u8) ?[*:0]const u8;
+/// Applies the theme remembered for a project (Rtheme_use).
+/// Returns: R_TRUE when one was remembered and Rtheme_use accepted it. When
+/// it did not, the theme in use is left as it was.
+pub extern fn Rtheme_apply_remembered(settings: Rid, project_path: ?[*:0]const u8) c_int;
 /// Writes the theme in use, with every change made since it was
 /// applied, as a theme file.
 /// name Name given to the theme in the file; NULL keeps the current one.
@@ -3197,6 +3401,92 @@ pub extern fn Rtext_editor_set_auto_pairs(editor: Rid, enabled: c_int) void;
 pub extern fn Rtext_editor_add_marker(editor: Rid, line: c_int, from_column: c_int, to_column: c_int, kind: RMarkerKind, message: ?[*:0]const u8) void;
 pub extern fn Rtext_editor_clear_markers(editor: Rid) void;
 pub extern fn Rtext_editor_get_marker_count(editor: Rid) c_int;
+/// The line, the columns and the kind of a marker, by index (0 ..
+/// Rtext_editor_get_marker_count - 1).
+/// Returns: The message of the marker, or NULL when `index` is out of range.
+pub extern fn Rtext_editor_get_marker(editor: Rid, index: c_int, line: ?*c_int, from_column: ?*c_int, to_column: ?*c_int, kind: ?*RMarkerKind) ?[*:0]const u8;
+/// Removes the markers of one line and adds a list, as a compiler's report does.
+pub extern fn Rtext_editor_clear_markers_of_line(editor: Rid, line: c_int) void;
+/// Sets what is looked for, from now on. An empty pattern clears it.
+/// The flags are a bitmask of RSearchFlags. Invalid regular expressions are
+/// reported and leave the search as it was.
+/// Returns: R_TRUE when the pattern was taken.
+pub extern fn Rtext_editor_set_search(editor: Rid, pattern: ?[*:0]const u8, flags: u32) c_int;
+pub extern fn Rtext_editor_get_search(editor: Rid) ?[*:0]const u8;
+pub extern fn Rtext_editor_get_search_flags(editor: Rid) u32;
+/// The next match after the caret (or before it, with
+/// `backwards`), selected; the text is scrolled to it. It wraps around
+/// the ends of the text. R_FALSE when nothing matches.
+pub extern fn Rtext_editor_find_next(editor: Rid, backwards: c_int) c_int;
+/// How many places match the search.
+pub extern fn Rtext_editor_count_matches(editor: Rid) c_int;
+/// Where a match is, by index (0 .. count - 1): its start and its end. R_FALSE when out of range.
+pub extern fn Rtext_editor_get_match(editor: Rid, index: c_int, from_line: ?*c_int, from_column: ?*c_int, to_line: ?*c_int, to_column: ?*c_int) c_int;
+/// Replaces the current match (the selection, when it is one) and
+/// goes to the next one. R_FALSE when there is nothing to replace.
+pub extern fn Rtext_editor_replace(editor: Rid, text: ?[*:0]const u8) c_int;
+/// Replaces every match, as one step of the history. Returns: How many were replaced.
+pub extern fn Rtext_editor_replace_all(editor: Rid, text: ?[*:0]const u8) c_int;
+/// The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
+/// (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
+/// with `matches`, the groups of the regex that matched. Pure: no editor needed.
+/// Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
+pub extern fn Rtext_editor_expand_replacement(replacement: ?[*:0]const u8, text: ?[*:0]const u8, from: c_int, to: c_int, groups: ?[*]const c_int, group_count: c_int) ?[*:0]const u8;
+/// R_TRUE (the default): with a language whose blocks can be folded
+/// (braces, brackets, \begin{...} ... \end{...}, <tag> ... </tag>,
+/// Markdown titles), a small arrow in the margin collapses the block;
+/// Ctrl+Shift+[ and Ctrl+Shift+] fold and unfold the block of the caret.
+pub extern fn Rtext_editor_set_folding(editor: Rid, enabled: c_int) void;
+pub extern fn Rtext_editor_get_folding(editor: Rid) c_int;
+/// Folds the block of the caret (the one that holds it), or unfolds it. R_FALSE when there is none.
+pub extern fn Rtext_editor_toggle_fold(editor: Rid) c_int;
+/// Folds or unfolds the block that starts on a line (an opening brace, \begin, a title).
+pub extern fn Rtext_editor_fold_line(editor: Rid, line: c_int) c_int;
+pub extern fn Rtext_editor_unfold_line(editor: Rid, line: c_int) c_int;
+pub extern fn Rtext_editor_is_folded(editor: Rid, line: c_int) c_int;
+/// Unfolds everything, and forgets the folded blocks.
+pub extern fn Rtext_editor_unfold_all(editor: Rid) void;
+pub extern fn Rtext_editor_get_folded_count(editor: Rid) c_int;
+/// The first line of a folded block that holds `line` (the block's
+/// own line), or -1 when the line is not hidden by any fold.
+pub extern fn Rtext_editor_get_fold_start(editor: Rid, line: c_int) c_int;
+pub extern fn Rsnippet_add(snippet: ?*const RSnippet) c_int;
+pub extern fn Rsnippet_clear() void;
+pub extern fn Rsnippet_get_count() c_int;
+pub extern fn Rsnippet_get_name(index: c_int) ?[*:0]const u8;
+pub extern fn Rsnippet_find(name: ?[*:0]const u8) c_int;
+/// Types the snippet at the caret, replacing the word before it
+/// when that word is its name. Sets the places; Tab and Shift+Tab walk
+/// them, Escape leaves them.
+/// Returns: R_FALSE when the editor is read-only or the snippet is unknown.
+pub extern fn Rtext_editor_insert_snippet(editor: Rid, name: ?[*:0]const u8) c_int;
+/// The snippet whose name is what is being typed before the caret, or -1.
+pub extern fn Rtext_editor_snippet_at_caret(editor: Rid) c_int;
+/// R_FALSE stops the editor from offering snippets while typing. On by default.
+pub extern fn Rtext_editor_set_snippet_completion(editor: Rid, enabled: c_int) void;
+/// R_TRUE while Tab and Shift+Tab walk the places of a snippet that was inserted.
+pub extern fn Rtext_editor_is_in_snippet(editor: Rid) c_int;
+/// R_TRUE: Ctrl+click adds a caret where it is clicked, and every
+/// caret is selected and typed at once (Alt+drag selects a column, and
+/// Ctrl+D selects the next occurrence of the selection). Off by default.
+pub extern fn Rtext_editor_set_multi_cursor(editor: Rid, enabled: c_int) void;
+pub extern fn Rtext_editor_get_multi_cursor(editor: Rid) c_int;
+pub extern fn Rtext_editor_get_caret_count(editor: Rid) c_int;
+/// Where a caret is, by index (0 is the main one, which typing and scrolling follow).
+pub extern fn Rtext_editor_get_caret(editor: Rid, index: c_int, line: ?*c_int, column: ?*c_int) c_int;
+/// Adds a caret; the text at each of them is selected. R_FALSE when there are too many (256).
+pub extern fn Rtext_editor_add_caret(editor: Rid, line: c_int, column: c_int) c_int;
+pub extern fn Rtext_editor_clear_carets(editor: Rid) void;
+/// Selects the next occurrence of the selected text, with a caret of its own. R_FALSE when there is none.
+pub extern fn Rtext_editor_select_next_occurrence(editor: Rid) c_int;
+/// Returns: How many words the text has, as an editor counts them: runs of letters and digits.
+pub extern fn Rtext_editor_get_word_count(editor: Rid) c_int;
+/// Returns: The characters of the text, not the bytes (a UTF-8 code point counts one).
+pub extern fn Rtext_editor_get_character_count(editor: Rid) c_int;
+/// Returns: How many lines have something besides blanks.
+pub extern fn Rtext_editor_get_non_empty_line_count(editor: Rid) c_int;
+/// Returns: The line that holds the caret, from 1 (for a status bar).
+pub extern fn Rtext_editor_get_current_line(editor: Rid) c_int;
 /// Color of a kind of token in the theme in use, instead of the
 /// one Raven picks for dark and for light themes. Theme files set them
 /// with <Syntax Keyword="#FF7AB2" String="..."/>.
@@ -3861,6 +4151,56 @@ pub extern fn Rspring_set(spring: ?*RSpring, value: f32) void;
 /// Restricts the following draws to a rectangle, intersected with the current one.
 pub extern fn Rdraw_push_clip_rect(painter: ?*RPainter, x: f32, y: f32, width: f32, height: f32) void;
 pub extern fn Rdraw_pop_clip_rect(painter: ?*RPainter) void;
+/// Creates an empty view. Give it its pages with Rpdf_view_set_page_count.
+pub extern fn Rpdf_view_create() Rid;
+/// Number of pages of the document. 0 pages clears the view: the
+/// bitmaps are forgotten. New pages take the size of US Letter until
+/// Rpdf_view_set_page_size gives them their own.
+pub extern fn Rpdf_view_set_page_count(pdf_view: Rid, count: c_int) void;
+pub extern fn Rpdf_view_get_page_count(pdf_view: Rid) c_int;
+pub extern fn Rpdf_view_set_page_size(pdf_view: Rid, page: c_int, width: f32, height: f32) void;
+/// The size of a page in points (1/72 inch); 0, 0 when there is no such page.
+pub extern fn Rpdf_view_get_page_size(pdf_view: Rid, page: c_int, width: ?*f32, height: ?*f32) void;
+/// The RGBA pixels of a page, rendered at `scale` pixels per point
+/// (2 fills a page drawn at zoom 2). The view keeps the texture and frees
+/// nothing. R_INVALID_ID forgets the bitmap of that page, which then shows
+/// as a placeholder again.
+pub extern fn Rpdf_view_set_page_bitmap(pdf_view: Rid, page: c_int, texture: Rid, scale: f32) void;
+/// Returns: R_TRUE when that page has a bitmap.
+pub extern fn Rpdf_view_has_page_bitmap(pdf_view: Rid, page: c_int) c_int;
+/// The current page, from 0: it becomes the first one in view.
+/// Rpdf_view_set_page scrolls so that the page starts at the top.
+pub extern fn Rpdf_view_set_page(pdf_view: Rid, page: c_int) void;
+pub extern fn Rpdf_view_get_page(pdf_view: Rid) c_int;
+/// Returns: The first and the last page whose rectangle is in the view, or 0 when there is none.
+pub extern fn Rpdf_view_get_visible_first_page(pdf_view: Rid) c_int;
+pub extern fn Rpdf_view_get_visible_last_page(pdf_view: Rid) c_int;
+/// Zoom in pixels per point: 1 = 72 dpi (0.05 .. 16, clamped).
+/// Setting it leaves the fit mode. Rpdf_view_set_fit sets a mode that
+/// keeps following the size of the view.
+pub extern fn Rpdf_view_set_zoom(pdf_view: Rid, zoom: f32) void;
+pub extern fn Rpdf_view_get_zoom(pdf_view: Rid) f32;
+pub extern fn Rpdf_view_set_fit(pdf_view: Rid, fit: RPdfFit) void;
+pub extern fn Rpdf_view_get_fit(pdf_view: Rid) RPdfFit;
+/// Space between pages, and around them, in points (default 16).
+pub extern fn Rpdf_view_set_page_gap(pdf_view: Rid, gap: f32) void;
+pub extern fn Rpdf_view_get_page_gap(pdf_view: Rid) f32;
+pub extern fn Rpdf_view_set_page_needed_callback(pdf_view: Rid, callback: RPdfPageNeededCallback, user_data: ?*anyopaque) void;
+/// The page and the point of the page (in points, from its top-left
+/// corner) under a point of the widget, for SyncTeX inverse search.
+/// Returns: R_FALSE outside a page.
+pub extern fn Rpdf_view_get_page_at(pdf_view: Rid, x: f32, y: f32, page: ?*c_int, page_x: ?*f32, page_y: ?*f32) c_int;
+pub extern fn Rpdf_view_set_page_clicked_callback(pdf_view: Rid, callback: RPdfPageClickedCallback, user_data: ?*anyopaque) void;
+/// Asks for one page to be painted again, once its bitmap has arrived.
+pub extern fn Rpdf_view_invalidate_page(pdf_view: Rid, page: c_int) void;
+/// Scrolls so that a point of a page is in the middle of the view (SyncTeX forward search).
+pub extern fn Rpdf_view_scroll_to_position(pdf_view: Rid, page: c_int, page_x: f32, page_y: f32) void;
+/// A rectangle of a page to show, in points from its top-left corner
+/// (where the source of what is selected is, in a forward search): one per
+/// view. A negative page removes it.
+pub extern fn Rpdf_view_set_highlight(pdf_view: Rid, page: c_int, x: f32, y: f32, width: f32, height: f32) void;
+/// Color behind the pages; the theme's by default (Rwidget_clear_color brings it back).
+pub extern fn Rpdf_view_set_background_color(pdf_view: Rid, r: f32, g: f32, b: f32, a: f32) void;
 /// A shader from SPIR-V code (a fragment shader written with
 /// raven_effect.glsl, as in a .spv file): `size` bytes, copied. R_INVALID_ID
 /// when the code is not SPIR-V; a backend that refuses it reports an error
@@ -4082,6 +4422,162 @@ pub extern fn Rtr_plural(key: ?[*:0]const u8, count: c_int) ?[*:0]const u8;
 pub extern fn Rwidget_set_text_key(widget: Rid, attribute: ?[*:0]const u8, key: ?[*:0]const u8) void;
 /// A number written in the conventions of the language: decimal separator and digit grouping ("1 234,5" in French).
 pub extern fn Rlocale_format_number(value: f64, decimals: c_int) ?[*:0]const u8;
+/// Opens a settings store.
+/// path File the store is read from and written to, or NULL for a
+/// store that lives in memory only. The file is read when it exists.
+/// Returns: The store, or R_INVALID_ID (after reporting an error).
+pub extern fn Rsettings_create(path: ?[*:0]const u8) Rid;
+/// Frees a store. Rshutdown frees the stores the application left alive.
+pub extern fn Rsettings_destroy(settings: Rid) void;
+/// Reads the file of the store again, replacing everything it holds.
+/// Returns: R_TRUE when the file existed and was valid JSON. When it did not,
+/// the store is emptied (a store with no file stays empty).
+pub extern fn Rsettings_load(settings: Rid) c_int;
+/// Writes the store to its file: a temporary file next to it, then a
+/// rename, so a reader never sees half a file. The folder is created when
+/// it does not exist.
+/// Returns: R_FALSE when the store has no file or when the file could not be
+/// written.
+pub extern fn Rsettings_save(settings: Rid) c_int;
+/// Path of the file of the store ("" for a store that lives in memory only).
+pub extern fn Rsettings_get_path(settings: Rid) ?[*:0]const u8;
+/// Returns: What the key holds, R_SETTING_NONE when it is not there (or holds an object, an array or null).
+pub extern fn Rsettings_get_type(settings: Rid, key: ?[*:0]const u8) RSettingType;
+/// The value of the key; `fallback` when it is missing or holds another type.
+pub extern fn Rsettings_get_bool(settings: Rid, key: ?[*:0]const u8, fallback: c_int) c_int;
+pub extern fn Rsettings_get_int(settings: Rid, key: ?[*:0]const u8, fallback: c_int) c_int;
+pub extern fn Rsettings_get_number(settings: Rid, key: ?[*:0]const u8, fallback: f64) f64;
+/// Valid until the store changes. NULL only when the key is missing and `fallback` is NULL.
+pub extern fn Rsettings_get_text(settings: Rid, key: ?[*:0]const u8, fallback: ?[*:0]const u8) ?[*:0]const u8;
+pub extern fn Rsettings_set_bool(settings: Rid, key: ?[*:0]const u8, value: c_int) void;
+pub extern fn Rsettings_set_int(settings: Rid, key: ?[*:0]const u8, value: c_int) void;
+pub extern fn Rsettings_set_number(settings: Rid, key: ?[*:0]const u8, value: f64) void;
+/// An empty text stores ""; a NULL text removes the key.
+pub extern fn Rsettings_set_text(settings: Rid, key: ?[*:0]const u8, value: ?[*:0]const u8) void;
+/// Removes a key. R_TRUE when it was there.
+pub extern fn Rsettings_remove(settings: Rid, key: ?[*:0]const u8) c_int;
+/// R_TRUE when the key is there, whatever it holds.
+pub extern fn Rsettings_has(settings: Rid, key: ?[*:0]const u8) c_int;
+/// The whole document as text, for a project file that holds arrays
+/// and objects too. Valid until the store changes or the function is called
+/// again. "" when the store is empty.
+pub extern fn Rsettings_get_json(settings: Rid) ?[*:0]const u8;
+/// Replaces the whole document.
+/// Returns: R_FALSE when `json` is not valid JSON: the store is not changed.
+pub extern fn Rsettings_set_json(settings: Rid, json: ?[*:0]const u8) c_int;
+/// How many keys the object at `prefix` has ("" for the whole
+/// document), or how many items the array at `prefix` has. 0 when there is
+/// nothing there.
+pub extern fn Rsettings_get_key_count(settings: Rid, prefix: ?[*:0]const u8) c_int;
+/// The index-th key of the object at `prefix` ("" for the whole
+/// document), or the index-th item of an array as "0", "1"... NULL when
+/// `index` is out of range. Valid until the next call of this function
+/// that returns a key.
+pub extern fn Rsettings_get_key(settings: Rid, prefix: ?[*:0]const u8, index: c_int) ?[*:0]const u8;
+/// The folder where the settings of the application live:
+/// ~/.config/<app> ($XDG_CONFIG_HOME honoured),
+/// ~/Library/Application Support/<app> on macOS,
+/// %APPDATA%\<app> on Windows. Created when it does not exist; valid until
+/// the next call from the same thread.
+pub extern fn Rsettings_get_config_folder(app_name: ?[*:0]const u8) ?[*:0]const u8;
+/// The folder for what can be made again (caches), by the same rules.
+pub extern fn Rsettings_get_cache_folder(app_name: ?[*:0]const u8) ?[*:0]const u8;
+/// Opens <config folder>/<file_name> for the application, creating
+/// the folder when needed. Rsettings_open("myeditor", "sessions.json").
+/// Returns: R_INVALID_ID when the folder or the file cannot be opened.
+pub extern fn Rsettings_open(app_name: ?[*:0]const u8, file_name: ?[*:0]const u8) Rid;
+/// Starts a program and returns at once.
+/// desc What to run. Copied: the strings may be freed after the call.
+/// output Called for every piece of output, or NULL. May be called
+/// several times, and not at all for a program that prints nothing.
+/// exited Called once when the program ends, or NULL.
+/// user_data Passed to both callbacks.
+/// Returns: The process, or R_INVALID_ID when it could not even be started
+/// (an empty description, no Raven). A program that does not exist is
+/// reported through `exited` with failed set, not here.
+pub extern fn Rprocess_start(desc: ?*const RProcessDesc, output: RProcessOutputCallback, exited: RProcessExitCallback, user_data: ?*anyopaque) Rid;
+/// Returns: R_TRUE while the program runs.
+pub extern fn Rprocess_is_running(process: Rid) c_int;
+/// Returns: The exit code, or -1 while the program runs and when it could not be run.
+pub extern fn Rprocess_get_exit_code(process: Rid) c_int;
+/// Returns: R_PROCESS_RUNNING, R_PROCESS_EXITED or R_PROCESS_FAILED.
+pub extern fn Rprocess_get_state(process: Rid) RProcessState;
+/// Asks the program to stop (SIGTERM on POSIX, TerminateProcess on
+/// Windows), waits a moment, then kills it, and returns once its output has
+/// been read to the end. The exit callback still runs, during a frame.
+/// Does nothing when the program already ended.
+pub extern fn Rprocess_cancel(process: Rid) void;
+/// Blocks until the program ends. For tests and shutdown: never call
+/// it from the UI thread of a running application.
+pub extern fn Rprocess_wait(process: Rid) void;
+/// Returns: R_TRUE when the program is found (PATH lookup only).
+pub extern fn Rprocess_is_available(program: ?[*:0]const u8) c_int;
+/// Finds a program without running it.
+/// Returns: An absolute path (in a buffer of the library, valid until the
+/// next call), or NULL when it is nowhere. A program with a separator in it
+/// is checked as given. The usual install folders of TeX are searched too,
+/// after PATH: /Library/TeX/texbin, /usr/local/texlive/ * /bin/ *,
+/// /opt/homebrew/bin, C:\\texlive\\ * \\bin\\windows and the bin folder of
+/// MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
+pub extern fn Rprocess_find(program: ?[*:0]const u8) ?[*:0]const u8;
+/// Runs a program to the end and collects what it printed.
+/// Blocking: for setup work (asking git for the state of a file, a tool for
+/// its version), never for a build. The window is frozen meanwhile.
+/// output Receives the output, NUL-terminated, allocated with the
+/// allocator of Raven: free it with Rmemory_free. May be NULL.
+/// size Receives its length, without the NUL. May be NULL.
+/// max_bytes Longest output kept; 0 selects 4 MiB. What comes after
+/// is read and dropped, so the program never blocks on a full pipe. A cut
+/// never leaves half of a UTF-8 character.
+/// Returns: The exit code, or -1 when the program could not be run.
+pub extern fn Rprocess_run(desc: ?*const RProcessDesc, size: ?*usize, max_bytes: usize) ?[*:0]u8;
+/// Parses the text of a log.
+/// log The bytes of the file; need not be NUL-terminated.
+/// size Their number.
+/// Returns: A list of messages, or R_INVALID_ID when the log has nothing
+/// to report (a log with no diagnostic parses to no list at all).
+pub extern fn Rlatex_log_parse(log: ?[*:0]const u8, size: usize) Rid;
+/// Reads a log file and parses it. R_INVALID_ID when it cannot be read or has nothing to report.
+pub extern fn Rlatex_log_parse_file(path: ?[*:0]const u8) Rid;
+/// Returns: How many messages the list holds, or 0 for R_INVALID_ID.
+pub extern fn Rlatex_log_get_count(log: Rid) c_int;
+/// One message of the list.
+/// message Receives the fields; its strings are owned by the list.
+/// Returns: R_FALSE when `index` is out of range.
+pub extern fn Rlatex_log_get_message(log: Rid, index: c_int, message: ?*RLogMessage) c_int;
+/// Frees a list given by Rlatex_log_parse. Its messages are no longer valid.
+pub extern fn Rlatex_log_destroy(log: Rid) void;
+/// Starts a build and returns at once.
+/// desc What to build; copied.
+/// output Called with what the tool prints, as it prints it, on the
+/// UI thread. May be NULL.
+/// user_data Passed to `output`.
+/// Returns: The build, or R_INVALID_ID when it cannot start (no root file).
+/// When the process ends the log is parsed, then `finished` runs.
+pub extern fn Rlatex_build_start(desc: ?*const RLatexBuildDesc, output: RProcessOutputCallback, finished: RLatexBuildFinishedCallback, user_data: ?*anyopaque) Rid;
+/// Returns: R_TRUE while the tool runs.
+pub extern fn Rlatex_build_is_running(build: Rid) c_int;
+/// Stops the tool and waits for it. The messages parsed so far stay.
+pub extern fn Rlatex_build_cancel(build: Rid) void;
+/// The diagnostics of the last finished build, as a list that
+/// belongs to the build: read it with Rlatex_log_get_message, and do not
+/// destroy it. Valid until the build runs again or is destroyed.
+/// Returns: The list, or R_INVALID_ID before the first build ends.
+pub extern fn Rlatex_build_get_messages(build: Rid) Rid;
+/// Returns: The .pdf the build wrote, or NULL when it wrote none. Owned by the build.
+pub extern fn Rlatex_build_get_pdf_path(build: Rid) ?[*:0]const u8;
+/// Returns: The .log the build read, or NULL. Owned by the build.
+pub extern fn Rlatex_build_get_log_path(build: Rid) ?[*:0]const u8;
+/// Returns: R_TRUE when the build ended and its tool exited with 0.
+pub extern fn Rlatex_build_succeeded(build: Rid) c_int;
+/// Cancels the build if it still runs, frees it and its messages.
+/// The handle is invalid afterwards.
+pub extern fn Rlatex_build_destroy(build: Rid) void;
+/// Finds a tool of the trade: "latexmk", "pdflatex", "xelatex",
+/// "lualatex", "synctex", "bibtex", "biber", "hunspell", "git"...
+/// Same lookup as Rprocess_find, which it forwards to.
+/// Returns: An absolute path valid until the next call, or NULL.
+pub extern fn Rlatex_find_tool(name: ?[*:0]const u8) ?[*:0]const u8;
 /// Size of every text, 1 = as designed (0.5 to 4). Controls grow with their text.
 pub extern fn Raccessibility_set_text_scale(scale: f32) void;
 pub extern fn Raccessibility_get_text_scale() f32;

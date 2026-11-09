@@ -354,6 +354,16 @@ extern "C" {
 	RAVEN_API void Rset_animations_enabled(int enabled);
 	RAVEN_API int Rget_animations_enabled(void);
 
+	/**
+	 * @brief R_TRUE: the highlight that follows the selection in lists, tables
+	 * and trees moves with a spring; R_FALSE (the default) it is there at once,
+	 * which is what a list that follows the pointer needs. A window resize and
+	 * the text caret are never animated: they follow the input exactly.
+	 * XML and theme files cannot set it.
+	 */
+	RAVEN_API void Rset_selection_animation(int enabled);
+	RAVEN_API int Rget_selection_animation(void);
+
 	/** @brief Multiplies the speed of every animation. 1 is the default, 0.25 a slow motion. */
 	RAVEN_API void Rset_animation_speed(float speed);
 	RAVEN_API float Rget_animation_speed(void);

@@ -99,11 +99,13 @@ static void rvn_list_reveal(rvn_widget_t* widget, int row) {
 	rvn_widget_invalidate_paint(widget);
 }
 
-static void rvn_list_select(rvn_widget_t* widget, int index, int notify) {
+/* `by_mouse`: the highlight is put where the pointer clicked, without gliding (a click, not a key). */
+static void rvn_list_select(rvn_widget_t* widget, int index, int notify, int by_mouse) {
 	rvn_list_view_t* list = (rvn_list_view_t*)widget;
 	if (index < -1 || index >= rvn_list_count(list)) index = -1;
 	if (list->selected == index) return;
 	list->selected = index;
+	if (by_mouse) rvn_selection_snap(&list->select_y);
 	rvn_list_reveal(widget, index);
 	rvn_widget_invalidate_paint(widget);
 	if (notify && list->selection_callback) list->selection_callback(widget->id, index, list->selection_user);
@@ -139,7 +141,7 @@ static void rvn_list_view_paint(rvn_widget_t* widget, RPainter* painter) {
 		rvn_paint_push_clip(painter, rvn_rect(1.0f, 1.0f, rect.w - 2.0f, rect.h - 2.0f));
 		last = rvn_mini(count, first + (int)(list->bar.viewport / row) + 3);
 		if (list->selected >= 0) {
-			float y = rvn_paint_spring(painter, &list->select_y, row * (float)list->selected, R_MOTION_SNAPPY);
+			float y = rvn_paint_selection_spring(painter, &list->select_y, row * (float)list->selected);
 			rvn_platform_paint_item(painter, widget, rvn_platform_row(widget, rvn_rect(1.0f, 1.0f + y - offset, content_width, row)),
 				rvn_widget_states(widget, painter, list->hot == list->selected && (widget->flags & RVN_WF_HOVERED), R_FALSE) | RVN_STATE_SELECTED,
 				RVN_ITEM_LIST, 1.0f);
@@ -167,8 +169,8 @@ static void rvn_list_view_paint(rvn_widget_t* widget, RPainter* painter) {
 	rvn_paint_push_clip(painter, rvn_rect(1.0f, 1.0f, rect.w - 2.0f, rect.h - 2.0f));
 	last = rvn_mini(count, first + (int)(list->bar.viewport / row) + 3);
 	if (list->selected >= 0) {
-		/* the selection slides from the previous row to the new one; a list without the keyboard focus shows it dimmer */
-		float y = rvn_paint_spring(painter, &list->select_y, row * (float)list->selected, R_MOTION_SNAPPY);
+		/* the selection of the keyboard glides when Rset_selection_animation is on (a click puts it there at once); a list without the focus shows it dimmer */
+		float y = rvn_paint_selection_spring(painter, &list->select_y, row * (float)list->selected);
 		rvn_paint_row(painter, widget, rvn_rect(1.0f, 1.0f + y - offset, content_width, row),
 			focused ? selection : rvn_color_mix(selection, rvn_widget_color(widget, R_COLOR_INPUT), 0.45f));
 	} else {
@@ -215,7 +217,7 @@ static int rvn_list_view_event(rvn_widget_t* widget, const REvent* event) {
 			if (event->button != R_MOUSE_LEFT) return R_FALSE;
 			row = rvn_list_row_at(widget, event->local_y);
 			if (row >= 0) {
-				rvn_list_select(widget, row, R_TRUE);
+				rvn_list_select(widget, row, R_TRUE, R_TRUE);
 				if (event->clicks == 2 && rvn_widget_alive(widget)) rvn_list_activate(widget);
 			}
 			return R_TRUE;
@@ -260,7 +262,7 @@ static int rvn_list_view_event(rvn_widget_t* widget, const REvent* event) {
 				default:
 					return R_FALSE;
 			}
-			rvn_list_select(widget, rvn_clampi(row, 0, count - 1), R_TRUE);
+			rvn_list_select(widget, rvn_clampi(row, 0, count - 1), R_TRUE, R_FALSE);
 			return R_TRUE;
 		default:
 			return R_FALSE;
@@ -302,7 +304,7 @@ static int rvn_list_view_set_attribute(rvn_widget_t* widget, const char* name, c
 	}
 	if (RVN_ATTR("Selected")) {
 		if (!rvn_parse_int(value, &index)) return R_FALSE;
-		rvn_list_select(widget, index, R_FALSE);
+		rvn_list_select(widget, index, R_FALSE, R_FALSE);
 		return R_TRUE;
 	}
 	return R_FALSE;
@@ -412,7 +414,7 @@ void Rlist_view_set_virtual_items(Rid id, int count, RListItemTextCallback callb
 
 void Rlist_view_set_selected(Rid id, int index) {
 	RVN_WIDGET_VOID(widget, id, R_WIDGET_LIST_VIEW);
-	rvn_list_select(widget, index, R_FALSE);
+	rvn_list_select(widget, index, R_FALSE, R_FALSE);
 }
 
 int Rlist_view_get_selected(Rid id) {

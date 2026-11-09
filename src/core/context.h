@@ -196,6 +196,12 @@ typedef struct rvn_context_t {
 	rvn_pool_t tree_items;
 	rvn_pool_t xml_documents;
 	rvn_pool_t xml_nodes;
+	/** Programs of the application (core/process.c). */
+	rvn_pool_t processes;
+	/** LaTeX builds (core/latex_build.c). */
+	rvn_pool_t builds;
+	/** Lists of diagnostics of a log (core/latex_log.c). */
+	rvn_pool_t logs;
 
 	/* main loop */
 	rvn_atomic_t quit_requested;
@@ -312,6 +318,17 @@ void rvn_fire_action(Rid sender, const char* action);
 
 /** Seconds until the next timer fires, or a negative value when there is none. */
 double rvn_timers_next_delay(void);
+
+/** Stops and frees every process still alive (core/process.c). */
+void rvn_process_shutdown(void);
+/** Cancels and frees a process now (a build that is destroyed). */
+void rvn_process_destroy(Rid process);
+/** Frees every build still alive, cancelling its processes (core/latex_build.c). */
+void rvn_builds_shutdown(void);
+/** Frees every list of log messages the application left alive (core/latex_log.c). */
+void rvn_logs_shutdown(void);
+/** Frees every settings store the application left alive (core/settings.c). */
+void rvn_settings_shutdown(void);
 
 /** Brackets code that calls application callbacks (see dispatch_depth). */
 void rvn_dispatch_begin(void);

@@ -1006,6 +1006,10 @@ public final class R {
      * Curves of X / Y data: legend, line styles, markers, log axes, a second X and Y axis, pan and zoom.
      */
     public static final int R_WIDGET_PLOT = 0x0232;
+    /**
+     * The pages of a document, rendered by the application: zoom, scroll, page navigation.
+     */
+    public static final int R_WIDGET_PDF_VIEW = 0x0233;
 
     // RHAlign
     public static final int R_HALIGN_FILL = 0x0240;
@@ -1284,6 +1288,17 @@ public final class R {
      * and titles in bold: what will be formatted is seen while typing.
      */
     public static final int R_LANGUAGE_FORMATTED_TEXT = 0x0080;
+    /**
+     * TeX and LaTeX: a backslash starts a command, a percent sign starts a
+     * comment that ends with its line, $...$ is mathematics. A line that
+     * ends with \begin{...} indents the next one, and \end{...} comes back.
+     */
+    public static final int R_LANGUAGE_TEX = 0x0100;
+    /**
+     * BibTeX: &#64;type{key, field = {value}}. The entries and their fields are
+     * colored, and a citation key is a word of its own.
+     */
+    public static final int R_LANGUAGE_BIBTEX = 0x0200;
 
     // RToken: What a part of the text is, for the language of the editor (Rtext_editor_get_token).
     public static final int R_TOKEN_TEXT = 0x03A0;
@@ -1324,6 +1339,21 @@ public final class R {
     public static final int R_MARKER_ERROR = 0x0350;
     public static final int R_MARKER_WARNING = 0x0351;
     public static final int R_MARKER_INFO = 0x0352;
+
+    // RSearchFlags
+    public static final int R_SEARCH_NONE = 0;
+    /**
+     * A regular expression, in the syntax of the editor: see raven_text_editor.h.
+     */
+    public static final int R_SEARCH_REGEX = 1;
+    /**
+     * Case is ignored (and, with R_SEARCH_REGEX, the pattern is not sensitive to case).
+     */
+    public static final int R_SEARCH_IGNORE_CASE = 2;
+    /**
+     * Only whole words match ("cat" does not match "concatenate").
+     */
+    public static final int R_SEARCH_WHOLE_WORD = 4;
 
     // RHeaderButtons: Buttons of a header bar.
     public static final int R_HEADER_NO_BUTTONS = 0;
@@ -1486,6 +1516,20 @@ public final class R {
      */
     public static final int R_MOTION_WOBBLY = 0x0323;
 
+    // RPdfFit: How the view keeps the pages in its place when it is resized.
+    /**
+     * The zoom given is used as it is (the default).
+     */
+    public static final int R_PDF_FIT_NONE = 0x0570;
+    /**
+     * The zoom follows the width of the view, with a scrollbar for the height.
+     */
+    public static final int R_PDF_FIT_WIDTH = 0x0571;
+    /**
+     * The zoom follows the width or the height, whichever is smaller: the whole page shows.
+     */
+    public static final int R_PDF_FIT_PAGE = 0x0572;
+
     // REffect: The effects that come with Raven (Reffect_get).
     /**
      * Soft lights that drift slowly: color, color2; params: speed, scale, intensity, -. Animated.
@@ -1561,6 +1605,53 @@ public final class R {
      * Texts separated by '|': "One|Two|Three".
      */
     public static final int R_XML_LIST = 0x03C8;
+
+    // RSettingType: What a key holds.
+    /**
+     * No such key, or a value that is an object, an array or null.
+     */
+    public static final int R_SETTING_NONE = 0x0300;
+    public static final int R_SETTING_BOOL = 0x0301;
+    public static final int R_SETTING_INT = 0x0302;
+    public static final int R_SETTING_NUMBER = 0x0303;
+    public static final int R_SETTING_TEXT = 0x0304;
+
+    // RProcessState
+    /**
+     * Started, its output is still being read.
+     */
+    public static final int R_PROCESS_RUNNING = 0x0400;
+    /**
+     * Ended by itself: Rprocess_get_exit_code says how.
+     */
+    public static final int R_PROCESS_EXITED = 0x0401;
+    /**
+     * Could not be run at all (not found, no permission): the exit code is -1.
+     */
+    public static final int R_PROCESS_FAILED = 0x0402;
+
+    // RLogKind: What a line of a log is worth to an editor.
+    /**
+     * TeX stopped here ("! Undefined control sequence.").
+     */
+    public static final int R_LOG_ERROR = 0x0500;
+    /**
+     * Something that may be wrong (an undefined reference, a font substitution).
+     */
+    public static final int R_LOG_WARNING = 0x0501;
+    /**
+     * Neither: a file opened, the pages written, how much memory TeX used.
+     */
+    public static final int R_LOG_INFO = 0x0502;
+    /**
+     * Overfull or underfull \hbox or \vbox: not an error, but the page will show it.
+     */
+    public static final int R_LOG_BAD_BOX = 0x0503;
+
+    // RLatexEngine: The engines an editor offers. All of them take the same command line.
+    public static final int R_LATEX_PDFLATEX = 0;
+    public static final int R_LATEX_XELATEX = 1;
+    public static final int R_LATEX_LUALATEX = 2;
 
     // RColorFilter
     public static final int R_COLOR_FILTER_NONE = 0x0740;
@@ -2790,7 +2881,7 @@ public final class R {
      */
     public static final class RLanguageDesc {
         /** The size of the structure in C, in bytes. */
-        public static final long SIZE = 112;
+        public static final long SIZE = 120;
         private final MemorySegment s;
         private Arena arena;
 
@@ -2911,6 +3002,88 @@ public final class R {
          */
         public String script_language() { return R.text(s.get(ADDRESS, 104)); }
         public RLanguageDesc script_language(String value) { s.set(ADDRESS, 104, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        /**
+         * Characters that belong to a name besides letters, digits and the
+         * underscore: "\\" for TeX commands (so that completing "\\sec" proposes
+         * "\\section", and a command is one word), "-" and ":" for the names of
+         * a BibTeX entry. NULL keeps the usual ones.
+         */
+        public String word_characters() { return R.text(s.get(ADDRESS, 112)); }
+        public RLanguageDesc word_characters(String value) { s.set(ADDRESS, 112, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+    }
+
+    /**
+     * A block of text typed by a name.
+     *
+     * The body may hold `$1` .. `$9` (places the caret goes to, in order,
+     * with Tab) and `$0` (where the caret ends), the same place twice to
+     * edit the two copies at once, `${1:text}` for a place with a text
+     * selected, and `$NAME` for a variable given here (date, author...).
+     * `\t` and `\n` in the body are a tab and a line break.
+     */
+    public static final class RSnippet {
+        /** The size of the structure in C, in bytes. */
+        public static final long SIZE = 32;
+        private final MemorySegment s;
+        private Arena arena;
+
+        /** A new structure, zeroed (what `RSnippet x = {0};` is in C). */
+        public RSnippet() {
+            arena = Arena.ofAuto();
+            s = arena.allocate(SIZE, 8);
+        }
+
+        /** The structure at an address (given by the library, or a slice of an array). */
+        public RSnippet(MemorySegment address) {
+            s = address.reinterpret(SIZE);
+        }
+
+        private RSnippet(MemorySegment segment, Arena arena) {
+            this.s = segment;
+            this.arena = arena;
+        }
+
+        /** Its memory: what to give where C takes a pointer to it. */
+        public MemorySegment segment() { return s; }
+
+        /** `count` structures side by side, zeroed: an array of C. */
+        public static RSnippet[] array(int count) {
+            Arena a = Arena.ofAuto();
+            MemorySegment all = a.allocate(SIZE * Math.max(count, 1), 8);
+            RSnippet[] items = new RSnippet[count];
+            for (int i = 0; i < count; i++) items[i] = new RSnippet(all.asSlice(SIZE * i, SIZE), a);
+            return items;
+        }
+
+        private Arena arena() {
+            if (arena == null) arena = Arena.ofAuto();
+            return arena;
+        }
+
+        /**
+         * The word that is typed and replaced ("sec", "fig"...). Case is ignored.
+         */
+        public String name() { return R.text(s.get(ADDRESS, 0)); }
+        public RSnippet name(String value) { s.set(ADDRESS, 0, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        /**
+         * What the snippet is, shown in the list ("Section"). May be NULL.
+         */
+        public String description() { return R.text(s.get(ADDRESS, 8)); }
+        public RSnippet description(String value) { s.set(ADDRESS, 8, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        /**
+         * A few words before the caret that make the snippet apply ("\\begin{", "\\"). May be NULL.
+         */
+        public String prefix() { return R.text(s.get(ADDRESS, 16)); }
+        public RSnippet prefix(String value) { s.set(ADDRESS, 16, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        /**
+         * The text it types, with its places.
+         */
+        public String body() { return R.text(s.get(ADDRESS, 24)); }
+        public RSnippet body(String value) { s.set(ADDRESS, 24, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
     }
 
     /**
@@ -3506,6 +3679,243 @@ public final class R {
          */
         public String description() { return R.text(s.get(ADDRESS, 32)); }
         public RXmlAttributeInfo description(String value) { s.set(ADDRESS, 32, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+    }
+
+    /**
+     * What to run and how. A zero-initialized structure is a valid, empty description.
+     */
+    public static final class RProcessDesc {
+        /** The size of the structure in C, in bytes. */
+        public static final long SIZE = 40;
+        private final MemorySegment s;
+        private Arena arena;
+
+        /** A new structure, zeroed (what `RProcessDesc x = {0};` is in C). */
+        public RProcessDesc() {
+            arena = Arena.ofAuto();
+            s = arena.allocate(SIZE, 8);
+        }
+
+        /** The structure at an address (given by the library, or a slice of an array). */
+        public RProcessDesc(MemorySegment address) {
+            s = address.reinterpret(SIZE);
+        }
+
+        private RProcessDesc(MemorySegment segment, Arena arena) {
+            this.s = segment;
+            this.arena = arena;
+        }
+
+        /** Its memory: what to give where C takes a pointer to it. */
+        public MemorySegment segment() { return s; }
+
+        /** `count` structures side by side, zeroed: an array of C. */
+        public static RProcessDesc[] array(int count) {
+            Arena a = Arena.ofAuto();
+            MemorySegment all = a.allocate(SIZE * Math.max(count, 1), 8);
+            RProcessDesc[] items = new RProcessDesc[count];
+            for (int i = 0; i < count; i++) items[i] = new RProcessDesc(all.asSlice(SIZE * i, SIZE), a);
+            return items;
+        }
+
+        private Arena arena() {
+            if (arena == null) arena = Arena.ofAuto();
+            return arena;
+        }
+
+        /**
+         * "latexmk", or an absolute path. Looked up in PATH when it has no separator.
+         */
+        public String program() { return R.text(s.get(ADDRESS, 0)); }
+        public RProcessDesc program(String value) { s.set(ADDRESS, 0, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        /**
+         * NULL-terminated argv, NOT including argv[0]. May be NULL.
+         */
+        public MemorySegment arguments() { return s.get(ADDRESS, 8); }
+        public RProcessDesc arguments(MemorySegment value) { s.set(ADDRESS, 8, value == null ? MemorySegment.NULL : value); return this; }
+
+        /**
+         * How many arguments there are, argv[0] not counted. 0 = count them up to the NULL.
+         */
+        public int argument_count() { return s.get(JAVA_INT, 16); }
+        public RProcessDesc argument_count(int value) { s.set(JAVA_INT, 16, value); return this; }
+
+        /**
+         * NULL = the current one.
+         */
+        public String working_directory() { return R.text(s.get(ADDRESS, 24)); }
+        public RProcessDesc working_directory(String value) { s.set(ADDRESS, 24, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        /**
+         * R_TRUE: stderr goes to the same stream as stdout, which is what a
+         * build log wants (the warnings of a compiler are as interesting as
+         * its errors, and the order between them is kept).
+         */
+        public int merge_stderr() { return s.get(JAVA_INT, 32); }
+        public RProcessDesc merge_stderr(int value) { s.set(JAVA_INT, 32, value); return this; }
+    }
+
+    /**
+     * One diagnostic of a log. The strings belong to the list: copy them to keep them.
+     */
+    public static final class RLogMessage {
+        /** The size of the structure in C, in bytes. */
+        public static final long SIZE = 40;
+        private final MemorySegment s;
+        private Arena arena;
+
+        /** A new structure, zeroed (what `RLogMessage x = {0};` is in C). */
+        public RLogMessage() {
+            arena = Arena.ofAuto();
+            s = arena.allocate(SIZE, 8);
+        }
+
+        /** The structure at an address (given by the library, or a slice of an array). */
+        public RLogMessage(MemorySegment address) {
+            s = address.reinterpret(SIZE);
+        }
+
+        private RLogMessage(MemorySegment segment, Arena arena) {
+            this.s = segment;
+            this.arena = arena;
+        }
+
+        /** Its memory: what to give where C takes a pointer to it. */
+        public MemorySegment segment() { return s; }
+
+        /** `count` structures side by side, zeroed: an array of C. */
+        public static RLogMessage[] array(int count) {
+            Arena a = Arena.ofAuto();
+            MemorySegment all = a.allocate(SIZE * Math.max(count, 1), 8);
+            RLogMessage[] items = new RLogMessage[count];
+            for (int i = 0; i < count; i++) items[i] = new RLogMessage(all.asSlice(SIZE * i, SIZE), a);
+            return items;
+        }
+
+        private Arena arena() {
+            if (arena == null) arena = Arena.ofAuto();
+            return arena;
+        }
+
+        public int kind() { return s.get(JAVA_INT, 0); }
+        public RLogMessage kind(int value) { s.set(JAVA_INT, 0, value); return this; }
+
+        /**
+         * The file as the log writes it (often "./chapter.tex"), or NULL.
+         */
+        public String file() { return R.text(s.get(ADDRESS, 8)); }
+        public RLogMessage file(String value) { s.set(ADDRESS, 8, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        /**
+         * The line, or 0 when the log does not say.
+         */
+        public int line() { return s.get(JAVA_INT, 16); }
+        public RLogMessage line(int value) { s.set(JAVA_INT, 16, value); return this; }
+
+        /**
+         * One line, trimmed: "Undefined control sequence."
+         */
+        public String message() { return R.text(s.get(ADDRESS, 24)); }
+        public RLogMessage message(String value) { s.set(ADDRESS, 24, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        /**
+         * The lines TeX printed around it (what the error happened in, what
+         * follows), or NULL. Several lines, separated by '\n'.
+         */
+        public String context() { return R.text(s.get(ADDRESS, 32)); }
+        public RLogMessage context(String value) { s.set(ADDRESS, 32, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+    }
+
+    /**
+     * What to build. A zero-initialized structure builds `root_file` with
+     * pdflatex, once; an editor usually sets `use_latexmk` too.
+     */
+    public static final class RLatexBuildDesc {
+        /** The size of the structure in C, in bytes. */
+        public static final long SIZE = 56;
+        private final MemorySegment s;
+        private Arena arena;
+
+        /** A new structure, zeroed (what `RLatexBuildDesc x = {0};` is in C). */
+        public RLatexBuildDesc() {
+            arena = Arena.ofAuto();
+            s = arena.allocate(SIZE, 8);
+        }
+
+        /** The structure at an address (given by the library, or a slice of an array). */
+        public RLatexBuildDesc(MemorySegment address) {
+            s = address.reinterpret(SIZE);
+        }
+
+        private RLatexBuildDesc(MemorySegment segment, Arena arena) {
+            this.s = segment;
+            this.arena = arena;
+        }
+
+        /** Its memory: what to give where C takes a pointer to it. */
+        public MemorySegment segment() { return s; }
+
+        /** `count` structures side by side, zeroed: an array of C. */
+        public static RLatexBuildDesc[] array(int count) {
+            Arena a = Arena.ofAuto();
+            MemorySegment all = a.allocate(SIZE * Math.max(count, 1), 8);
+            RLatexBuildDesc[] items = new RLatexBuildDesc[count];
+            for (int i = 0; i < count; i++) items[i] = new RLatexBuildDesc(all.asSlice(SIZE * i, SIZE), a);
+            return items;
+        }
+
+        private Arena arena() {
+            if (arena == null) arena = Arena.ofAuto();
+            return arena;
+        }
+
+        /**
+         * Path to the main .tex: its folder is the working directory, its name gives the .pdf and the .log.
+         */
+        public String root_file() { return R.text(s.get(ADDRESS, 0)); }
+        public RLatexBuildDesc root_file(String value) { s.set(ADDRESS, 0, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        public int engine() { return s.get(JAVA_INT, 8); }
+        public RLatexBuildDesc engine(int value) { s.set(JAVA_INT, 8, value); return this; }
+
+        /**
+         * R_TRUE runs latexmk, which does the several passes LaTeX needs (a
+         * table of contents, references); R_FALSE runs the engine once. Since
+         * R_FALSE is 0, a zero-initialized structure runs the engine once.
+         */
+        public int use_latexmk() { return s.get(JAVA_INT, 12); }
+        public RLatexBuildDesc use_latexmk(int value) { s.set(JAVA_INT, 12, value); return this; }
+
+        /**
+         * R_TRUE adds -shell-escape: the document may run programs of its own.
+         */
+        public int shell_escape() { return s.get(JAVA_INT, 16); }
+        public RLatexBuildDesc shell_escape(int value) { s.set(JAVA_INT, 16, value); return this; }
+
+        /**
+         * For tests and unusual tools: the program that runs instead of the
+         * engine and latexmk, with its arguments in `arguments_override`
+         * (NULL-terminated, without argv[0]). The working directory is still
+         * the folder of the root file.
+         */
+        public String command_override() { return R.text(s.get(ADDRESS, 24)); }
+        public RLatexBuildDesc command_override(String value) { s.set(ADDRESS, 24, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
+
+        public MemorySegment arguments_override() { return s.get(ADDRESS, 32); }
+        public RLatexBuildDesc arguments_override(MemorySegment value) { s.set(ADDRESS, 32, value == null ? MemorySegment.NULL : value); return this; }
+
+        /**
+         * How many there are. 0 = count them up to the NULL.
+         */
+        public int arguments_override_count() { return s.get(JAVA_INT, 40); }
+        public RLatexBuildDesc arguments_override_count(int value) { s.set(JAVA_INT, 40, value); return this; }
+
+        /**
+         * For tests: the log to read when the process ends, instead of the one guessed from the root file.
+         */
+        public String log_path_override() { return R.text(s.get(ADDRESS, 48)); }
+        public RLatexBuildDesc log_path_override(String value) { s.set(ADDRESS, 48, value == null ? MemorySegment.NULL : R.utf8(arena(), value)); return this; }
     }
 
     /**
@@ -5143,6 +5553,53 @@ public final class R {
     }
 
     /**
+     * Called when a page must be rendered, with `scale` pixels per
+     * point (the zoom, times the scale of the window) and the index of the
+     * page. It may call Rpdf_view_set_page_bitmap from inside. A page is
+     * asked for once while it stays visible at a given scale; it is asked for
+     * again when the scale changes by more than 1 % or when it comes back
+     * into view.
+     */
+    @FunctionalInterface
+    public interface RPdfPageNeededCallback {
+        void invoke(int pdf_view, int page, float scale, MemorySegment user_data);
+    }
+
+    private static void RPdfPageNeededCallback$raw(RPdfPageNeededCallback f, int pdf_view, int page, float scale, MemorySegment user_data) {
+        try {
+            f.invoke(pdf_view, page, scale, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RPdfPageNeededCallback f) {
+        return stub(f, RPdfPageNeededCallback.class, "RPdfPageNeededCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_FLOAT, ADDRESS));
+    }
+
+    /**
+     * Called when the user clicks on a page. This also fires the action of the widget.
+     */
+    @FunctionalInterface
+    public interface RPdfPageClickedCallback {
+        void invoke(int pdf_view, int page, float page_x, float page_y, MemorySegment user_data);
+    }
+
+    private static void RPdfPageClickedCallback$raw(RPdfPageClickedCallback f, int pdf_view, int page, float page_x, float page_y, MemorySegment user_data) {
+        try {
+            f.invoke(pdf_view, page, page_x, page_y, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RPdfPageClickedCallback f) {
+        return stub(f, RPdfPageClickedCallback.class, "RPdfPageClickedCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, ADDRESS));
+    }
+
+    /**
      * Called each time a file was loaded again.
      * path The file given when the interface was created.
      * ok   R_FALSE when the file could not be used (the interface is unchanged).
@@ -5234,6 +5691,69 @@ public final class R {
 
     private static MemorySegment upcall(RLocaleChangedCallback f) {
         return stub(f, RLocaleChangedCallback.class, "RLocaleChangedCallback$raw", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS));
+    }
+
+    /**
+     * A piece of output, as it arrives. `text` is not null-terminated. Runs on the UI thread.
+     */
+    @FunctionalInterface
+    public interface RProcessOutputCallback {
+        void invoke(String text, long length, int is_stderr, MemorySegment user_data);
+    }
+
+    private static void RProcessOutputCallback$raw(RProcessOutputCallback f, MemorySegment text, long length, int is_stderr, MemorySegment user_data) {
+        try {
+            f.invoke(text(text), length, is_stderr, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RProcessOutputCallback f) {
+        return stub(f, RProcessOutputCallback.class, "RProcessOutputCallback$raw", FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG, JAVA_INT, ADDRESS));
+    }
+
+    /**
+     * The process ended. `failed` is R_TRUE when it could not be run at all. Runs on the UI thread.
+     */
+    @FunctionalInterface
+    public interface RProcessExitCallback {
+        void invoke(int exit_code, int failed, MemorySegment user_data);
+    }
+
+    private static void RProcessExitCallback$raw(RProcessExitCallback f, int exit_code, int failed, MemorySegment user_data) {
+        try {
+            f.invoke(exit_code, failed, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RProcessExitCallback f) {
+        return stub(f, RProcessExitCallback.class, "RProcessExitCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS));
+    }
+
+    /**
+     * Called on the UI thread when a build ended. `success` is R_TRUE when the process exited with 0.
+     */
+    @FunctionalInterface
+    public interface RLatexBuildFinishedCallback {
+        void invoke(int build, int success, MemorySegment user_data);
+    }
+
+    private static void RLatexBuildFinishedCallback$raw(RLatexBuildFinishedCallback f, int build, int success, MemorySegment user_data) {
+        try {
+            f.invoke(build, success, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RLatexBuildFinishedCallback f) {
+        return stub(f, RLatexBuildFinishedCallback.class, "RLatexBuildFinishedCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS));
     }
 
     // ---- functions
@@ -5704,6 +6224,38 @@ public final class R {
     public static int Rget_animations_enabled() {
         MethodHandle $h = Rget_animations_enabled$;
         if ($h == null) Rget_animations_enabled$ = $h = find("Rget_animations_enabled", FunctionDescriptor.of(JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact();
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rset_selection_animation$;
+
+    /**
+     * R_TRUE: the highlight that follows the selection in lists, tables
+     * and trees moves with a spring; R_FALSE (the default) it is there at once,
+     * which is what a list that follows the pointer needs. A window resize and
+     * the text caret are never animated: they follow the input exactly.
+     * XML and theme files cannot set it.
+     */
+    public static void Rset_selection_animation(int enabled) {
+        MethodHandle $h = Rset_selection_animation$;
+        if ($h == null) Rset_selection_animation$ = $h = find("Rset_selection_animation", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(enabled);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rget_selection_animation$;
+
+    public static int Rget_selection_animation() {
+        MethodHandle $h = Rget_selection_animation$;
+        if ($h == null) Rget_selection_animation$ = $h = find("Rget_selection_animation", FunctionDescriptor.of(JAVA_INT));
         try {
             int $r = (int) $h.invokeExact();
             return $r;
@@ -7488,6 +8040,117 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rwindow_set_keybindings$;
+
+    /**
+     * Registers a whole set of shortcuts from a text, as a preferences
+     * window writes it:
+     *
+     *     "Ctrl+S save | Ctrl+Shift+S save_as | F5 build | Ctrl+K,Ctrl+B clear"
+     *
+     * Entries are separated by '|'. The key or the keys come first, then the
+     * action name (Raction_bind). An entry whose action is empty unbinds that
+     * key. Several chords separated by commas are a sequence: only the first
+     * chord is bound for now (the others are parsed and ignored).
+     * Returns: How many shortcuts were registered (unbound ones included).
+     */
+    public static int Rwindow_set_keybindings(int window, String bindings) {
+        MethodHandle $h = Rwindow_set_keybindings$;
+        if ($h == null) Rwindow_set_keybindings$ = $h = find("Rwindow_set_keybindings", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment bindings$ = bindings == null ? MemorySegment.NULL : utf8($a, bindings);
+            int $r = (int) $h.invokeExact(window, bindings$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rkey_from_name$;
+
+    /**
+     * Parses one key name to a key and its modifiers: "Ctrl+S",
+     * "Ctrl+Shift+S", "F5", "PageUp", "Escape", "A". The modifiers are
+     * Ctrl, Shift, Alt and Super (Cmd and Win are accepted for Super).
+     * Returns: R_FALSE when the name is not a key.
+     */
+    public static int Rkey_from_name(String name, int[] key, int[] modifiers) {
+        MethodHandle $h = Rkey_from_name$;
+        if ($h == null) Rkey_from_name$ = $h = find("Rkey_from_name", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment name$ = name == null ? MemorySegment.NULL : utf8($a, name);
+            MemorySegment key$ = key == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment modifiers$ = modifiers == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            int $r = (int) $h.invokeExact(name$, key$, modifiers$);
+            if (key != null && key.length > 0) key[0] = key$.get(JAVA_INT, 0);
+            if (modifiers != null && modifiers.length > 0) modifiers[0] = modifiers$.get(JAVA_INT, 0);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rkey_to_name$;
+
+    /**
+     * The reverse, for showing a shortcut: "Ctrl+S". Super is written
+     * "Super" (the menus show it too).
+     * Returns: NULL when the key has no name. Valid until the next call.
+     */
+    public static String Rkey_to_name(int key, int modifiers) {
+        MethodHandle $h = Rkey_to_name$;
+        if ($h == null) Rkey_to_name$ = $h = find("Rkey_to_name", FunctionDescriptor.of(ADDRESS, JAVA_INT, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(key, modifiers);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rwindow_get_shortcut_count$;
+
+    /**
+     * How many shortcuts the window has (Rwindow_register_shortcut).
+     */
+    public static int Rwindow_get_shortcut_count(int window) {
+        MethodHandle $h = Rwindow_get_shortcut_count$;
+        if ($h == null) Rwindow_get_shortcut_count$ = $h = find("Rwindow_get_shortcut_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(window);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rwindow_get_shortcut$;
+
+    /**
+     * Reads the index-th shortcut of the window, for a preferences
+     * window that lists them.
+     * action Receives the name of the action; may be NULL. Valid until
+     * the next call of this function (or until the window changes its
+     * shortcuts).
+     * Returns: R_FALSE when `index` is out of range.
+     */
+    public static int Rwindow_get_shortcut(int window, int index, int[] key, int[] modifiers, String[] action) {
+        MethodHandle $h = Rwindow_get_shortcut$;
+        if ($h == null) Rwindow_get_shortcut$ = $h = find("Rwindow_get_shortcut", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment modifiers$ = modifiers == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment action$ = action == null ? MemorySegment.NULL : $a.allocate(ADDRESS);
+            int $r = (int) $h.invokeExact(window, index, key$, modifiers$, action$);
+            if (key != null && key.length > 0) key[0] = key$.get(JAVA_INT, 0);
+            if (modifiers != null && modifiers.length > 0) modifiers[0] = modifiers$.get(JAVA_INT, 0);
+            if (action != null && action.length > 0) action[0] = text(action$.get(ADDRESS, 0));
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rtouch_get_settings$;
 
     /**
@@ -8262,6 +8925,67 @@ public final class R {
         try {
             MemorySegment $r = (MemorySegment) $h.invokeExact(index);
             return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtheme_remember_for$;
+
+    /**
+     * Remembers the theme of a project folder, so that opening the
+     * project again gives it its look back. The store is the one the
+     * application owns (Rsettings_open(app, "sessions.json") or its own): the
+     * library keeps no file of its own.
+     *
+     * The key is "theme." followed by the absolute, normalised path of the
+     * project (forward slashes).
+     * Returns: R_FALSE when there is no store or when the path is empty.
+     */
+    public static int Rtheme_remember_for(int settings, String project_path, String theme_name) {
+        MethodHandle $h = Rtheme_remember_for$;
+        if ($h == null) Rtheme_remember_for$ = $h = find("Rtheme_remember_for", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment project_path$ = project_path == null ? MemorySegment.NULL : utf8($a, project_path);
+            MemorySegment theme_name$ = theme_name == null ? MemorySegment.NULL : utf8($a, theme_name);
+            int $r = (int) $h.invokeExact(settings, project_path$, theme_name$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtheme_get_remembered$;
+
+    /**
+     * The theme remembered for a project, or NULL. Valid until the store changes.
+     */
+    public static String Rtheme_get_remembered(int settings, String project_path) {
+        MethodHandle $h = Rtheme_get_remembered$;
+        if ($h == null) Rtheme_get_remembered$ = $h = find("Rtheme_get_remembered", FunctionDescriptor.of(ADDRESS, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment project_path$ = project_path == null ? MemorySegment.NULL : utf8($a, project_path);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(settings, project_path$);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtheme_apply_remembered$;
+
+    /**
+     * Applies the theme remembered for a project (Rtheme_use).
+     * Returns: R_TRUE when one was remembered and Rtheme_use accepted it. When
+     * it did not, the theme in use is left as it was.
+     */
+    public static int Rtheme_apply_remembered(int settings, String project_path) {
+        MethodHandle $h = Rtheme_apply_remembered$;
+        if ($h == null) Rtheme_apply_remembered$ = $h = find("Rtheme_apply_remembered", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment project_path$ = project_path == null ? MemorySegment.NULL : utf8($a, project_path);
+            int $r = (int) $h.invokeExact(settings, project_path$);
+            return $r;
         } catch (Throwable $t) {
             throw fail($t);
         }
@@ -15661,6 +16385,645 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rtext_editor_get_marker$;
+
+    /**
+     * The line, the columns and the kind of a marker, by index (0 ..
+     * Rtext_editor_get_marker_count - 1).
+     * Returns: The message of the marker, or NULL when `index` is out of range.
+     */
+    public static String Rtext_editor_get_marker(int editor, int index, int[] line, int[] from_column, int[] to_column, int[] kind) {
+        MethodHandle $h = Rtext_editor_get_marker$;
+        if ($h == null) Rtext_editor_get_marker$ = $h = find("Rtext_editor_get_marker", FunctionDescriptor.of(ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment line$ = line == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment from_column$ = from_column == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment to_column$ = to_column == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment kind$ = kind == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(editor, index, line$, from_column$, to_column$, kind$);
+            if (line != null && line.length > 0) line[0] = line$.get(JAVA_INT, 0);
+            if (from_column != null && from_column.length > 0) from_column[0] = from_column$.get(JAVA_INT, 0);
+            if (to_column != null && to_column.length > 0) to_column[0] = to_column$.get(JAVA_INT, 0);
+            if (kind != null && kind.length > 0) kind[0] = kind$.get(JAVA_INT, 0);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_clear_markers_of_line$;
+
+    /**
+     * Removes the markers of one line and adds a list, as a compiler's report does.
+     */
+    public static void Rtext_editor_clear_markers_of_line(int editor, int line) {
+        MethodHandle $h = Rtext_editor_clear_markers_of_line$;
+        if ($h == null) Rtext_editor_clear_markers_of_line$ = $h = find("Rtext_editor_clear_markers_of_line", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(editor, line);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_set_search$;
+
+    /**
+     * Sets what is looked for, from now on. An empty pattern clears it.
+     * The flags are a bitmask of RSearchFlags. Invalid regular expressions are
+     * reported and leave the search as it was.
+     * Returns: R_TRUE when the pattern was taken.
+     */
+    public static int Rtext_editor_set_search(int editor, String pattern, int flags) {
+        MethodHandle $h = Rtext_editor_set_search$;
+        if ($h == null) Rtext_editor_set_search$ = $h = find("Rtext_editor_set_search", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment pattern$ = pattern == null ? MemorySegment.NULL : utf8($a, pattern);
+            int $r = (int) $h.invokeExact(editor, pattern$, flags);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_search$;
+
+    public static String Rtext_editor_get_search(int editor) {
+        MethodHandle $h = Rtext_editor_get_search$;
+        if ($h == null) Rtext_editor_get_search$ = $h = find("Rtext_editor_get_search", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(editor);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_search_flags$;
+
+    public static int Rtext_editor_get_search_flags(int editor) {
+        MethodHandle $h = Rtext_editor_get_search_flags$;
+        if ($h == null) Rtext_editor_get_search_flags$ = $h = find("Rtext_editor_get_search_flags", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_find_next$;
+
+    /**
+     * The next match after the caret (or before it, with
+     * `backwards`), selected; the text is scrolled to it. It wraps around
+     * the ends of the text. R_FALSE when nothing matches.
+     */
+    public static int Rtext_editor_find_next(int editor, int backwards) {
+        MethodHandle $h = Rtext_editor_find_next$;
+        if ($h == null) Rtext_editor_find_next$ = $h = find("Rtext_editor_find_next", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor, backwards);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_count_matches$;
+
+    /**
+     * How many places match the search.
+     */
+    public static int Rtext_editor_count_matches(int editor) {
+        MethodHandle $h = Rtext_editor_count_matches$;
+        if ($h == null) Rtext_editor_count_matches$ = $h = find("Rtext_editor_count_matches", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_match$;
+
+    /**
+     * Where a match is, by index (0 .. count - 1): its start and its end. R_FALSE when out of range.
+     */
+    public static int Rtext_editor_get_match(int editor, int index, int[] from_line, int[] from_column, int[] to_line, int[] to_column) {
+        MethodHandle $h = Rtext_editor_get_match$;
+        if ($h == null) Rtext_editor_get_match$ = $h = find("Rtext_editor_get_match", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment from_line$ = from_line == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment from_column$ = from_column == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment to_line$ = to_line == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment to_column$ = to_column == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            int $r = (int) $h.invokeExact(editor, index, from_line$, from_column$, to_line$, to_column$);
+            if (from_line != null && from_line.length > 0) from_line[0] = from_line$.get(JAVA_INT, 0);
+            if (from_column != null && from_column.length > 0) from_column[0] = from_column$.get(JAVA_INT, 0);
+            if (to_line != null && to_line.length > 0) to_line[0] = to_line$.get(JAVA_INT, 0);
+            if (to_column != null && to_column.length > 0) to_column[0] = to_column$.get(JAVA_INT, 0);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_replace$;
+
+    /**
+     * Replaces the current match (the selection, when it is one) and
+     * goes to the next one. R_FALSE when there is nothing to replace.
+     */
+    public static int Rtext_editor_replace(int editor, String text) {
+        MethodHandle $h = Rtext_editor_replace$;
+        if ($h == null) Rtext_editor_replace$ = $h = find("Rtext_editor_replace", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment text$ = text == null ? MemorySegment.NULL : utf8($a, text);
+            int $r = (int) $h.invokeExact(editor, text$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_replace_all$;
+
+    /**
+     * Replaces every match, as one step of the history. Returns: How many were replaced.
+     */
+    public static int Rtext_editor_replace_all(int editor, String text) {
+        MethodHandle $h = Rtext_editor_replace_all$;
+        if ($h == null) Rtext_editor_replace_all$ = $h = find("Rtext_editor_replace_all", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment text$ = text == null ? MemorySegment.NULL : utf8($a, text);
+            int $r = (int) $h.invokeExact(editor, text$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_expand_replacement$;
+
+    /**
+     * The text of a replacement where `$1` .. `$9`, `${name}`, `$&amp;`
+     * (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
+     * with `matches`, the groups of the regex that matched. Pure: no editor needed.
+     * Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
+     */
+    public static String Rtext_editor_expand_replacement(String replacement, String text, int from, int to_, int[] groups, int group_count) {
+        MethodHandle $h = Rtext_editor_expand_replacement$;
+        if ($h == null) Rtext_editor_expand_replacement$ = $h = find("Rtext_editor_expand_replacement", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment replacement$ = replacement == null ? MemorySegment.NULL : utf8($a, replacement);
+            MemorySegment text$ = text == null ? MemorySegment.NULL : utf8($a, text);
+            MemorySegment groups$ = groups == null ? MemorySegment.NULL : $a.allocateFrom(JAVA_INT, groups);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(replacement$, text$, from, to_, groups$, group_count);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_set_folding$;
+
+    /**
+     * R_TRUE (the default): with a language whose blocks can be folded
+     * (braces, brackets, \begin{...} ... \end{...}, &lt;tag&gt; ... &lt;/tag&gt;,
+     * Markdown titles), a small arrow in the margin collapses the block;
+     * Ctrl+Shift+[ and Ctrl+Shift+] fold and unfold the block of the caret.
+     */
+    public static void Rtext_editor_set_folding(int editor, int enabled) {
+        MethodHandle $h = Rtext_editor_set_folding$;
+        if ($h == null) Rtext_editor_set_folding$ = $h = find("Rtext_editor_set_folding", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(editor, enabled);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_folding$;
+
+    public static int Rtext_editor_get_folding(int editor) {
+        MethodHandle $h = Rtext_editor_get_folding$;
+        if ($h == null) Rtext_editor_get_folding$ = $h = find("Rtext_editor_get_folding", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_toggle_fold$;
+
+    /**
+     * Folds the block of the caret (the one that holds it), or unfolds it. R_FALSE when there is none.
+     */
+    public static int Rtext_editor_toggle_fold(int editor) {
+        MethodHandle $h = Rtext_editor_toggle_fold$;
+        if ($h == null) Rtext_editor_toggle_fold$ = $h = find("Rtext_editor_toggle_fold", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_fold_line$;
+
+    /**
+     * Folds or unfolds the block that starts on a line (an opening brace, \begin, a title).
+     */
+    public static int Rtext_editor_fold_line(int editor, int line) {
+        MethodHandle $h = Rtext_editor_fold_line$;
+        if ($h == null) Rtext_editor_fold_line$ = $h = find("Rtext_editor_fold_line", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor, line);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_unfold_line$;
+
+    public static int Rtext_editor_unfold_line(int editor, int line) {
+        MethodHandle $h = Rtext_editor_unfold_line$;
+        if ($h == null) Rtext_editor_unfold_line$ = $h = find("Rtext_editor_unfold_line", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor, line);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_is_folded$;
+
+    public static int Rtext_editor_is_folded(int editor, int line) {
+        MethodHandle $h = Rtext_editor_is_folded$;
+        if ($h == null) Rtext_editor_is_folded$ = $h = find("Rtext_editor_is_folded", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor, line);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_unfold_all$;
+
+    /**
+     * Unfolds everything, and forgets the folded blocks.
+     */
+    public static void Rtext_editor_unfold_all(int editor) {
+        MethodHandle $h = Rtext_editor_unfold_all$;
+        if ($h == null) Rtext_editor_unfold_all$ = $h = find("Rtext_editor_unfold_all", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(editor);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_folded_count$;
+
+    public static int Rtext_editor_get_folded_count(int editor) {
+        MethodHandle $h = Rtext_editor_get_folded_count$;
+        if ($h == null) Rtext_editor_get_folded_count$ = $h = find("Rtext_editor_get_folded_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_fold_start$;
+
+    /**
+     * The first line of a folded block that holds `line` (the block's
+     * own line), or -1 when the line is not hidden by any fold.
+     */
+    public static int Rtext_editor_get_fold_start(int editor, int line) {
+        MethodHandle $h = Rtext_editor_get_fold_start$;
+        if ($h == null) Rtext_editor_get_fold_start$ = $h = find("Rtext_editor_get_fold_start", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor, line);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsnippet_add$;
+
+    public static int Rsnippet_add(RSnippet snippet) {
+        MethodHandle $h = Rsnippet_add$;
+        if ($h == null) Rsnippet_add$ = $h = find("Rsnippet_add", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        try {
+            int $r = (int) $h.invokeExact((MemorySegment) (snippet == null ? MemorySegment.NULL : snippet.segment()));
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsnippet_clear$;
+
+    public static void Rsnippet_clear() {
+        MethodHandle $h = Rsnippet_clear$;
+        if ($h == null) Rsnippet_clear$ = $h = find("Rsnippet_clear", FunctionDescriptor.ofVoid());
+        try {
+            $h.invokeExact();
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsnippet_get_count$;
+
+    public static int Rsnippet_get_count() {
+        MethodHandle $h = Rsnippet_get_count$;
+        if ($h == null) Rsnippet_get_count$ = $h = find("Rsnippet_get_count", FunctionDescriptor.of(JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact();
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsnippet_get_name$;
+
+    public static String Rsnippet_get_name(int index) {
+        MethodHandle $h = Rsnippet_get_name$;
+        if ($h == null) Rsnippet_get_name$ = $h = find("Rsnippet_get_name", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(index);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsnippet_find$;
+
+    public static int Rsnippet_find(String name) {
+        MethodHandle $h = Rsnippet_find$;
+        if ($h == null) Rsnippet_find$ = $h = find("Rsnippet_find", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment name$ = name == null ? MemorySegment.NULL : utf8($a, name);
+            int $r = (int) $h.invokeExact(name$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_insert_snippet$;
+
+    /**
+     * Types the snippet at the caret, replacing the word before it
+     * when that word is its name. Sets the places; Tab and Shift+Tab walk
+     * them, Escape leaves them.
+     * Returns: R_FALSE when the editor is read-only or the snippet is unknown.
+     */
+    public static int Rtext_editor_insert_snippet(int editor, String name) {
+        MethodHandle $h = Rtext_editor_insert_snippet$;
+        if ($h == null) Rtext_editor_insert_snippet$ = $h = find("Rtext_editor_insert_snippet", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment name$ = name == null ? MemorySegment.NULL : utf8($a, name);
+            int $r = (int) $h.invokeExact(editor, name$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_snippet_at_caret$;
+
+    /**
+     * The snippet whose name is what is being typed before the caret, or -1.
+     */
+    public static int Rtext_editor_snippet_at_caret(int editor) {
+        MethodHandle $h = Rtext_editor_snippet_at_caret$;
+        if ($h == null) Rtext_editor_snippet_at_caret$ = $h = find("Rtext_editor_snippet_at_caret", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_set_snippet_completion$;
+
+    /**
+     * R_FALSE stops the editor from offering snippets while typing. On by default.
+     */
+    public static void Rtext_editor_set_snippet_completion(int editor, int enabled) {
+        MethodHandle $h = Rtext_editor_set_snippet_completion$;
+        if ($h == null) Rtext_editor_set_snippet_completion$ = $h = find("Rtext_editor_set_snippet_completion", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(editor, enabled);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_is_in_snippet$;
+
+    /**
+     * R_TRUE while Tab and Shift+Tab walk the places of a snippet that was inserted.
+     */
+    public static int Rtext_editor_is_in_snippet(int editor) {
+        MethodHandle $h = Rtext_editor_is_in_snippet$;
+        if ($h == null) Rtext_editor_is_in_snippet$ = $h = find("Rtext_editor_is_in_snippet", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_set_multi_cursor$;
+
+    /**
+     * R_TRUE: Ctrl+click adds a caret where it is clicked, and every
+     * caret is selected and typed at once (Alt+drag selects a column, and
+     * Ctrl+D selects the next occurrence of the selection). Off by default.
+     */
+    public static void Rtext_editor_set_multi_cursor(int editor, int enabled) {
+        MethodHandle $h = Rtext_editor_set_multi_cursor$;
+        if ($h == null) Rtext_editor_set_multi_cursor$ = $h = find("Rtext_editor_set_multi_cursor", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(editor, enabled);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_multi_cursor$;
+
+    public static int Rtext_editor_get_multi_cursor(int editor) {
+        MethodHandle $h = Rtext_editor_get_multi_cursor$;
+        if ($h == null) Rtext_editor_get_multi_cursor$ = $h = find("Rtext_editor_get_multi_cursor", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_caret_count$;
+
+    public static int Rtext_editor_get_caret_count(int editor) {
+        MethodHandle $h = Rtext_editor_get_caret_count$;
+        if ($h == null) Rtext_editor_get_caret_count$ = $h = find("Rtext_editor_get_caret_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_caret$;
+
+    /**
+     * Where a caret is, by index (0 is the main one, which typing and scrolling follow).
+     */
+    public static int Rtext_editor_get_caret(int editor, int index, int[] line, int[] column) {
+        MethodHandle $h = Rtext_editor_get_caret$;
+        if ($h == null) Rtext_editor_get_caret$ = $h = find("Rtext_editor_get_caret", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment line$ = line == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment column$ = column == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            int $r = (int) $h.invokeExact(editor, index, line$, column$);
+            if (line != null && line.length > 0) line[0] = line$.get(JAVA_INT, 0);
+            if (column != null && column.length > 0) column[0] = column$.get(JAVA_INT, 0);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_add_caret$;
+
+    /**
+     * Adds a caret; the text at each of them is selected. R_FALSE when there are too many (256).
+     */
+    public static int Rtext_editor_add_caret(int editor, int line, int column) {
+        MethodHandle $h = Rtext_editor_add_caret$;
+        if ($h == null) Rtext_editor_add_caret$ = $h = find("Rtext_editor_add_caret", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor, line, column);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_clear_carets$;
+
+    public static void Rtext_editor_clear_carets(int editor) {
+        MethodHandle $h = Rtext_editor_clear_carets$;
+        if ($h == null) Rtext_editor_clear_carets$ = $h = find("Rtext_editor_clear_carets", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(editor);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_select_next_occurrence$;
+
+    /**
+     * Selects the next occurrence of the selected text, with a caret of its own. R_FALSE when there is none.
+     */
+    public static int Rtext_editor_select_next_occurrence(int editor) {
+        MethodHandle $h = Rtext_editor_select_next_occurrence$;
+        if ($h == null) Rtext_editor_select_next_occurrence$ = $h = find("Rtext_editor_select_next_occurrence", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_word_count$;
+
+    /**
+     * Returns: How many words the text has, as an editor counts them: runs of letters and digits.
+     */
+    public static int Rtext_editor_get_word_count(int editor) {
+        MethodHandle $h = Rtext_editor_get_word_count$;
+        if ($h == null) Rtext_editor_get_word_count$ = $h = find("Rtext_editor_get_word_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_character_count$;
+
+    /**
+     * Returns: The characters of the text, not the bytes (a UTF-8 code point counts one).
+     */
+    public static int Rtext_editor_get_character_count(int editor) {
+        MethodHandle $h = Rtext_editor_get_character_count$;
+        if ($h == null) Rtext_editor_get_character_count$ = $h = find("Rtext_editor_get_character_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_non_empty_line_count$;
+
+    /**
+     * Returns: How many lines have something besides blanks.
+     */
+    public static int Rtext_editor_get_non_empty_line_count(int editor) {
+        MethodHandle $h = Rtext_editor_get_non_empty_line_count$;
+        if ($h == null) Rtext_editor_get_non_empty_line_count$ = $h = find("Rtext_editor_get_non_empty_line_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_get_current_line$;
+
+    /**
+     * Returns: The line that holds the caret, from 1 (for a status bar).
+     */
+    public static int Rtext_editor_get_current_line(int editor) {
+        MethodHandle $h = Rtext_editor_get_current_line$;
+        if ($h == null) Rtext_editor_get_current_line$ = $h = find("Rtext_editor_get_current_line", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rtheme_set_token_color$;
 
     /**
@@ -20531,6 +21894,376 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rpdf_view_create$;
+
+    /**
+     * Creates an empty view. Give it its pages with Rpdf_view_set_page_count.
+     */
+    public static int Rpdf_view_create() {
+        MethodHandle $h = Rpdf_view_create$;
+        if ($h == null) Rpdf_view_create$ = $h = find("Rpdf_view_create", FunctionDescriptor.of(JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact();
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_page_count$;
+
+    /**
+     * Number of pages of the document. 0 pages clears the view: the
+     * bitmaps are forgotten. New pages take the size of US Letter until
+     * Rpdf_view_set_page_size gives them their own.
+     */
+    public static void Rpdf_view_set_page_count(int pdf_view, int count) {
+        MethodHandle $h = Rpdf_view_set_page_count$;
+        if ($h == null) Rpdf_view_set_page_count$ = $h = find("Rpdf_view_set_page_count", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(pdf_view, count);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_get_page_count$;
+
+    public static int Rpdf_view_get_page_count(int pdf_view) {
+        MethodHandle $h = Rpdf_view_get_page_count$;
+        if ($h == null) Rpdf_view_get_page_count$ = $h = find("Rpdf_view_get_page_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(pdf_view);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_page_size$;
+
+    public static void Rpdf_view_set_page_size(int pdf_view, int page, float width, float height) {
+        MethodHandle $h = Rpdf_view_set_page_size$;
+        if ($h == null) Rpdf_view_set_page_size$ = $h = find("Rpdf_view_set_page_size", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(pdf_view, page, width, height);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_get_page_size$;
+
+    /**
+     * The size of a page in points (1/72 inch); 0, 0 when there is no such page.
+     */
+    public static void Rpdf_view_get_page_size(int pdf_view, int page, float[] width, float[] height) {
+        MethodHandle $h = Rpdf_view_get_page_size$;
+        if ($h == null) Rpdf_view_get_page_size$ = $h = find("Rpdf_view_get_page_size", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment width$ = width == null ? MemorySegment.NULL : $a.allocate(JAVA_FLOAT);
+            MemorySegment height$ = height == null ? MemorySegment.NULL : $a.allocate(JAVA_FLOAT);
+            $h.invokeExact(pdf_view, page, width$, height$);
+            if (width != null && width.length > 0) width[0] = width$.get(JAVA_FLOAT, 0);
+            if (height != null && height.length > 0) height[0] = height$.get(JAVA_FLOAT, 0);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_page_bitmap$;
+
+    /**
+     * The RGBA pixels of a page, rendered at `scale` pixels per point
+     * (2 fills a page drawn at zoom 2). The view keeps the texture and frees
+     * nothing. R_INVALID_ID forgets the bitmap of that page, which then shows
+     * as a placeholder again.
+     */
+    public static void Rpdf_view_set_page_bitmap(int pdf_view, int page, int texture, float scale) {
+        MethodHandle $h = Rpdf_view_set_page_bitmap$;
+        if ($h == null) Rpdf_view_set_page_bitmap$ = $h = find("Rpdf_view_set_page_bitmap", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(pdf_view, page, texture, scale);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_has_page_bitmap$;
+
+    /**
+     * Returns: R_TRUE when that page has a bitmap.
+     */
+    public static int Rpdf_view_has_page_bitmap(int pdf_view, int page) {
+        MethodHandle $h = Rpdf_view_has_page_bitmap$;
+        if ($h == null) Rpdf_view_has_page_bitmap$ = $h = find("Rpdf_view_has_page_bitmap", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(pdf_view, page);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_page$;
+
+    /**
+     * The current page, from 0: it becomes the first one in view.
+     * Rpdf_view_set_page scrolls so that the page starts at the top.
+     */
+    public static void Rpdf_view_set_page(int pdf_view, int page) {
+        MethodHandle $h = Rpdf_view_set_page$;
+        if ($h == null) Rpdf_view_set_page$ = $h = find("Rpdf_view_set_page", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(pdf_view, page);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_get_page$;
+
+    public static int Rpdf_view_get_page(int pdf_view) {
+        MethodHandle $h = Rpdf_view_get_page$;
+        if ($h == null) Rpdf_view_get_page$ = $h = find("Rpdf_view_get_page", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(pdf_view);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_get_visible_first_page$;
+
+    /**
+     * Returns: The first and the last page whose rectangle is in the view, or 0 when there is none.
+     */
+    public static int Rpdf_view_get_visible_first_page(int pdf_view) {
+        MethodHandle $h = Rpdf_view_get_visible_first_page$;
+        if ($h == null) Rpdf_view_get_visible_first_page$ = $h = find("Rpdf_view_get_visible_first_page", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(pdf_view);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_get_visible_last_page$;
+
+    public static int Rpdf_view_get_visible_last_page(int pdf_view) {
+        MethodHandle $h = Rpdf_view_get_visible_last_page$;
+        if ($h == null) Rpdf_view_get_visible_last_page$ = $h = find("Rpdf_view_get_visible_last_page", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(pdf_view);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_zoom$;
+
+    /**
+     * Zoom in pixels per point: 1 = 72 dpi (0.05 .. 16, clamped).
+     * Setting it leaves the fit mode. Rpdf_view_set_fit sets a mode that
+     * keeps following the size of the view.
+     */
+    public static void Rpdf_view_set_zoom(int pdf_view, float zoom) {
+        MethodHandle $h = Rpdf_view_set_zoom$;
+        if ($h == null) Rpdf_view_set_zoom$ = $h = find("Rpdf_view_set_zoom", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(pdf_view, zoom);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_get_zoom$;
+
+    public static float Rpdf_view_get_zoom(int pdf_view) {
+        MethodHandle $h = Rpdf_view_get_zoom$;
+        if ($h == null) Rpdf_view_get_zoom$ = $h = find("Rpdf_view_get_zoom", FunctionDescriptor.of(JAVA_FLOAT, JAVA_INT));
+        try {
+            float $r = (float) $h.invokeExact(pdf_view);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_fit$;
+
+    public static void Rpdf_view_set_fit(int pdf_view, int fit) {
+        MethodHandle $h = Rpdf_view_set_fit$;
+        if ($h == null) Rpdf_view_set_fit$ = $h = find("Rpdf_view_set_fit", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(pdf_view, fit);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_get_fit$;
+
+    public static int Rpdf_view_get_fit(int pdf_view) {
+        MethodHandle $h = Rpdf_view_get_fit$;
+        if ($h == null) Rpdf_view_get_fit$ = $h = find("Rpdf_view_get_fit", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(pdf_view);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_page_gap$;
+
+    /**
+     * Space between pages, and around them, in points (default 16).
+     */
+    public static void Rpdf_view_set_page_gap(int pdf_view, float gap) {
+        MethodHandle $h = Rpdf_view_set_page_gap$;
+        if ($h == null) Rpdf_view_set_page_gap$ = $h = find("Rpdf_view_set_page_gap", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(pdf_view, gap);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_get_page_gap$;
+
+    public static float Rpdf_view_get_page_gap(int pdf_view) {
+        MethodHandle $h = Rpdf_view_get_page_gap$;
+        if ($h == null) Rpdf_view_get_page_gap$ = $h = find("Rpdf_view_get_page_gap", FunctionDescriptor.of(JAVA_FLOAT, JAVA_INT));
+        try {
+            float $r = (float) $h.invokeExact(pdf_view);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_page_needed_callback$;
+
+    public static void Rpdf_view_set_page_needed_callback(int pdf_view, RPdfPageNeededCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rpdf_view_set_page_needed_callback$;
+        if ($h == null) Rpdf_view_set_page_needed_callback$ = $h = find("Rpdf_view_set_page_needed_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(pdf_view, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rpdf_view_set_page_needed_callback(int pdf_view, RPdfPageNeededCallback callback) {
+        Rpdf_view_set_page_needed_callback(pdf_view, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rpdf_view_get_page_at$;
+
+    /**
+     * The page and the point of the page (in points, from its top-left
+     * corner) under a point of the widget, for SyncTeX inverse search.
+     * Returns: R_FALSE outside a page.
+     */
+    public static int Rpdf_view_get_page_at(int pdf_view, float x, float y, int[] page, float[] page_x, float[] page_y) {
+        MethodHandle $h = Rpdf_view_get_page_at$;
+        if ($h == null) Rpdf_view_get_page_at$ = $h = find("Rpdf_view_get_page_at", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, ADDRESS, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment page$ = page == null ? MemorySegment.NULL : $a.allocate(JAVA_INT);
+            MemorySegment page_x$ = page_x == null ? MemorySegment.NULL : $a.allocate(JAVA_FLOAT);
+            MemorySegment page_y$ = page_y == null ? MemorySegment.NULL : $a.allocate(JAVA_FLOAT);
+            int $r = (int) $h.invokeExact(pdf_view, x, y, page$, page_x$, page_y$);
+            if (page != null && page.length > 0) page[0] = page$.get(JAVA_INT, 0);
+            if (page_x != null && page_x.length > 0) page_x[0] = page_x$.get(JAVA_FLOAT, 0);
+            if (page_y != null && page_y.length > 0) page_y[0] = page_y$.get(JAVA_FLOAT, 0);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_page_clicked_callback$;
+
+    public static void Rpdf_view_set_page_clicked_callback(int pdf_view, RPdfPageClickedCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rpdf_view_set_page_clicked_callback$;
+        if ($h == null) Rpdf_view_set_page_clicked_callback$ = $h = find("Rpdf_view_set_page_clicked_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(pdf_view, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rpdf_view_set_page_clicked_callback(int pdf_view, RPdfPageClickedCallback callback) {
+        Rpdf_view_set_page_clicked_callback(pdf_view, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rpdf_view_invalidate_page$;
+
+    /**
+     * Asks for one page to be painted again, once its bitmap has arrived.
+     */
+    public static void Rpdf_view_invalidate_page(int pdf_view, int page) {
+        MethodHandle $h = Rpdf_view_invalidate_page$;
+        if ($h == null) Rpdf_view_invalidate_page$ = $h = find("Rpdf_view_invalidate_page", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(pdf_view, page);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_scroll_to_position$;
+
+    /**
+     * Scrolls so that a point of a page is in the middle of the view (SyncTeX forward search).
+     */
+    public static void Rpdf_view_scroll_to_position(int pdf_view, int page, float page_x, float page_y) {
+        MethodHandle $h = Rpdf_view_scroll_to_position$;
+        if ($h == null) Rpdf_view_scroll_to_position$ = $h = find("Rpdf_view_scroll_to_position", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(pdf_view, page, page_x, page_y);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_highlight$;
+
+    /**
+     * A rectangle of a page to show, in points from its top-left corner
+     * (where the source of what is selected is, in a forward search): one per
+     * view. A negative page removes it.
+     */
+    public static void Rpdf_view_set_highlight(int pdf_view, int page, float x, float y, float width, float height) {
+        MethodHandle $h = Rpdf_view_set_highlight$;
+        if ($h == null) Rpdf_view_set_highlight$ = $h = find("Rpdf_view_set_highlight", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(pdf_view, page, x, y, width, height);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_background_color$;
+
+    /**
+     * Color behind the pages; the theme's by default (Rwidget_clear_color brings it back).
+     */
+    public static void Rpdf_view_set_background_color(int pdf_view, float r, float g, float b, float a) {
+        MethodHandle $h = Rpdf_view_set_background_color$;
+        if ($h == null) Rpdf_view_set_background_color$ = $h = find("Rpdf_view_set_background_color", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT));
+        try {
+            $h.invokeExact(pdf_view, r, g, b, a);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rshader_create$;
 
     /**
@@ -22065,6 +23798,844 @@ public final class R {
         if ($h == null) Rlocale_format_number$ = $h = find("Rlocale_format_number", FunctionDescriptor.of(ADDRESS, JAVA_DOUBLE, JAVA_INT));
         try {
             MemorySegment $r = (MemorySegment) $h.invokeExact(value, decimals);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_create$;
+
+    /**
+     * Opens a settings store.
+     * path File the store is read from and written to, or NULL for a
+     * store that lives in memory only. The file is read when it exists.
+     * Returns: The store, or R_INVALID_ID (after reporting an error).
+     */
+    public static int Rsettings_create(String path) {
+        MethodHandle $h = Rsettings_create$;
+        if ($h == null) Rsettings_create$ = $h = find("Rsettings_create", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment path$ = path == null ? MemorySegment.NULL : utf8($a, path);
+            int $r = (int) $h.invokeExact(path$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_destroy$;
+
+    /**
+     * Frees a store. Rshutdown frees the stores the application left alive.
+     */
+    public static void Rsettings_destroy(int settings) {
+        MethodHandle $h = Rsettings_destroy$;
+        if ($h == null) Rsettings_destroy$ = $h = find("Rsettings_destroy", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(settings);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_load$;
+
+    /**
+     * Reads the file of the store again, replacing everything it holds.
+     * Returns: R_TRUE when the file existed and was valid JSON. When it did not,
+     * the store is emptied (a store with no file stays empty).
+     */
+    public static int Rsettings_load(int settings) {
+        MethodHandle $h = Rsettings_load$;
+        if ($h == null) Rsettings_load$ = $h = find("Rsettings_load", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(settings);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_save$;
+
+    /**
+     * Writes the store to its file: a temporary file next to it, then a
+     * rename, so a reader never sees half a file. The folder is created when
+     * it does not exist.
+     * Returns: R_FALSE when the store has no file or when the file could not be
+     * written.
+     */
+    public static int Rsettings_save(int settings) {
+        MethodHandle $h = Rsettings_save$;
+        if ($h == null) Rsettings_save$ = $h = find("Rsettings_save", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(settings);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_get_path$;
+
+    /**
+     * Path of the file of the store ("" for a store that lives in memory only).
+     */
+    public static String Rsettings_get_path(int settings) {
+        MethodHandle $h = Rsettings_get_path$;
+        if ($h == null) Rsettings_get_path$ = $h = find("Rsettings_get_path", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(settings);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_get_type$;
+
+    /**
+     * Returns: What the key holds, R_SETTING_NONE when it is not there (or holds an object, an array or null).
+     */
+    public static int Rsettings_get_type(int settings, String key) {
+        MethodHandle $h = Rsettings_get_type$;
+        if ($h == null) Rsettings_get_type$ = $h = find("Rsettings_get_type", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : utf8($a, key);
+            int $r = (int) $h.invokeExact(settings, key$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_get_bool$;
+
+    /**
+     * The value of the key; `fallback` when it is missing or holds another type.
+     */
+    public static int Rsettings_get_bool(int settings, String key, int fallback) {
+        MethodHandle $h = Rsettings_get_bool$;
+        if ($h == null) Rsettings_get_bool$ = $h = find("Rsettings_get_bool", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : utf8($a, key);
+            int $r = (int) $h.invokeExact(settings, key$, fallback);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_get_int$;
+
+    public static int Rsettings_get_int(int settings, String key, int fallback) {
+        MethodHandle $h = Rsettings_get_int$;
+        if ($h == null) Rsettings_get_int$ = $h = find("Rsettings_get_int", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : utf8($a, key);
+            int $r = (int) $h.invokeExact(settings, key$, fallback);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_get_number$;
+
+    public static double Rsettings_get_number(int settings, String key, double fallback) {
+        MethodHandle $h = Rsettings_get_number$;
+        if ($h == null) Rsettings_get_number$ = $h = find("Rsettings_get_number", FunctionDescriptor.of(JAVA_DOUBLE, JAVA_INT, ADDRESS, JAVA_DOUBLE));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : utf8($a, key);
+            double $r = (double) $h.invokeExact(settings, key$, fallback);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_get_text$;
+
+    /**
+     * Valid until the store changes. NULL only when the key is missing and `fallback` is NULL.
+     */
+    public static String Rsettings_get_text(int settings, String key, String fallback) {
+        MethodHandle $h = Rsettings_get_text$;
+        if ($h == null) Rsettings_get_text$ = $h = find("Rsettings_get_text", FunctionDescriptor.of(ADDRESS, JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : utf8($a, key);
+            MemorySegment fallback$ = fallback == null ? MemorySegment.NULL : utf8($a, fallback);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(settings, key$, fallback$);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_set_bool$;
+
+    public static void Rsettings_set_bool(int settings, String key, int value) {
+        MethodHandle $h = Rsettings_set_bool$;
+        if ($h == null) Rsettings_set_bool$ = $h = find("Rsettings_set_bool", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : utf8($a, key);
+            $h.invokeExact(settings, key$, value);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_set_int$;
+
+    public static void Rsettings_set_int(int settings, String key, int value) {
+        MethodHandle $h = Rsettings_set_int$;
+        if ($h == null) Rsettings_set_int$ = $h = find("Rsettings_set_int", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : utf8($a, key);
+            $h.invokeExact(settings, key$, value);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_set_number$;
+
+    public static void Rsettings_set_number(int settings, String key, double value) {
+        MethodHandle $h = Rsettings_set_number$;
+        if ($h == null) Rsettings_set_number$ = $h = find("Rsettings_set_number", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, JAVA_DOUBLE));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : utf8($a, key);
+            $h.invokeExact(settings, key$, value);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_set_text$;
+
+    /**
+     * An empty text stores ""; a NULL text removes the key.
+     */
+    public static void Rsettings_set_text(int settings, String key, String value) {
+        MethodHandle $h = Rsettings_set_text$;
+        if ($h == null) Rsettings_set_text$ = $h = find("Rsettings_set_text", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : utf8($a, key);
+            MemorySegment value$ = value == null ? MemorySegment.NULL : utf8($a, value);
+            $h.invokeExact(settings, key$, value$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_remove$;
+
+    /**
+     * Removes a key. R_TRUE when it was there.
+     */
+    public static int Rsettings_remove(int settings, String key) {
+        MethodHandle $h = Rsettings_remove$;
+        if ($h == null) Rsettings_remove$ = $h = find("Rsettings_remove", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : utf8($a, key);
+            int $r = (int) $h.invokeExact(settings, key$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_has$;
+
+    /**
+     * R_TRUE when the key is there, whatever it holds.
+     */
+    public static int Rsettings_has(int settings, String key) {
+        MethodHandle $h = Rsettings_has$;
+        if ($h == null) Rsettings_has$ = $h = find("Rsettings_has", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment key$ = key == null ? MemorySegment.NULL : utf8($a, key);
+            int $r = (int) $h.invokeExact(settings, key$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_get_json$;
+
+    /**
+     * The whole document as text, for a project file that holds arrays
+     * and objects too. Valid until the store changes or the function is called
+     * again. "" when the store is empty.
+     */
+    public static String Rsettings_get_json(int settings) {
+        MethodHandle $h = Rsettings_get_json$;
+        if ($h == null) Rsettings_get_json$ = $h = find("Rsettings_get_json", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(settings);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_set_json$;
+
+    /**
+     * Replaces the whole document.
+     * Returns: R_FALSE when `json` is not valid JSON: the store is not changed.
+     */
+    public static int Rsettings_set_json(int settings, String json) {
+        MethodHandle $h = Rsettings_set_json$;
+        if ($h == null) Rsettings_set_json$ = $h = find("Rsettings_set_json", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment json$ = json == null ? MemorySegment.NULL : utf8($a, json);
+            int $r = (int) $h.invokeExact(settings, json$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_get_key_count$;
+
+    /**
+     * How many keys the object at `prefix` has ("" for the whole
+     * document), or how many items the array at `prefix` has. 0 when there is
+     * nothing there.
+     */
+    public static int Rsettings_get_key_count(int settings, String prefix) {
+        MethodHandle $h = Rsettings_get_key_count$;
+        if ($h == null) Rsettings_get_key_count$ = $h = find("Rsettings_get_key_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment prefix$ = prefix == null ? MemorySegment.NULL : utf8($a, prefix);
+            int $r = (int) $h.invokeExact(settings, prefix$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_get_key$;
+
+    /**
+     * The index-th key of the object at `prefix` ("" for the whole
+     * document), or the index-th item of an array as "0", "1"... NULL when
+     * `index` is out of range. Valid until the next call of this function
+     * that returns a key.
+     */
+    public static String Rsettings_get_key(int settings, String prefix, int index) {
+        MethodHandle $h = Rsettings_get_key$;
+        if ($h == null) Rsettings_get_key$ = $h = find("Rsettings_get_key", FunctionDescriptor.of(ADDRESS, JAVA_INT, ADDRESS, JAVA_INT));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment prefix$ = prefix == null ? MemorySegment.NULL : utf8($a, prefix);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(settings, prefix$, index);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_get_config_folder$;
+
+    /**
+     * The folder where the settings of the application live:
+     * ~/.config/&lt;app&gt; ($XDG_CONFIG_HOME honoured),
+     * ~/Library/Application Support/&lt;app&gt; on macOS,
+     * %APPDATA%\&lt;app&gt; on Windows. Created when it does not exist; valid until
+     * the next call from the same thread.
+     */
+    public static String Rsettings_get_config_folder(String app_name) {
+        MethodHandle $h = Rsettings_get_config_folder$;
+        if ($h == null) Rsettings_get_config_folder$ = $h = find("Rsettings_get_config_folder", FunctionDescriptor.of(ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment app_name$ = app_name == null ? MemorySegment.NULL : utf8($a, app_name);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(app_name$);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_get_cache_folder$;
+
+    /**
+     * The folder for what can be made again (caches), by the same rules.
+     */
+    public static String Rsettings_get_cache_folder(String app_name) {
+        MethodHandle $h = Rsettings_get_cache_folder$;
+        if ($h == null) Rsettings_get_cache_folder$ = $h = find("Rsettings_get_cache_folder", FunctionDescriptor.of(ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment app_name$ = app_name == null ? MemorySegment.NULL : utf8($a, app_name);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(app_name$);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsettings_open$;
+
+    /**
+     * Opens &lt;config folder&gt;/&lt;file_name&gt; for the application, creating
+     * the folder when needed. Rsettings_open("myeditor", "sessions.json").
+     * Returns: R_INVALID_ID when the folder or the file cannot be opened.
+     */
+    public static int Rsettings_open(String app_name, String file_name) {
+        MethodHandle $h = Rsettings_open$;
+        if ($h == null) Rsettings_open$ = $h = find("Rsettings_open", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment app_name$ = app_name == null ? MemorySegment.NULL : utf8($a, app_name);
+            MemorySegment file_name$ = file_name == null ? MemorySegment.NULL : utf8($a, file_name);
+            int $r = (int) $h.invokeExact(app_name$, file_name$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rprocess_start$;
+
+    /**
+     * Starts a program and returns at once.
+     * desc What to run. Copied: the strings may be freed after the call.
+     * output Called for every piece of output, or NULL. May be called
+     * several times, and not at all for a program that prints nothing.
+     * exited Called once when the program ends, or NULL.
+     * user_data Passed to both callbacks.
+     * Returns: The process, or R_INVALID_ID when it could not even be started
+     * (an empty description, no Raven). A program that does not exist is
+     * reported through `exited` with failed set, not here.
+     */
+    public static int Rprocess_start(RProcessDesc desc, RProcessOutputCallback output, RProcessExitCallback exited, MemorySegment user_data) {
+        MethodHandle $h = Rprocess_start$;
+        if ($h == null) Rprocess_start$ = $h = find("Rprocess_start", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
+        try {
+            int $r = (int) $h.invokeExact((MemorySegment) (desc == null ? MemorySegment.NULL : desc.segment()), upcall(output), upcall(exited), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    /**
+     * Starts a program and returns at once.
+     * desc What to run. Copied: the strings may be freed after the call.
+     * output Called for every piece of output, or NULL. May be called
+     * several times, and not at all for a program that prints nothing.
+     * exited Called once when the program ends, or NULL.
+     * user_data Passed to both callbacks.
+     * Returns: The process, or R_INVALID_ID when it could not even be started
+     * (an empty description, no Raven). A program that does not exist is
+     * reported through `exited` with failed set, not here.
+     */
+    public static int Rprocess_start(RProcessDesc desc, RProcessOutputCallback output, RProcessExitCallback exited) {
+        return Rprocess_start(desc, output, exited, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rprocess_is_running$;
+
+    /**
+     * Returns: R_TRUE while the program runs.
+     */
+    public static int Rprocess_is_running(int process) {
+        MethodHandle $h = Rprocess_is_running$;
+        if ($h == null) Rprocess_is_running$ = $h = find("Rprocess_is_running", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(process);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rprocess_get_exit_code$;
+
+    /**
+     * Returns: The exit code, or -1 while the program runs and when it could not be run.
+     */
+    public static int Rprocess_get_exit_code(int process) {
+        MethodHandle $h = Rprocess_get_exit_code$;
+        if ($h == null) Rprocess_get_exit_code$ = $h = find("Rprocess_get_exit_code", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(process);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rprocess_get_state$;
+
+    /**
+     * Returns: R_PROCESS_RUNNING, R_PROCESS_EXITED or R_PROCESS_FAILED.
+     */
+    public static int Rprocess_get_state(int process) {
+        MethodHandle $h = Rprocess_get_state$;
+        if ($h == null) Rprocess_get_state$ = $h = find("Rprocess_get_state", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(process);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rprocess_cancel$;
+
+    /**
+     * Asks the program to stop (SIGTERM on POSIX, TerminateProcess on
+     * Windows), waits a moment, then kills it, and returns once its output has
+     * been read to the end. The exit callback still runs, during a frame.
+     * Does nothing when the program already ended.
+     */
+    public static void Rprocess_cancel(int process) {
+        MethodHandle $h = Rprocess_cancel$;
+        if ($h == null) Rprocess_cancel$ = $h = find("Rprocess_cancel", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(process);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rprocess_wait$;
+
+    /**
+     * Blocks until the program ends. For tests and shutdown: never call
+     * it from the UI thread of a running application.
+     */
+    public static void Rprocess_wait(int process) {
+        MethodHandle $h = Rprocess_wait$;
+        if ($h == null) Rprocess_wait$ = $h = find("Rprocess_wait", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(process);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rprocess_is_available$;
+
+    /**
+     * Returns: R_TRUE when the program is found (PATH lookup only).
+     */
+    public static int Rprocess_is_available(String program) {
+        MethodHandle $h = Rprocess_is_available$;
+        if ($h == null) Rprocess_is_available$ = $h = find("Rprocess_is_available", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment program$ = program == null ? MemorySegment.NULL : utf8($a, program);
+            int $r = (int) $h.invokeExact(program$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rprocess_find$;
+
+    /**
+     * Finds a program without running it.
+     * Returns: An absolute path (in a buffer of the library, valid until the
+     * next call), or NULL when it is nowhere. A program with a separator in it
+     * is checked as given. The usual install folders of TeX are searched too,
+     * after PATH: /Library/TeX/texbin, /usr/local/texlive/ * /bin/ *,
+     * /opt/homebrew/bin, C:\\texlive\\ * \\bin\\windows and the bin folder of
+     * MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
+     */
+    public static String Rprocess_find(String program) {
+        MethodHandle $h = Rprocess_find$;
+        if ($h == null) Rprocess_find$ = $h = find("Rprocess_find", FunctionDescriptor.of(ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment program$ = program == null ? MemorySegment.NULL : utf8($a, program);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(program$);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rprocess_run$;
+
+    /**
+     * Runs a program to the end and collects what it printed.
+     * Blocking: for setup work (asking git for the state of a file, a tool for
+     * its version), never for a build. The window is frozen meanwhile.
+     * output Receives the output, NUL-terminated, allocated with the
+     * allocator of Raven: free it with Rmemory_free. May be NULL.
+     * size Receives its length, without the NUL. May be NULL.
+     * max_bytes Longest output kept; 0 selects 4 MiB. What comes after
+     * is read and dropped, so the program never blocks on a full pipe. A cut
+     * never leaves half of a UTF-8 character.
+     * Returns: The exit code, or -1 when the program could not be run.
+     */
+    public static byte[] Rprocess_run(RProcessDesc desc, long max_bytes) {
+        MethodHandle $h = Rprocess_run$;
+        if ($h == null) Rprocess_run$ = $h = find("Rprocess_run", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_LONG));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment size$ = $a.allocate(JAVA_LONG);
+            MemorySegment $r = (MemorySegment) $h.invokeExact((MemorySegment) (desc == null ? MemorySegment.NULL : desc.segment()), size$, max_bytes);
+            if ($r.equals(MemorySegment.NULL)) return null;
+            byte[] $data = $r.reinterpret(size$.get(JAVA_LONG, 0)).toArray(JAVA_BYTE);
+            Rmemory_free($r);
+            return $data;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_log_parse$;
+
+    /**
+     * Parses the text of a log.
+     * log The bytes of the file; need not be NUL-terminated.
+     * size Their number.
+     * Returns: A list of messages, or R_INVALID_ID when the log has nothing
+     * to report (a log with no diagnostic parses to no list at all).
+     */
+    public static int Rlatex_log_parse(String log) {
+        MethodHandle $h = Rlatex_log_parse$;
+        if ($h == null) Rlatex_log_parse$ = $h = find("Rlatex_log_parse", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment log$ = log == null ? MemorySegment.NULL : utf8($a, log);
+            int $r = (int) $h.invokeExact(log$, (long) (log$.equals(MemorySegment.NULL) ? 0L : log$.byteSize() - 1));
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_log_parse_file$;
+
+    /**
+     * Reads a log file and parses it. R_INVALID_ID when it cannot be read or has nothing to report.
+     */
+    public static int Rlatex_log_parse_file(String path) {
+        MethodHandle $h = Rlatex_log_parse_file$;
+        if ($h == null) Rlatex_log_parse_file$ = $h = find("Rlatex_log_parse_file", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment path$ = path == null ? MemorySegment.NULL : utf8($a, path);
+            int $r = (int) $h.invokeExact(path$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_log_get_count$;
+
+    /**
+     * Returns: How many messages the list holds, or 0 for R_INVALID_ID.
+     */
+    public static int Rlatex_log_get_count(int log) {
+        MethodHandle $h = Rlatex_log_get_count$;
+        if ($h == null) Rlatex_log_get_count$ = $h = find("Rlatex_log_get_count", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(log);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_log_get_message$;
+
+    /**
+     * One message of the list.
+     * message Receives the fields; its strings are owned by the list.
+     * Returns: R_FALSE when `index` is out of range.
+     */
+    public static int Rlatex_log_get_message(int log, int index, RLogMessage message) {
+        MethodHandle $h = Rlatex_log_get_message$;
+        if ($h == null) Rlatex_log_get_message$ = $h = find("Rlatex_log_get_message", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
+        try {
+            int $r = (int) $h.invokeExact(log, index, (MemorySegment) (message == null ? MemorySegment.NULL : message.segment()));
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_log_destroy$;
+
+    /**
+     * Frees a list given by Rlatex_log_parse. Its messages are no longer valid.
+     */
+    public static void Rlatex_log_destroy(int log) {
+        MethodHandle $h = Rlatex_log_destroy$;
+        if ($h == null) Rlatex_log_destroy$ = $h = find("Rlatex_log_destroy", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(log);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_build_start$;
+
+    /**
+     * Starts a build and returns at once.
+     * desc What to build; copied.
+     * output Called with what the tool prints, as it prints it, on the
+     * UI thread. May be NULL.
+     * user_data Passed to `output`.
+     * Returns: The build, or R_INVALID_ID when it cannot start (no root file).
+     * When the process ends the log is parsed, then `finished` runs.
+     */
+    public static int Rlatex_build_start(RLatexBuildDesc desc, RProcessOutputCallback output, RLatexBuildFinishedCallback finished, MemorySegment user_data) {
+        MethodHandle $h = Rlatex_build_start$;
+        if ($h == null) Rlatex_build_start$ = $h = find("Rlatex_build_start", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
+        try {
+            int $r = (int) $h.invokeExact((MemorySegment) (desc == null ? MemorySegment.NULL : desc.segment()), upcall(output), upcall(finished), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    /**
+     * Starts a build and returns at once.
+     * desc What to build; copied.
+     * output Called with what the tool prints, as it prints it, on the
+     * UI thread. May be NULL.
+     * user_data Passed to `output`.
+     * Returns: The build, or R_INVALID_ID when it cannot start (no root file).
+     * When the process ends the log is parsed, then `finished` runs.
+     */
+    public static int Rlatex_build_start(RLatexBuildDesc desc, RProcessOutputCallback output, RLatexBuildFinishedCallback finished) {
+        return Rlatex_build_start(desc, output, finished, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rlatex_build_is_running$;
+
+    /**
+     * Returns: R_TRUE while the tool runs.
+     */
+    public static int Rlatex_build_is_running(int build) {
+        MethodHandle $h = Rlatex_build_is_running$;
+        if ($h == null) Rlatex_build_is_running$ = $h = find("Rlatex_build_is_running", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(build);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_build_cancel$;
+
+    /**
+     * Stops the tool and waits for it. The messages parsed so far stay.
+     */
+    public static void Rlatex_build_cancel(int build) {
+        MethodHandle $h = Rlatex_build_cancel$;
+        if ($h == null) Rlatex_build_cancel$ = $h = find("Rlatex_build_cancel", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(build);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_build_get_messages$;
+
+    /**
+     * The diagnostics of the last finished build, as a list that
+     * belongs to the build: read it with Rlatex_log_get_message, and do not
+     * destroy it. Valid until the build runs again or is destroyed.
+     * Returns: The list, or R_INVALID_ID before the first build ends.
+     */
+    public static int Rlatex_build_get_messages(int build) {
+        MethodHandle $h = Rlatex_build_get_messages$;
+        if ($h == null) Rlatex_build_get_messages$ = $h = find("Rlatex_build_get_messages", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(build);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_build_get_pdf_path$;
+
+    /**
+     * Returns: The .pdf the build wrote, or NULL when it wrote none. Owned by the build.
+     */
+    public static String Rlatex_build_get_pdf_path(int build) {
+        MethodHandle $h = Rlatex_build_get_pdf_path$;
+        if ($h == null) Rlatex_build_get_pdf_path$ = $h = find("Rlatex_build_get_pdf_path", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(build);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_build_get_log_path$;
+
+    /**
+     * Returns: The .log the build read, or NULL. Owned by the build.
+     */
+    public static String Rlatex_build_get_log_path(int build) {
+        MethodHandle $h = Rlatex_build_get_log_path$;
+        if ($h == null) Rlatex_build_get_log_path$ = $h = find("Rlatex_build_get_log_path", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(build);
+            return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_build_succeeded$;
+
+    /**
+     * Returns: R_TRUE when the build ended and its tool exited with 0.
+     */
+    public static int Rlatex_build_succeeded(int build) {
+        MethodHandle $h = Rlatex_build_succeeded$;
+        if ($h == null) Rlatex_build_succeeded$ = $h = find("Rlatex_build_succeeded", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(build);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_build_destroy$;
+
+    /**
+     * Cancels the build if it still runs, frees it and its messages.
+     * The handle is invalid afterwards.
+     */
+    public static void Rlatex_build_destroy(int build) {
+        MethodHandle $h = Rlatex_build_destroy$;
+        if ($h == null) Rlatex_build_destroy$ = $h = find("Rlatex_build_destroy", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(build);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rlatex_find_tool$;
+
+    /**
+     * Finds a tool of the trade: "latexmk", "pdflatex", "xelatex",
+     * "lualatex", "synctex", "bibtex", "biber", "hunspell", "git"...
+     * Same lookup as Rprocess_find, which it forwards to.
+     * Returns: An absolute path valid until the next call, or NULL.
+     */
+    public static String Rlatex_find_tool(String name) {
+        MethodHandle $h = Rlatex_find_tool$;
+        if ($h == null) Rlatex_find_tool$ = $h = find("Rlatex_find_tool", FunctionDescriptor.of(ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment name$ = name == null ? MemorySegment.NULL : utf8($a, name);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(name$);
             return text($r);
         } catch (Throwable $t) {
             throw fail($t);

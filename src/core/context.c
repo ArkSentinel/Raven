@@ -130,6 +130,9 @@ int Rinit_ex(const RInitDesc* user_desc) {
 	rvn_pool_init(&g_rvn.tree_items, RVN_HANDLE_TREE_ITEM);
 	rvn_pool_init(&g_rvn.xml_documents, RVN_HANDLE_XML_DOCUMENT);
 	rvn_pool_init(&g_rvn.xml_nodes, RVN_HANDLE_XML_NODE);
+	rvn_pool_init(&g_rvn.processes, RVN_HANDLE_PROCESS);
+	rvn_pool_init(&g_rvn.builds, RVN_HANDLE_BUILD);
+	rvn_pool_init(&g_rvn.logs, RVN_HANDLE_LOG);
 	rvn_mutex_init(&g_rvn.task_mutex);
 
 	/* windowing */
@@ -192,6 +195,9 @@ fail_platform:
 	rvn_pool_free(&g_rvn.tree_items);
 	rvn_pool_free(&g_rvn.xml_documents);
 	rvn_pool_free(&g_rvn.xml_nodes);
+	rvn_pool_free(&g_rvn.processes);
+	rvn_pool_free(&g_rvn.builds);
+	rvn_pool_free(&g_rvn.logs);
 	memset(&g_rvn, 0, sizeof(g_rvn));
 	return R_FALSE;
 }
@@ -202,6 +208,14 @@ void Rshutdown(void) {
 
 	/* Stop native filesystem notifications before draining posted UI tasks. */
 	rvn_fs_watch_stop();
+	/* The builds first (they own processes), then the processes the
+	 * application started. Both cancel what still runs and free it; the
+	 * callback tasks already posted find a destroyed process and are
+	 * dropped, so nothing of the application is called from here on. */
+	rvn_builds_shutdown();
+	rvn_process_shutdown();
+	rvn_logs_shutdown();
+	rvn_settings_shutdown();
 	/* windows first: this deletes every widget that is shown */
 	/* (the inspectors first: they are windows that follow other windows) */
 	rvn_inspector_shutdown();
@@ -235,6 +249,7 @@ void Rshutdown(void) {
 	rvn_look_shutdown();
 	rvn_dialogs_shutdown();
 	rvn_islands_shutdown();
+	rvn_text_editor_shutdown();
 	rvn_languages_shutdown();
 	rvn_fonts_shutdown();
 	rvn_shaders_shutdown();
@@ -262,6 +277,9 @@ void Rshutdown(void) {
 	rvn_pool_free(&g_rvn.tree_items);
 	rvn_pool_free(&g_rvn.xml_documents);
 	rvn_pool_free(&g_rvn.xml_nodes);
+	rvn_pool_free(&g_rvn.processes);
+	rvn_pool_free(&g_rvn.builds);
+	rvn_pool_free(&g_rvn.logs);
 	memset(&g_rvn, 0, sizeof(g_rvn));
 	/* nothing is allocated any more: the regions of the heap return to the OS */
 	rvn_heap_trim();

@@ -1406,7 +1406,10 @@ build.bat  generate-cmake.bat  dist.bat  dist.sh  CMakePresets.json
 ```
 
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how the pieces work
-and how to add a widget, a window system or a backend.
+and how to add a widget, a window system or a backend. [docs/LOCALTEX.md](docs/LOCALTEX.md)
+lists what this fork adds for an editor of LaTeX documents: a PDF preview
+widget, LaTeX and BibTeX in the text editor (folding, snippets, search), the
+process runner and the log parser, and the settings store.
 
 ## Not implemented yet
 

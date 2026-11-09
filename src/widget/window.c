@@ -17,6 +17,9 @@
 #define RVN_TOOLTIP_DELAY 0.6
 #define RVN_MAX_PATH_DEPTH 128
 
+/** How many names Rkey_to_name keeps at once: a preferences window lists a page of them. */
+#define RVN_SHORTCUT_NAME_RING 16
+
 /* the island in the camera housing of the screen (at the end of this file) */
 static void rvn_window_notch_update(rvn_window_t* window);
 static void rvn_window_notch_leave(rvn_window_t* owner);
@@ -1690,6 +1693,21 @@ static void rvn_window_text(rvn_window_t* window, uint32_t codepoint) {
 	rvn_widget_dispatch(window->focus, &event);
 }
 
+/* ---------------------------------------------------------------------------
+ *  Layout springs
+ * ------------------------------------------------------------------------- */
+
+/* Puts every spring that drives the layout at its target: a resize is a new size, not a glide. */
+static void rvn_window_snap_layout_springs(rvn_window_t* window) {
+	uint32_t i;
+	for (i = 0; i < window->layout_spring_count; i++) {
+		rvn_layout_spring_t* entry = &window->layout_springs[i];
+		rvn_spring_set(entry->spring, entry->target);
+		rvn_widget_invalidate_layout(entry->widget);
+	}
+	window->layout_spring_count = 0;
+}
+
 static void rvn_window_resized(rvn_window_t* window, int width_px, int height_px, float platform_scale) {
 	float scale = (platform_scale > 0.0f ? platform_scale : 1.0f) * g_rvn.ui_scale;
 	rvn_vec2_t size;
@@ -1698,6 +1716,14 @@ static void rvn_window_resized(rvn_window_t* window, int width_px, int height_px
 	window->height_px = height_px;
 	window->scale = scale;
 	rvn_window_close_popups(window);
+	/*
+	 * A resize is not an animation: it is the new size the user is pulling.
+	 * The springs that drive the size of the widgets are put at their target
+	 * at once (an expander or a docked panel must not glide while the edge of
+	 * the window is dragged), and the layout and the paint that follow are
+	 * those of the new size.
+	 */
+	rvn_window_snap_layout_springs(window);
 	window->needs_layout = R_TRUE;
 	window->needs_paint = R_TRUE;
 	if (window->resize_callback) {
@@ -2672,6 +2698,100 @@ void Rwindow_register_shortcut(Rid id, RKey key, Ruint modifiers, const char* ac
 void Rwindow_unregister_shortcut(Rid id, RKey key, Ruint modifiers) {
 	RVN_WINDOW_VOID(window, id);
 	rvn_window_remove_shortcut(window, key, modifiers & 0xFu);
+}
+
+int Rkey_from_name(const char* name, RKey* key, Ruint* modifiers) {
+	RKey parsed = R_KEY_UNKNOWN;
+	uint32_t parsed_modifiers = 0;
+	if (key) *key = R_KEY_UNKNOWN;
+	if (modifiers) *modifiers = 0;
+	if (!name || !name[0]) return R_FALSE;
+	if (!rvn_parse_shortcut(name, &parsed, &parsed_modifiers)) return R_FALSE;
+	if (key) *key = parsed;
+	if (modifiers) *modifiers = parsed_modifiers;
+	return R_TRUE;
+}
+
+const char* Rkey_to_name(RKey key, Ruint modifiers) {
+	static char names[RVN_SHORTCUT_NAME_RING][48];
+	static uint32_t next;
+	char single[2];
+	if (key == R_KEY_UNKNOWN || !rvn_key_text(key, single)[0]) return NULL;
+	rvn_shortcut_format(key, modifiers & 0xFu, names[next % RVN_SHORTCUT_NAME_RING], sizeof(names[0]));
+	return names[next++ % RVN_SHORTCUT_NAME_RING];
+}
+
+int Rwindow_set_keybindings(Rid id, const char* bindings) {
+	rvn_window_t* window = rvn_window_check(id, __func__);
+	const char* c;
+	int count = 0;
+	if (!window) return 0;
+	if (!bindings) return 0;
+	c = bindings;
+	for (;;) {
+		const char* entry_end;
+		const char* separator;
+		const char* chord_end;
+		const char* action;
+		char* chord_text;
+		char* action_text;
+		RKey key;
+		Ruint modifiers;
+
+		while (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\r' || *c == '|') c++;
+		if (!*c) break;
+		entry_end = c;
+		while (*entry_end && *entry_end != '|') entry_end++;
+		/* the keys end where the action begins: at the first space, or at the
+		 * first character that cannot be part of a key name */
+		separator = c;
+		while (separator < entry_end && *separator != ' ' && *separator != '\t') separator++;
+		action = separator;
+		while (action < entry_end && (*action == ' ' || *action == '\t')) action++;
+		/* (a sequence: "Ctrl+K,Ctrl+B clear" binds its first chord only) */
+		chord_end = c;
+		while (chord_end < separator && *chord_end != ',') chord_end++;
+		chord_text = rvn_strndup(c, (size_t)(chord_end - c));
+		action_text = rvn_strndup(action, (size_t)(entry_end - action));
+		while (action_text[0] && (action_text[strlen(action_text) - 1] == ' ' || action_text[strlen(action_text) - 1] == '\t')) {
+			action_text[strlen(action_text) - 1] = '\0';
+		}
+		if (chord_text[0] && Rkey_from_name(chord_text, &key, &modifiers)) {
+			if (!action_text[0]) {
+				/* an empty action unbinds the key */
+				rvn_window_remove_shortcut(window, key, modifiers & 0xFu);
+				count++;
+			} else {
+				rvn_window_add_shortcut(window, key, modifiers & 0xFu, action_text);
+				count++;
+			}
+		} else if (chord_text[0]) {
+			rvn_error(R_ERROR_INVALID_VALUE, R_SEVERITY_WARNING, "Rwindow_set_keybindings: \"%s\" is not a key", chord_text);
+		}
+		rvn_free(chord_text);
+		rvn_free(action_text);
+		c = entry_end;
+		if (*c == '|') c++;
+	}
+	return count;
+}
+
+int Rwindow_get_shortcut_count(Rid id) {
+	RVN_WINDOW(window, id, 0);
+	return (int)window->shortcut_count;
+}
+
+int Rwindow_get_shortcut(Rid id, int index, RKey* key, Ruint* modifiers, const char** action) {
+	rvn_window_t* window;
+	if (action) *action = NULL;
+	if (key) *key = R_KEY_UNKNOWN;
+	if (modifiers) *modifiers = 0;
+	window = rvn_window_check(id, __func__);
+	if (!window || index < 0 || (uint32_t)index >= window->shortcut_count) return R_FALSE;
+	if (key) *key = window->shortcuts[index].key;
+	if (modifiers) *modifiers = window->shortcuts[index].modifiers;
+	if (action) *action = window->shortcuts[index].action;
+	return R_TRUE;
 }
 
 void Rwindow_close_popups(Rid id) {

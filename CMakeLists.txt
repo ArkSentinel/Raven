@@ -100,8 +100,12 @@ set(RAVEN_PUBLIC_HEADERS
 	include/raven/raven_dialogs.h
 	include/raven/raven_viewport.h
 	include/raven/raven_draw.h
+	include/raven/raven_pdf.h
 	include/raven/raven_xml.h
 	include/raven/raven_locale.h
+	include/raven/raven_settings.h
+	include/raven/raven_process.h
+	include/raven/raven_latex.h
 	include/raven/raven_accessibility.h
 	include/raven/raven_backend.h
 	include/raven/raven_host.h
@@ -129,6 +133,10 @@ set(RAVEN_CORE_SOURCES
 	src/core/lfmap.c
 	src/core/lfmap.h
 	src/core/memory.c
+	src/core/settings.c
+	src/core/process.c
+	src/core/latex_log.c
+	src/core/latex_build.c
 	src/core/thread.h
 	src/core/utf8.c
 )
@@ -218,6 +226,7 @@ set(RAVEN_WIDGETS_SOURCES
 	src/widgets/progress_bar.c
 	src/widgets/slider.c
 	src/widgets/spin_box.c
+	src/widgets/regex.c
 	src/widgets/syntax.c
 	src/widgets/text_editor.c
 	src/widgets/header_bar.c
@@ -236,6 +245,7 @@ set(RAVEN_WIDGETS_SOURCES
 	src/widgets/rating.c
 	src/widgets/pagination.c
 	src/widgets/plot.c
+	src/widgets/pdf_view.c
 )
 
 set(RAVEN_XML_SOURCES

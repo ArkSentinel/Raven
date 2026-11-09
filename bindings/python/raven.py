@@ -893,6 +893,7 @@ class RWidgetType(enum.IntEnum):
     R_WIDGET_RATING = 0x0230
     R_WIDGET_PAGINATION = 0x0231
     R_WIDGET_PLOT = 0x0232
+    R_WIDGET_PDF_VIEW = 0x0233
 
 R_WIDGET_VBOX = RWidgetType.R_WIDGET_VBOX
 R_WIDGET_HBOX = RWidgetType.R_WIDGET_HBOX
@@ -945,6 +946,7 @@ R_WIDGET_BREADCRUMB = RWidgetType.R_WIDGET_BREADCRUMB
 R_WIDGET_RATING = RWidgetType.R_WIDGET_RATING
 R_WIDGET_PAGINATION = RWidgetType.R_WIDGET_PAGINATION
 R_WIDGET_PLOT = RWidgetType.R_WIDGET_PLOT
+R_WIDGET_PDF_VIEW = RWidgetType.R_WIDGET_PDF_VIEW
 
 class RHAlign(enum.IntEnum):
     R_HALIGN_FILL = 0x0240
@@ -1197,6 +1199,8 @@ class RLanguageFlags(enum.IntFlag):
     R_LANGUAGE_IGNORE_CASE = 0x0020
     R_LANGUAGE_EMBEDS = 0x0040
     R_LANGUAGE_FORMATTED_TEXT = 0x0080
+    R_LANGUAGE_TEX = 0x0100
+    R_LANGUAGE_BIBTEX = 0x0200
 
 R_LANGUAGE_MARKUP = RLanguageFlags.R_LANGUAGE_MARKUP
 R_LANGUAGE_STYLE_SHEET = RLanguageFlags.R_LANGUAGE_STYLE_SHEET
@@ -1206,6 +1210,8 @@ R_LANGUAGE_INDENT_ON_COLON = RLanguageFlags.R_LANGUAGE_INDENT_ON_COLON
 R_LANGUAGE_IGNORE_CASE = RLanguageFlags.R_LANGUAGE_IGNORE_CASE
 R_LANGUAGE_EMBEDS = RLanguageFlags.R_LANGUAGE_EMBEDS
 R_LANGUAGE_FORMATTED_TEXT = RLanguageFlags.R_LANGUAGE_FORMATTED_TEXT
+R_LANGUAGE_TEX = RLanguageFlags.R_LANGUAGE_TEX
+R_LANGUAGE_BIBTEX = RLanguageFlags.R_LANGUAGE_BIBTEX
 
 class RToken(enum.IntEnum):
     """What a part of the text is, for the language of the editor (Rtext_editor_get_token)."""
@@ -1250,6 +1256,17 @@ class RMarkerKind(enum.IntEnum):
 R_MARKER_ERROR = RMarkerKind.R_MARKER_ERROR
 R_MARKER_WARNING = RMarkerKind.R_MARKER_WARNING
 R_MARKER_INFO = RMarkerKind.R_MARKER_INFO
+
+class RSearchFlags(enum.IntFlag):
+    R_SEARCH_NONE = 0
+    R_SEARCH_REGEX = 1
+    R_SEARCH_IGNORE_CASE = 2
+    R_SEARCH_WHOLE_WORD = 4
+
+R_SEARCH_NONE = RSearchFlags.R_SEARCH_NONE
+R_SEARCH_REGEX = RSearchFlags.R_SEARCH_REGEX
+R_SEARCH_IGNORE_CASE = RSearchFlags.R_SEARCH_IGNORE_CASE
+R_SEARCH_WHOLE_WORD = RSearchFlags.R_SEARCH_WHOLE_WORD
 
 class RHeaderButtons(enum.IntFlag):
     """Buttons of a header bar."""
@@ -1406,6 +1423,16 @@ R_MOTION_SMOOTH = RMotion.R_MOTION_SMOOTH
 R_MOTION_BOUNCY = RMotion.R_MOTION_BOUNCY
 R_MOTION_WOBBLY = RMotion.R_MOTION_WOBBLY
 
+class RPdfFit(enum.IntEnum):
+    """How the view keeps the pages in its place when it is resized."""
+    R_PDF_FIT_NONE = 0x0570
+    R_PDF_FIT_WIDTH = 0x0571
+    R_PDF_FIT_PAGE = 0x0572
+
+R_PDF_FIT_NONE = RPdfFit.R_PDF_FIT_NONE
+R_PDF_FIT_WIDTH = RPdfFit.R_PDF_FIT_WIDTH
+R_PDF_FIT_PAGE = RPdfFit.R_PDF_FIT_PAGE
+
 class REffect(enum.IntEnum):
     """The effects that come with Raven (Reffect_get)."""
     R_EFFECT_AURORA = 0x0B40
@@ -1455,6 +1482,51 @@ R_XML_ACTION = RXmlValueType.R_XML_ACTION
 R_XML_FILE = RXmlValueType.R_XML_FILE
 R_XML_NUMBERS = RXmlValueType.R_XML_NUMBERS
 R_XML_LIST = RXmlValueType.R_XML_LIST
+
+class RSettingType(enum.IntEnum):
+    """What a key holds."""
+    R_SETTING_NONE = 0x0300
+    R_SETTING_BOOL = 0x0301
+    R_SETTING_INT = 0x0302
+    R_SETTING_NUMBER = 0x0303
+    R_SETTING_TEXT = 0x0304
+
+R_SETTING_NONE = RSettingType.R_SETTING_NONE
+R_SETTING_BOOL = RSettingType.R_SETTING_BOOL
+R_SETTING_INT = RSettingType.R_SETTING_INT
+R_SETTING_NUMBER = RSettingType.R_SETTING_NUMBER
+R_SETTING_TEXT = RSettingType.R_SETTING_TEXT
+
+class RProcessState(enum.IntEnum):
+    R_PROCESS_RUNNING = 0x0400
+    R_PROCESS_EXITED = 0x0401
+    R_PROCESS_FAILED = 0x0402
+
+R_PROCESS_RUNNING = RProcessState.R_PROCESS_RUNNING
+R_PROCESS_EXITED = RProcessState.R_PROCESS_EXITED
+R_PROCESS_FAILED = RProcessState.R_PROCESS_FAILED
+
+class RLogKind(enum.IntEnum):
+    """What a line of a log is worth to an editor."""
+    R_LOG_ERROR = 0x0500
+    R_LOG_WARNING = 0x0501
+    R_LOG_INFO = 0x0502
+    R_LOG_BAD_BOX = 0x0503
+
+R_LOG_ERROR = RLogKind.R_LOG_ERROR
+R_LOG_WARNING = RLogKind.R_LOG_WARNING
+R_LOG_INFO = RLogKind.R_LOG_INFO
+R_LOG_BAD_BOX = RLogKind.R_LOG_BAD_BOX
+
+class RLatexEngine(enum.IntFlag):
+    """The engines an editor offers. All of them take the same command line."""
+    R_LATEX_PDFLATEX = 0
+    R_LATEX_XELATEX = 1
+    R_LATEX_LUALATEX = 2
+
+R_LATEX_PDFLATEX = RLatexEngine.R_LATEX_PDFLATEX
+R_LATEX_XELATEX = RLatexEngine.R_LATEX_XELATEX
+R_LATEX_LUALATEX = RLatexEngine.R_LATEX_LUALATEX
 
 class RColorFilter(enum.IntEnum):
     R_COLOR_FILTER_NONE = 0x0740
@@ -1780,6 +1852,23 @@ class RLanguageDesc(ctypes.Structure):
         ("annotation", ctypes.c_char_p),
         ("flags", ctypes.c_uint32),
         ("script_language", ctypes.c_char_p),
+        ("word_characters", ctypes.c_char_p),
+    ]
+
+
+class RSnippet(ctypes.Structure):
+    """A block of text typed by a name.
+    
+    The body may hold `$1` .. `$9` (places the caret goes to, in order,
+    with Tab) and `$0` (where the caret ends), the same place twice to
+    edit the two copies at once, `${1:text}` for a place with a text
+    selected, and `$NAME` for a variable given here (date, author...).
+    `\t` and `\n` in the body are a tab and a line break."""
+    _fields_ = [
+        ("name", ctypes.c_char_p),
+        ("description", ctypes.c_char_p),
+        ("prefix", ctypes.c_char_p),
+        ("body", ctypes.c_char_p),
     ]
 
 
@@ -1878,6 +1967,43 @@ class RXmlAttributeInfo(ctypes.Structure):
         ("choices", ctypes.c_char_p),
         ("group", ctypes.c_char_p),
         ("description", ctypes.c_char_p),
+    ]
+
+
+class RProcessDesc(ctypes.Structure):
+    """What to run and how. A zero-initialized structure is a valid, empty description."""
+    _fields_ = [
+        ("program", ctypes.c_char_p),
+        ("arguments", ctypes.POINTER(ctypes.c_char_p)),
+        ("argument_count", ctypes.c_int),
+        ("working_directory", ctypes.c_char_p),
+        ("merge_stderr", ctypes.c_int),
+    ]
+
+
+class RLogMessage(ctypes.Structure):
+    """One diagnostic of a log. The strings belong to the list: copy them to keep them."""
+    _fields_ = [
+        ("kind", ctypes.c_int),
+        ("file", ctypes.c_char_p),
+        ("line", ctypes.c_int),
+        ("message", ctypes.c_char_p),
+        ("context", ctypes.c_char_p),
+    ]
+
+
+class RLatexBuildDesc(ctypes.Structure):
+    """What to build. A zero-initialized structure builds `root_file` with
+    pdflatex, once; an editor usually sets `use_latexmk` too."""
+    _fields_ = [
+        ("root_file", ctypes.c_char_p),
+        ("engine", ctypes.c_int),
+        ("use_latexmk", ctypes.c_int),
+        ("shell_escape", ctypes.c_int),
+        ("command_override", ctypes.c_char_p),
+        ("arguments_override", ctypes.POINTER(ctypes.c_char_p)),
+        ("arguments_override_count", ctypes.c_int),
+        ("log_path_override", ctypes.c_char_p),
     ]
 
 
@@ -2467,6 +2593,22 @@ def _adapt_RMeasureCallback(function):
         function(widget, width, height, user_data)
     return call
 
+RPdfPageNeededCallback = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_int, ctypes.c_float, ctypes.c_void_p)
+
+
+def _adapt_RPdfPageNeededCallback(function):
+    def call(pdf_view, page, scale, user_data):
+        function(pdf_view, page, scale, user_data)
+    return call
+
+RPdfPageClickedCallback = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_void_p)
+
+
+def _adapt_RPdfPageClickedCallback(function):
+    def call(pdf_view, page, page_x, page_y, user_data):
+        function(pdf_view, page, page_x, page_y, user_data)
+    return call
+
 RXmlReloadCallback = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p)
 
 
@@ -2497,6 +2639,30 @@ RLocaleChangedCallback = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_void_p
 def _adapt_RLocaleChangedCallback(function):
     def call(language, user_data):
         function(_r(language), user_data)
+    return call
+
+RProcessOutputCallback = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_void_p)
+
+
+def _adapt_RProcessOutputCallback(function):
+    def call(text, length, is_stderr, user_data):
+        function(_r(text), length, is_stderr, user_data)
+    return call
+
+RProcessExitCallback = ctypes.CFUNCTYPE(None, ctypes.c_int, ctypes.c_int, ctypes.c_void_p)
+
+
+def _adapt_RProcessExitCallback(function):
+    def call(exit_code, failed, user_data):
+        function(exit_code, failed, user_data)
+    return call
+
+RLatexBuildFinishedCallback = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_int, ctypes.c_void_p)
+
+
+def _adapt_RLatexBuildFinishedCallback(function):
+    def call(build, success, user_data):
+        function(build, success, user_data)
     return call
 
 
@@ -2787,6 +2953,27 @@ _lib.Rget_animations_enabled.restype = ctypes.c_int
 
 def Rget_animations_enabled():
     return _lib.Rget_animations_enabled()
+
+
+_lib.Rset_selection_animation.argtypes = [ctypes.c_int]
+_lib.Rset_selection_animation.restype = None
+
+
+def Rset_selection_animation(enabled):
+    """R_TRUE: the highlight that follows the selection in lists, tables
+    and trees moves with a spring; R_FALSE (the default) it is there at once,
+    which is what a list that follows the pointer needs. A window resize and
+    the text caret are never animated: they follow the input exactly.
+    XML and theme files cannot set it."""
+    _lib.Rset_selection_animation(enabled)
+
+
+_lib.Rget_selection_animation.argtypes = []
+_lib.Rget_selection_animation.restype = ctypes.c_int
+
+
+def Rget_selection_animation():
+    return _lib.Rget_selection_animation()
 
 
 _lib.Rset_animation_speed.argtypes = [ctypes.c_float]
@@ -3861,6 +4048,77 @@ def Rwindow_unregister_shortcut(window, key, modifiers):
     _lib.Rwindow_unregister_shortcut(window, int(key), modifiers)
 
 
+_lib.Rwindow_set_keybindings.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rwindow_set_keybindings.restype = ctypes.c_int
+
+
+def Rwindow_set_keybindings(window, bindings):
+    """Registers a whole set of shortcuts from a text, as a preferences
+    window writes it:
+    
+        "Ctrl+S save | Ctrl+Shift+S save_as | F5 build | Ctrl+K,Ctrl+B clear"
+    
+    Entries are separated by '|'. The key or the keys come first, then the
+    action name (Raction_bind). An entry whose action is empty unbinds that
+    key. Several chords separated by commas are a sequence: only the first
+    chord is bound for now (the others are parsed and ignored).
+    Returns: How many shortcuts were registered (unbound ones included)."""
+    return _lib.Rwindow_set_keybindings(window, _s(bindings))
+
+
+_lib.Rkey_from_name.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_uint32)]
+_lib.Rkey_from_name.restype = ctypes.c_int
+
+
+def Rkey_from_name(name):
+    """Parses one key name to a key and its modifiers: "Ctrl+S",
+    "Ctrl+Shift+S", "F5", "PageUp", "Escape", "A". The modifiers are
+    Ctrl, Shift, Alt and Super (Cmd and Win are accepted for Super).
+    Returns: R_FALSE when the name is not a key."""
+    key_ = ctypes.c_int()
+    modifiers_ = ctypes.c_uint32()
+    result = _lib.Rkey_from_name(_s(name), ctypes.byref(key_), ctypes.byref(modifiers_))
+    return (result, _e(RKey, key_.value), modifiers_.value)
+
+
+_lib.Rkey_to_name.argtypes = [ctypes.c_int, ctypes.c_uint32]
+_lib.Rkey_to_name.restype = ctypes.c_char_p
+
+
+def Rkey_to_name(key, modifiers):
+    """The reverse, for showing a shortcut: "Ctrl+S". Super is written
+    "Super" (the menus show it too).
+    Returns: NULL when the key has no name. Valid until the next call."""
+    return _r(_lib.Rkey_to_name(int(key), modifiers))
+
+
+_lib.Rwindow_get_shortcut_count.argtypes = [ctypes.c_uint32]
+_lib.Rwindow_get_shortcut_count.restype = ctypes.c_int
+
+
+def Rwindow_get_shortcut_count(window):
+    """How many shortcuts the window has (Rwindow_register_shortcut)."""
+    return _lib.Rwindow_get_shortcut_count(window)
+
+
+_lib.Rwindow_get_shortcut.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_char_p)]
+_lib.Rwindow_get_shortcut.restype = ctypes.c_int
+
+
+def Rwindow_get_shortcut(window, index):
+    """Reads the index-th shortcut of the window, for a preferences
+    window that lists them.
+    action Receives the name of the action; may be NULL. Valid until
+    the next call of this function (or until the window changes its
+    shortcuts).
+    Returns: R_FALSE when `index` is out of range."""
+    key_ = ctypes.c_int()
+    modifiers_ = ctypes.c_uint32()
+    action_ = ctypes.c_char_p()
+    result = _lib.Rwindow_get_shortcut(window, index, ctypes.byref(key_), ctypes.byref(modifiers_), ctypes.byref(action_))
+    return (result, _e(RKey, key_.value), modifiers_.value, _r(action_.value))
+
+
 _lib.Rtouch_get_settings.argtypes = [ctypes.POINTER(RTouchSettings)]
 _lib.Rtouch_get_settings.restype = None
 
@@ -4333,6 +4591,42 @@ _lib.Rtheme_get_name_at.restype = ctypes.c_char_p
 def Rtheme_get_name_at(index):
     """Name of the index-th one, or NULL."""
     return _r(_lib.Rtheme_get_name_at(index))
+
+
+_lib.Rtheme_remember_for.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_char_p]
+_lib.Rtheme_remember_for.restype = ctypes.c_int
+
+
+def Rtheme_remember_for(settings, project_path, theme_name):
+    """Remembers the theme of a project folder, so that opening the
+    project again gives it its look back. The store is the one the
+    application owns (Rsettings_open(app, "sessions.json") or its own): the
+    library keeps no file of its own.
+    
+    The key is "theme." followed by the absolute, normalised path of the
+    project (forward slashes).
+    Returns: R_FALSE when there is no store or when the path is empty."""
+    return _lib.Rtheme_remember_for(settings, _s(project_path), _s(theme_name))
+
+
+_lib.Rtheme_get_remembered.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rtheme_get_remembered.restype = ctypes.c_char_p
+
+
+def Rtheme_get_remembered(settings, project_path):
+    """The theme remembered for a project, or NULL. Valid until the store changes."""
+    return _r(_lib.Rtheme_get_remembered(settings, _s(project_path)))
+
+
+_lib.Rtheme_apply_remembered.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rtheme_apply_remembered.restype = ctypes.c_int
+
+
+def Rtheme_apply_remembered(settings, project_path):
+    """Applies the theme remembered for a project (Rtheme_use).
+    Returns: R_TRUE when one was remembered and Rtheme_use accepted it. When
+    it did not, the theme in use is left as it was."""
+    return _lib.Rtheme_apply_remembered(settings, _s(project_path))
 
 
 _lib.Rtheme_save.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
@@ -8792,6 +9086,385 @@ def Rtext_editor_get_marker_count(editor):
     return _lib.Rtext_editor_get_marker_count(editor)
 
 
+_lib.Rtext_editor_get_marker.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
+_lib.Rtext_editor_get_marker.restype = ctypes.c_char_p
+
+
+def Rtext_editor_get_marker(editor, index):
+    """The line, the columns and the kind of a marker, by index (0 ..
+    Rtext_editor_get_marker_count - 1).
+    Returns: The message of the marker, or NULL when `index` is out of range."""
+    line_ = ctypes.c_int()
+    from_column_ = ctypes.c_int()
+    to_column_ = ctypes.c_int()
+    kind_ = ctypes.c_int()
+    result = _r(_lib.Rtext_editor_get_marker(editor, index, ctypes.byref(line_), ctypes.byref(from_column_), ctypes.byref(to_column_), ctypes.byref(kind_)))
+    return (result, line_.value, from_column_.value, to_column_.value, _e(RMarkerKind, kind_.value))
+
+
+_lib.Rtext_editor_clear_markers_of_line.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtext_editor_clear_markers_of_line.restype = None
+
+
+def Rtext_editor_clear_markers_of_line(editor, line):
+    """Removes the markers of one line and adds a list, as a compiler's report does."""
+    _lib.Rtext_editor_clear_markers_of_line(editor, line)
+
+
+_lib.Rtext_editor_set_search.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32]
+_lib.Rtext_editor_set_search.restype = ctypes.c_int
+
+
+def Rtext_editor_set_search(editor, pattern, flags):
+    """Sets what is looked for, from now on. An empty pattern clears it.
+    The flags are a bitmask of RSearchFlags. Invalid regular expressions are
+    reported and leave the search as it was.
+    Returns: R_TRUE when the pattern was taken."""
+    return _lib.Rtext_editor_set_search(editor, _s(pattern), flags)
+
+
+_lib.Rtext_editor_get_search.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_get_search.restype = ctypes.c_char_p
+
+
+def Rtext_editor_get_search(editor):
+    return _r(_lib.Rtext_editor_get_search(editor))
+
+
+_lib.Rtext_editor_get_search_flags.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_get_search_flags.restype = ctypes.c_uint32
+
+
+def Rtext_editor_get_search_flags(editor):
+    return _lib.Rtext_editor_get_search_flags(editor)
+
+
+_lib.Rtext_editor_find_next.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtext_editor_find_next.restype = ctypes.c_int
+
+
+def Rtext_editor_find_next(editor, backwards):
+    """The next match after the caret (or before it, with
+    `backwards`), selected; the text is scrolled to it. It wraps around
+    the ends of the text. R_FALSE when nothing matches."""
+    return _lib.Rtext_editor_find_next(editor, backwards)
+
+
+_lib.Rtext_editor_count_matches.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_count_matches.restype = ctypes.c_int
+
+
+def Rtext_editor_count_matches(editor):
+    """How many places match the search."""
+    return _lib.Rtext_editor_count_matches(editor)
+
+
+_lib.Rtext_editor_get_match.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
+_lib.Rtext_editor_get_match.restype = ctypes.c_int
+
+
+def Rtext_editor_get_match(editor, index):
+    """Where a match is, by index (0 .. count - 1): its start and its end. R_FALSE when out of range."""
+    from_line_ = ctypes.c_int()
+    from_column_ = ctypes.c_int()
+    to_line_ = ctypes.c_int()
+    to_column_ = ctypes.c_int()
+    result = _lib.Rtext_editor_get_match(editor, index, ctypes.byref(from_line_), ctypes.byref(from_column_), ctypes.byref(to_line_), ctypes.byref(to_column_))
+    return (result, from_line_.value, from_column_.value, to_line_.value, to_column_.value)
+
+
+_lib.Rtext_editor_replace.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rtext_editor_replace.restype = ctypes.c_int
+
+
+def Rtext_editor_replace(editor, text):
+    """Replaces the current match (the selection, when it is one) and
+    goes to the next one. R_FALSE when there is nothing to replace."""
+    return _lib.Rtext_editor_replace(editor, _s(text))
+
+
+_lib.Rtext_editor_replace_all.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rtext_editor_replace_all.restype = ctypes.c_int
+
+
+def Rtext_editor_replace_all(editor, text):
+    """Replaces every match, as one step of the history. Returns: How many were replaced."""
+    return _lib.Rtext_editor_replace_all(editor, _s(text))
+
+
+_lib.Rtext_editor_expand_replacement.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.c_int]
+_lib.Rtext_editor_expand_replacement.restype = ctypes.c_char_p
+
+
+def Rtext_editor_expand_replacement(replacement, text, from_, to, groups, group_count):
+    """The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
+    (the whole match), `$$` (a dollar), `\\n`, `\\t` and `\\\\` mean something;
+    with `matches`, the groups of the regex that matched. Pure: no editor needed.
+    Returns: The text, in a buffer of the editor (valid until the next call), or NULL."""
+    return _r(_lib.Rtext_editor_expand_replacement(_s(replacement), _s(text), from_, to, _a(ctypes.c_int, groups), group_count))
+
+
+_lib.Rtext_editor_set_folding.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtext_editor_set_folding.restype = None
+
+
+def Rtext_editor_set_folding(editor, enabled):
+    """R_TRUE (the default): with a language whose blocks can be folded
+    (braces, brackets, \\begin{...} ... \\end{...}, <tag> ... </tag>,
+    Markdown titles), a small arrow in the margin collapses the block;
+    Ctrl+Shift+[ and Ctrl+Shift+] fold and unfold the block of the caret."""
+    _lib.Rtext_editor_set_folding(editor, enabled)
+
+
+_lib.Rtext_editor_get_folding.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_get_folding.restype = ctypes.c_int
+
+
+def Rtext_editor_get_folding(editor):
+    return _lib.Rtext_editor_get_folding(editor)
+
+
+_lib.Rtext_editor_toggle_fold.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_toggle_fold.restype = ctypes.c_int
+
+
+def Rtext_editor_toggle_fold(editor):
+    """Folds the block of the caret (the one that holds it), or unfolds it. R_FALSE when there is none."""
+    return _lib.Rtext_editor_toggle_fold(editor)
+
+
+_lib.Rtext_editor_fold_line.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtext_editor_fold_line.restype = ctypes.c_int
+
+
+def Rtext_editor_fold_line(editor, line):
+    """Folds or unfolds the block that starts on a line (an opening brace, \\begin, a title)."""
+    return _lib.Rtext_editor_fold_line(editor, line)
+
+
+_lib.Rtext_editor_unfold_line.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtext_editor_unfold_line.restype = ctypes.c_int
+
+
+def Rtext_editor_unfold_line(editor, line):
+    return _lib.Rtext_editor_unfold_line(editor, line)
+
+
+_lib.Rtext_editor_is_folded.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtext_editor_is_folded.restype = ctypes.c_int
+
+
+def Rtext_editor_is_folded(editor, line):
+    return _lib.Rtext_editor_is_folded(editor, line)
+
+
+_lib.Rtext_editor_unfold_all.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_unfold_all.restype = None
+
+
+def Rtext_editor_unfold_all(editor):
+    """Unfolds everything, and forgets the folded blocks."""
+    _lib.Rtext_editor_unfold_all(editor)
+
+
+_lib.Rtext_editor_get_folded_count.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_get_folded_count.restype = ctypes.c_int
+
+
+def Rtext_editor_get_folded_count(editor):
+    return _lib.Rtext_editor_get_folded_count(editor)
+
+
+_lib.Rtext_editor_get_fold_start.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtext_editor_get_fold_start.restype = ctypes.c_int
+
+
+def Rtext_editor_get_fold_start(editor, line):
+    """The first line of a folded block that holds `line` (the block's
+    own line), or -1 when the line is not hidden by any fold."""
+    return _lib.Rtext_editor_get_fold_start(editor, line)
+
+
+_lib.Rsnippet_add.argtypes = [ctypes.POINTER(RSnippet)]
+_lib.Rsnippet_add.restype = ctypes.c_int
+
+
+def Rsnippet_add(snippet):
+    return _lib.Rsnippet_add(_p(snippet))
+
+
+_lib.Rsnippet_clear.argtypes = []
+_lib.Rsnippet_clear.restype = None
+
+
+def Rsnippet_clear():
+    _lib.Rsnippet_clear()
+
+
+_lib.Rsnippet_get_count.argtypes = []
+_lib.Rsnippet_get_count.restype = ctypes.c_int
+
+
+def Rsnippet_get_count():
+    return _lib.Rsnippet_get_count()
+
+
+_lib.Rsnippet_get_name.argtypes = [ctypes.c_int]
+_lib.Rsnippet_get_name.restype = ctypes.c_char_p
+
+
+def Rsnippet_get_name(index):
+    return _r(_lib.Rsnippet_get_name(index))
+
+
+_lib.Rsnippet_find.argtypes = [ctypes.c_char_p]
+_lib.Rsnippet_find.restype = ctypes.c_int
+
+
+def Rsnippet_find(name):
+    return _lib.Rsnippet_find(_s(name))
+
+
+_lib.Rtext_editor_insert_snippet.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rtext_editor_insert_snippet.restype = ctypes.c_int
+
+
+def Rtext_editor_insert_snippet(editor, name):
+    """Types the snippet at the caret, replacing the word before it
+    when that word is its name. Sets the places; Tab and Shift+Tab walk
+    them, Escape leaves them.
+    Returns: R_FALSE when the editor is read-only or the snippet is unknown."""
+    return _lib.Rtext_editor_insert_snippet(editor, _s(name))
+
+
+_lib.Rtext_editor_snippet_at_caret.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_snippet_at_caret.restype = ctypes.c_int
+
+
+def Rtext_editor_snippet_at_caret(editor):
+    """The snippet whose name is what is being typed before the caret, or -1."""
+    return _lib.Rtext_editor_snippet_at_caret(editor)
+
+
+_lib.Rtext_editor_set_snippet_completion.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtext_editor_set_snippet_completion.restype = None
+
+
+def Rtext_editor_set_snippet_completion(editor, enabled):
+    """R_FALSE stops the editor from offering snippets while typing. On by default."""
+    _lib.Rtext_editor_set_snippet_completion(editor, enabled)
+
+
+_lib.Rtext_editor_is_in_snippet.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_is_in_snippet.restype = ctypes.c_int
+
+
+def Rtext_editor_is_in_snippet(editor):
+    """R_TRUE while Tab and Shift+Tab walk the places of a snippet that was inserted."""
+    return _lib.Rtext_editor_is_in_snippet(editor)
+
+
+_lib.Rtext_editor_set_multi_cursor.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtext_editor_set_multi_cursor.restype = None
+
+
+def Rtext_editor_set_multi_cursor(editor, enabled):
+    """R_TRUE: Ctrl+click adds a caret where it is clicked, and every
+    caret is selected and typed at once (Alt+drag selects a column, and
+    Ctrl+D selects the next occurrence of the selection). Off by default."""
+    _lib.Rtext_editor_set_multi_cursor(editor, enabled)
+
+
+_lib.Rtext_editor_get_multi_cursor.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_get_multi_cursor.restype = ctypes.c_int
+
+
+def Rtext_editor_get_multi_cursor(editor):
+    return _lib.Rtext_editor_get_multi_cursor(editor)
+
+
+_lib.Rtext_editor_get_caret_count.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_get_caret_count.restype = ctypes.c_int
+
+
+def Rtext_editor_get_caret_count(editor):
+    return _lib.Rtext_editor_get_caret_count(editor)
+
+
+_lib.Rtext_editor_get_caret.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
+_lib.Rtext_editor_get_caret.restype = ctypes.c_int
+
+
+def Rtext_editor_get_caret(editor, index):
+    """Where a caret is, by index (0 is the main one, which typing and scrolling follow)."""
+    line_ = ctypes.c_int()
+    column_ = ctypes.c_int()
+    result = _lib.Rtext_editor_get_caret(editor, index, ctypes.byref(line_), ctypes.byref(column_))
+    return (result, line_.value, column_.value)
+
+
+_lib.Rtext_editor_add_caret.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_int]
+_lib.Rtext_editor_add_caret.restype = ctypes.c_int
+
+
+def Rtext_editor_add_caret(editor, line, column):
+    """Adds a caret; the text at each of them is selected. R_FALSE when there are too many (256)."""
+    return _lib.Rtext_editor_add_caret(editor, line, column)
+
+
+_lib.Rtext_editor_clear_carets.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_clear_carets.restype = None
+
+
+def Rtext_editor_clear_carets(editor):
+    _lib.Rtext_editor_clear_carets(editor)
+
+
+_lib.Rtext_editor_select_next_occurrence.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_select_next_occurrence.restype = ctypes.c_int
+
+
+def Rtext_editor_select_next_occurrence(editor):
+    """Selects the next occurrence of the selected text, with a caret of its own. R_FALSE when there is none."""
+    return _lib.Rtext_editor_select_next_occurrence(editor)
+
+
+_lib.Rtext_editor_get_word_count.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_get_word_count.restype = ctypes.c_int
+
+
+def Rtext_editor_get_word_count(editor):
+    """Returns: How many words the text has, as an editor counts them: runs of letters and digits."""
+    return _lib.Rtext_editor_get_word_count(editor)
+
+
+_lib.Rtext_editor_get_character_count.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_get_character_count.restype = ctypes.c_int
+
+
+def Rtext_editor_get_character_count(editor):
+    """Returns: The characters of the text, not the bytes (a UTF-8 code point counts one)."""
+    return _lib.Rtext_editor_get_character_count(editor)
+
+
+_lib.Rtext_editor_get_non_empty_line_count.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_get_non_empty_line_count.restype = ctypes.c_int
+
+
+def Rtext_editor_get_non_empty_line_count(editor):
+    """Returns: How many lines have something besides blanks."""
+    return _lib.Rtext_editor_get_non_empty_line_count(editor)
+
+
+_lib.Rtext_editor_get_current_line.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_get_current_line.restype = ctypes.c_int
+
+
+def Rtext_editor_get_current_line(editor):
+    """Returns: The line that holds the caret, from 1 (for a status bar)."""
+    return _lib.Rtext_editor_get_current_line(editor)
+
+
 _lib.Rtheme_set_token_color.argtypes = [ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float]
 _lib.Rtheme_set_token_color.restype = None
 
@@ -11649,6 +12322,231 @@ def Rdraw_pop_clip_rect(painter):
     _lib.Rdraw_pop_clip_rect(painter)
 
 
+_lib.Rpdf_view_create.argtypes = []
+_lib.Rpdf_view_create.restype = ctypes.c_uint32
+
+
+def Rpdf_view_create():
+    """Creates an empty view. Give it its pages with Rpdf_view_set_page_count."""
+    return _lib.Rpdf_view_create()
+
+
+_lib.Rpdf_view_set_page_count.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rpdf_view_set_page_count.restype = None
+
+
+def Rpdf_view_set_page_count(pdf_view, count):
+    """Number of pages of the document. 0 pages clears the view: the
+    bitmaps are forgotten. New pages take the size of US Letter until
+    Rpdf_view_set_page_size gives them their own."""
+    _lib.Rpdf_view_set_page_count(pdf_view, count)
+
+
+_lib.Rpdf_view_get_page_count.argtypes = [ctypes.c_uint32]
+_lib.Rpdf_view_get_page_count.restype = ctypes.c_int
+
+
+def Rpdf_view_get_page_count(pdf_view):
+    return _lib.Rpdf_view_get_page_count(pdf_view)
+
+
+_lib.Rpdf_view_set_page_size.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_float, ctypes.c_float]
+_lib.Rpdf_view_set_page_size.restype = None
+
+
+def Rpdf_view_set_page_size(pdf_view, page, width, height):
+    _lib.Rpdf_view_set_page_size(pdf_view, page, width, height)
+
+
+_lib.Rpdf_view_get_page_size.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float)]
+_lib.Rpdf_view_get_page_size.restype = None
+
+
+def Rpdf_view_get_page_size(pdf_view, page):
+    """The size of a page in points (1/72 inch); 0, 0 when there is no such page."""
+    width_ = ctypes.c_float()
+    height_ = ctypes.c_float()
+    _lib.Rpdf_view_get_page_size(pdf_view, page, ctypes.byref(width_), ctypes.byref(height_))
+    return (width_.value, height_.value)
+
+
+_lib.Rpdf_view_set_page_bitmap.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32, ctypes.c_float]
+_lib.Rpdf_view_set_page_bitmap.restype = None
+
+
+def Rpdf_view_set_page_bitmap(pdf_view, page, texture, scale):
+    """The RGBA pixels of a page, rendered at `scale` pixels per point
+    (2 fills a page drawn at zoom 2). The view keeps the texture and frees
+    nothing. R_INVALID_ID forgets the bitmap of that page, which then shows
+    as a placeholder again."""
+    _lib.Rpdf_view_set_page_bitmap(pdf_view, page, texture, scale)
+
+
+_lib.Rpdf_view_has_page_bitmap.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rpdf_view_has_page_bitmap.restype = ctypes.c_int
+
+
+def Rpdf_view_has_page_bitmap(pdf_view, page):
+    """Returns: R_TRUE when that page has a bitmap."""
+    return _lib.Rpdf_view_has_page_bitmap(pdf_view, page)
+
+
+_lib.Rpdf_view_set_page.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rpdf_view_set_page.restype = None
+
+
+def Rpdf_view_set_page(pdf_view, page):
+    """The current page, from 0: it becomes the first one in view.
+    Rpdf_view_set_page scrolls so that the page starts at the top."""
+    _lib.Rpdf_view_set_page(pdf_view, page)
+
+
+_lib.Rpdf_view_get_page.argtypes = [ctypes.c_uint32]
+_lib.Rpdf_view_get_page.restype = ctypes.c_int
+
+
+def Rpdf_view_get_page(pdf_view):
+    return _lib.Rpdf_view_get_page(pdf_view)
+
+
+_lib.Rpdf_view_get_visible_first_page.argtypes = [ctypes.c_uint32]
+_lib.Rpdf_view_get_visible_first_page.restype = ctypes.c_int
+
+
+def Rpdf_view_get_visible_first_page(pdf_view):
+    """Returns: The first and the last page whose rectangle is in the view, or 0 when there is none."""
+    return _lib.Rpdf_view_get_visible_first_page(pdf_view)
+
+
+_lib.Rpdf_view_get_visible_last_page.argtypes = [ctypes.c_uint32]
+_lib.Rpdf_view_get_visible_last_page.restype = ctypes.c_int
+
+
+def Rpdf_view_get_visible_last_page(pdf_view):
+    return _lib.Rpdf_view_get_visible_last_page(pdf_view)
+
+
+_lib.Rpdf_view_set_zoom.argtypes = [ctypes.c_uint32, ctypes.c_float]
+_lib.Rpdf_view_set_zoom.restype = None
+
+
+def Rpdf_view_set_zoom(pdf_view, zoom):
+    """Zoom in pixels per point: 1 = 72 dpi (0.05 .. 16, clamped).
+    Setting it leaves the fit mode. Rpdf_view_set_fit sets a mode that
+    keeps following the size of the view."""
+    _lib.Rpdf_view_set_zoom(pdf_view, zoom)
+
+
+_lib.Rpdf_view_get_zoom.argtypes = [ctypes.c_uint32]
+_lib.Rpdf_view_get_zoom.restype = ctypes.c_float
+
+
+def Rpdf_view_get_zoom(pdf_view):
+    return _lib.Rpdf_view_get_zoom(pdf_view)
+
+
+_lib.Rpdf_view_set_fit.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rpdf_view_set_fit.restype = None
+
+
+def Rpdf_view_set_fit(pdf_view, fit):
+    _lib.Rpdf_view_set_fit(pdf_view, int(fit))
+
+
+_lib.Rpdf_view_get_fit.argtypes = [ctypes.c_uint32]
+_lib.Rpdf_view_get_fit.restype = ctypes.c_int
+
+
+def Rpdf_view_get_fit(pdf_view):
+    return _e(RPdfFit, _lib.Rpdf_view_get_fit(pdf_view))
+
+
+_lib.Rpdf_view_set_page_gap.argtypes = [ctypes.c_uint32, ctypes.c_float]
+_lib.Rpdf_view_set_page_gap.restype = None
+
+
+def Rpdf_view_set_page_gap(pdf_view, gap):
+    """Space between pages, and around them, in points (default 16)."""
+    _lib.Rpdf_view_set_page_gap(pdf_view, gap)
+
+
+_lib.Rpdf_view_get_page_gap.argtypes = [ctypes.c_uint32]
+_lib.Rpdf_view_get_page_gap.restype = ctypes.c_float
+
+
+def Rpdf_view_get_page_gap(pdf_view):
+    return _lib.Rpdf_view_get_page_gap(pdf_view)
+
+
+_lib.Rpdf_view_set_page_needed_callback.argtypes = [ctypes.c_uint32, RPdfPageNeededCallback, ctypes.c_void_p]
+_lib.Rpdf_view_set_page_needed_callback.restype = None
+
+
+def Rpdf_view_set_page_needed_callback(pdf_view, callback, user_data=None):
+    _lib.Rpdf_view_set_page_needed_callback(pdf_view, _callback(RPdfPageNeededCallback, _adapt_RPdfPageNeededCallback, callback), user_data)
+
+
+_lib.Rpdf_view_get_page_at.argtypes = [ctypes.c_uint32, ctypes.c_float, ctypes.c_float, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float)]
+_lib.Rpdf_view_get_page_at.restype = ctypes.c_int
+
+
+def Rpdf_view_get_page_at(pdf_view, x, y):
+    """The page and the point of the page (in points, from its top-left
+    corner) under a point of the widget, for SyncTeX inverse search.
+    Returns: R_FALSE outside a page."""
+    page_ = ctypes.c_int()
+    page_x_ = ctypes.c_float()
+    page_y_ = ctypes.c_float()
+    result = _lib.Rpdf_view_get_page_at(pdf_view, x, y, ctypes.byref(page_), ctypes.byref(page_x_), ctypes.byref(page_y_))
+    return (result, page_.value, page_x_.value, page_y_.value)
+
+
+_lib.Rpdf_view_set_page_clicked_callback.argtypes = [ctypes.c_uint32, RPdfPageClickedCallback, ctypes.c_void_p]
+_lib.Rpdf_view_set_page_clicked_callback.restype = None
+
+
+def Rpdf_view_set_page_clicked_callback(pdf_view, callback, user_data=None):
+    _lib.Rpdf_view_set_page_clicked_callback(pdf_view, _callback(RPdfPageClickedCallback, _adapt_RPdfPageClickedCallback, callback), user_data)
+
+
+_lib.Rpdf_view_invalidate_page.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rpdf_view_invalidate_page.restype = None
+
+
+def Rpdf_view_invalidate_page(pdf_view, page):
+    """Asks for one page to be painted again, once its bitmap has arrived."""
+    _lib.Rpdf_view_invalidate_page(pdf_view, page)
+
+
+_lib.Rpdf_view_scroll_to_position.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_float, ctypes.c_float]
+_lib.Rpdf_view_scroll_to_position.restype = None
+
+
+def Rpdf_view_scroll_to_position(pdf_view, page, page_x, page_y):
+    """Scrolls so that a point of a page is in the middle of the view (SyncTeX forward search)."""
+    _lib.Rpdf_view_scroll_to_position(pdf_view, page, page_x, page_y)
+
+
+_lib.Rpdf_view_set_highlight.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float]
+_lib.Rpdf_view_set_highlight.restype = None
+
+
+def Rpdf_view_set_highlight(pdf_view, page, x, y, width, height):
+    """A rectangle of a page to show, in points from its top-left corner
+    (where the source of what is selected is, in a forward search): one per
+    view. A negative page removes it."""
+    _lib.Rpdf_view_set_highlight(pdf_view, page, x, y, width, height)
+
+
+_lib.Rpdf_view_set_background_color.argtypes = [ctypes.c_uint32, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float]
+_lib.Rpdf_view_set_background_color.restype = None
+
+
+def Rpdf_view_set_background_color(pdf_view, r, g, b, a):
+    """Color behind the pages; the theme's by default (Rwidget_clear_color brings it back)."""
+    _lib.Rpdf_view_set_background_color(pdf_view, r, g, b, a)
+
+
 _lib.Rshader_create.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_uint32]
 _lib.Rshader_create.restype = ctypes.c_uint32
 
@@ -12549,6 +13447,491 @@ _lib.Rlocale_format_number.restype = ctypes.c_char_p
 def Rlocale_format_number(value, decimals):
     """A number written in the conventions of the language: decimal separator and digit grouping ("1 234,5" in French)."""
     return _r(_lib.Rlocale_format_number(value, decimals))
+
+
+_lib.Rsettings_create.argtypes = [ctypes.c_char_p]
+_lib.Rsettings_create.restype = ctypes.c_uint32
+
+
+def Rsettings_create(path):
+    """Opens a settings store.
+    path File the store is read from and written to, or NULL for a
+    store that lives in memory only. The file is read when it exists.
+    Returns: The store, or R_INVALID_ID (after reporting an error)."""
+    return _lib.Rsettings_create(_s(path))
+
+
+_lib.Rsettings_destroy.argtypes = [ctypes.c_uint32]
+_lib.Rsettings_destroy.restype = None
+
+
+def Rsettings_destroy(settings):
+    """Frees a store. Rshutdown frees the stores the application left alive."""
+    _lib.Rsettings_destroy(settings)
+
+
+_lib.Rsettings_load.argtypes = [ctypes.c_uint32]
+_lib.Rsettings_load.restype = ctypes.c_int
+
+
+def Rsettings_load(settings):
+    """Reads the file of the store again, replacing everything it holds.
+    Returns: R_TRUE when the file existed and was valid JSON. When it did not,
+    the store is emptied (a store with no file stays empty)."""
+    return _lib.Rsettings_load(settings)
+
+
+_lib.Rsettings_save.argtypes = [ctypes.c_uint32]
+_lib.Rsettings_save.restype = ctypes.c_int
+
+
+def Rsettings_save(settings):
+    """Writes the store to its file: a temporary file next to it, then a
+    rename, so a reader never sees half a file. The folder is created when
+    it does not exist.
+    Returns: R_FALSE when the store has no file or when the file could not be
+    written."""
+    return _lib.Rsettings_save(settings)
+
+
+_lib.Rsettings_get_path.argtypes = [ctypes.c_uint32]
+_lib.Rsettings_get_path.restype = ctypes.c_char_p
+
+
+def Rsettings_get_path(settings):
+    """Path of the file of the store ("" for a store that lives in memory only)."""
+    return _r(_lib.Rsettings_get_path(settings))
+
+
+_lib.Rsettings_get_type.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rsettings_get_type.restype = ctypes.c_int
+
+
+def Rsettings_get_type(settings, key):
+    """Returns: What the key holds, R_SETTING_NONE when it is not there (or holds an object, an array or null)."""
+    return _e(RSettingType, _lib.Rsettings_get_type(settings, _s(key)))
+
+
+_lib.Rsettings_get_bool.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
+_lib.Rsettings_get_bool.restype = ctypes.c_int
+
+
+def Rsettings_get_bool(settings, key, fallback):
+    """The value of the key; `fallback` when it is missing or holds another type."""
+    return _lib.Rsettings_get_bool(settings, _s(key), fallback)
+
+
+_lib.Rsettings_get_int.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
+_lib.Rsettings_get_int.restype = ctypes.c_int
+
+
+def Rsettings_get_int(settings, key, fallback):
+    return _lib.Rsettings_get_int(settings, _s(key), fallback)
+
+
+_lib.Rsettings_get_number.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_double]
+_lib.Rsettings_get_number.restype = ctypes.c_double
+
+
+def Rsettings_get_number(settings, key, fallback):
+    return _lib.Rsettings_get_number(settings, _s(key), fallback)
+
+
+_lib.Rsettings_get_text.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_char_p]
+_lib.Rsettings_get_text.restype = ctypes.c_char_p
+
+
+def Rsettings_get_text(settings, key, fallback):
+    """Valid until the store changes. NULL only when the key is missing and `fallback` is NULL."""
+    return _r(_lib.Rsettings_get_text(settings, _s(key), _s(fallback)))
+
+
+_lib.Rsettings_set_bool.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
+_lib.Rsettings_set_bool.restype = None
+
+
+def Rsettings_set_bool(settings, key, value):
+    _lib.Rsettings_set_bool(settings, _s(key), value)
+
+
+_lib.Rsettings_set_int.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
+_lib.Rsettings_set_int.restype = None
+
+
+def Rsettings_set_int(settings, key, value):
+    _lib.Rsettings_set_int(settings, _s(key), value)
+
+
+_lib.Rsettings_set_number.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_double]
+_lib.Rsettings_set_number.restype = None
+
+
+def Rsettings_set_number(settings, key, value):
+    _lib.Rsettings_set_number(settings, _s(key), value)
+
+
+_lib.Rsettings_set_text.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_char_p]
+_lib.Rsettings_set_text.restype = None
+
+
+def Rsettings_set_text(settings, key, value):
+    """An empty text stores ""; a NULL text removes the key."""
+    _lib.Rsettings_set_text(settings, _s(key), _s(value))
+
+
+_lib.Rsettings_remove.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rsettings_remove.restype = ctypes.c_int
+
+
+def Rsettings_remove(settings, key):
+    """Removes a key. R_TRUE when it was there."""
+    return _lib.Rsettings_remove(settings, _s(key))
+
+
+_lib.Rsettings_has.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rsettings_has.restype = ctypes.c_int
+
+
+def Rsettings_has(settings, key):
+    """R_TRUE when the key is there, whatever it holds."""
+    return _lib.Rsettings_has(settings, _s(key))
+
+
+_lib.Rsettings_get_json.argtypes = [ctypes.c_uint32]
+_lib.Rsettings_get_json.restype = ctypes.c_char_p
+
+
+def Rsettings_get_json(settings):
+    """The whole document as text, for a project file that holds arrays
+    and objects too. Valid until the store changes or the function is called
+    again. "" when the store is empty."""
+    return _r(_lib.Rsettings_get_json(settings))
+
+
+_lib.Rsettings_set_json.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rsettings_set_json.restype = ctypes.c_int
+
+
+def Rsettings_set_json(settings, json):
+    """Replaces the whole document.
+    Returns: R_FALSE when `json` is not valid JSON: the store is not changed."""
+    return _lib.Rsettings_set_json(settings, _s(json))
+
+
+_lib.Rsettings_get_key_count.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rsettings_get_key_count.restype = ctypes.c_int
+
+
+def Rsettings_get_key_count(settings, prefix):
+    """How many keys the object at `prefix` has ("" for the whole
+    document), or how many items the array at `prefix` has. 0 when there is
+    nothing there."""
+    return _lib.Rsettings_get_key_count(settings, _s(prefix))
+
+
+_lib.Rsettings_get_key.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.c_int]
+_lib.Rsettings_get_key.restype = ctypes.c_char_p
+
+
+def Rsettings_get_key(settings, prefix, index):
+    """The index-th key of the object at `prefix` ("" for the whole
+    document), or the index-th item of an array as "0", "1"... NULL when
+    `index` is out of range. Valid until the next call of this function
+    that returns a key."""
+    return _r(_lib.Rsettings_get_key(settings, _s(prefix), index))
+
+
+_lib.Rsettings_get_config_folder.argtypes = [ctypes.c_char_p]
+_lib.Rsettings_get_config_folder.restype = ctypes.c_char_p
+
+
+def Rsettings_get_config_folder(app_name):
+    """The folder where the settings of the application live:
+    ~/.config/<app> ($XDG_CONFIG_HOME honoured),
+    ~/Library/Application Support/<app> on macOS,
+    %APPDATA%\\<app> on Windows. Created when it does not exist; valid until
+    the next call from the same thread."""
+    return _r(_lib.Rsettings_get_config_folder(_s(app_name)))
+
+
+_lib.Rsettings_get_cache_folder.argtypes = [ctypes.c_char_p]
+_lib.Rsettings_get_cache_folder.restype = ctypes.c_char_p
+
+
+def Rsettings_get_cache_folder(app_name):
+    """The folder for what can be made again (caches), by the same rules."""
+    return _r(_lib.Rsettings_get_cache_folder(_s(app_name)))
+
+
+_lib.Rsettings_open.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+_lib.Rsettings_open.restype = ctypes.c_uint32
+
+
+def Rsettings_open(app_name, file_name):
+    """Opens <config folder>/<file_name> for the application, creating
+    the folder when needed. Rsettings_open("myeditor", "sessions.json").
+    Returns: R_INVALID_ID when the folder or the file cannot be opened."""
+    return _lib.Rsettings_open(_s(app_name), _s(file_name))
+
+
+_lib.Rprocess_start.argtypes = [ctypes.POINTER(RProcessDesc), RProcessOutputCallback, RProcessExitCallback, ctypes.c_void_p]
+_lib.Rprocess_start.restype = ctypes.c_uint32
+
+
+def Rprocess_start(desc, output, exited, user_data=None):
+    """Starts a program and returns at once.
+    desc What to run. Copied: the strings may be freed after the call.
+    output Called for every piece of output, or NULL. May be called
+    several times, and not at all for a program that prints nothing.
+    exited Called once when the program ends, or NULL.
+    user_data Passed to both callbacks.
+    Returns: The process, or R_INVALID_ID when it could not even be started
+    (an empty description, no Raven). A program that does not exist is
+    reported through `exited` with failed set, not here."""
+    return _lib.Rprocess_start(_p(desc), _callback(RProcessOutputCallback, _adapt_RProcessOutputCallback, output), _callback(RProcessExitCallback, _adapt_RProcessExitCallback, exited), user_data)
+
+
+_lib.Rprocess_is_running.argtypes = [ctypes.c_uint32]
+_lib.Rprocess_is_running.restype = ctypes.c_int
+
+
+def Rprocess_is_running(process):
+    """Returns: R_TRUE while the program runs."""
+    return _lib.Rprocess_is_running(process)
+
+
+_lib.Rprocess_get_exit_code.argtypes = [ctypes.c_uint32]
+_lib.Rprocess_get_exit_code.restype = ctypes.c_int
+
+
+def Rprocess_get_exit_code(process):
+    """Returns: The exit code, or -1 while the program runs and when it could not be run."""
+    return _lib.Rprocess_get_exit_code(process)
+
+
+_lib.Rprocess_get_state.argtypes = [ctypes.c_uint32]
+_lib.Rprocess_get_state.restype = ctypes.c_int
+
+
+def Rprocess_get_state(process):
+    """Returns: R_PROCESS_RUNNING, R_PROCESS_EXITED or R_PROCESS_FAILED."""
+    return _e(RProcessState, _lib.Rprocess_get_state(process))
+
+
+_lib.Rprocess_cancel.argtypes = [ctypes.c_uint32]
+_lib.Rprocess_cancel.restype = None
+
+
+def Rprocess_cancel(process):
+    """Asks the program to stop (SIGTERM on POSIX, TerminateProcess on
+    Windows), waits a moment, then kills it, and returns once its output has
+    been read to the end. The exit callback still runs, during a frame.
+    Does nothing when the program already ended."""
+    _lib.Rprocess_cancel(process)
+
+
+_lib.Rprocess_wait.argtypes = [ctypes.c_uint32]
+_lib.Rprocess_wait.restype = None
+
+
+def Rprocess_wait(process):
+    """Blocks until the program ends. For tests and shutdown: never call
+    it from the UI thread of a running application."""
+    _lib.Rprocess_wait(process)
+
+
+_lib.Rprocess_is_available.argtypes = [ctypes.c_char_p]
+_lib.Rprocess_is_available.restype = ctypes.c_int
+
+
+def Rprocess_is_available(program):
+    """Returns: R_TRUE when the program is found (PATH lookup only)."""
+    return _lib.Rprocess_is_available(_s(program))
+
+
+_lib.Rprocess_find.argtypes = [ctypes.c_char_p]
+_lib.Rprocess_find.restype = ctypes.c_char_p
+
+
+def Rprocess_find(program):
+    """Finds a program without running it.
+    Returns: An absolute path (in a buffer of the library, valid until the
+    next call), or NULL when it is nowhere. A program with a separator in it
+    is checked as given. The usual install folders of TeX are searched too,
+    after PATH: /Library/TeX/texbin, /usr/local/texlive/ * /bin/ *,
+    /opt/homebrew/bin, C:\\\\texlive\\\\ * \\\\bin\\\\windows and the bin folder of
+    MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%)."""
+    return _r(_lib.Rprocess_find(_s(program)))
+
+
+_lib.Rprocess_run.argtypes = [ctypes.POINTER(RProcessDesc), ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t]
+_lib.Rprocess_run.restype = ctypes.c_void_p
+
+
+def Rprocess_run(desc, max_bytes):
+    """Runs a program to the end and collects what it printed.
+    Blocking: for setup work (asking git for the state of a file, a tool for
+    its version), never for a build. The window is frozen meanwhile.
+    output Receives the output, NUL-terminated, allocated with the
+    allocator of Raven: free it with Rmemory_free. May be NULL.
+    size Receives its length, without the NUL. May be NULL.
+    max_bytes Longest output kept; 0 selects 4 MiB. What comes after
+    is read and dropped, so the program never blocks on a full pipe. A cut
+    never leaves half of a UTF-8 character.
+    Returns: The exit code, or -1 when the program could not be run."""
+    size_ = ctypes.c_size_t()
+    address = _lib.Rprocess_run(_p(desc), ctypes.byref(size_), max_bytes)
+    if not address:
+        return None
+    data = ctypes.string_at(address, size_.value)
+    _lib.Rmemory_free(address)
+    return data
+
+
+_lib.Rlatex_log_parse.argtypes = [ctypes.c_char_p, ctypes.c_size_t]
+_lib.Rlatex_log_parse.restype = ctypes.c_uint32
+
+
+def Rlatex_log_parse(log):
+    """Parses the text of a log.
+    log The bytes of the file; need not be NUL-terminated.
+    size Their number.
+    Returns: A list of messages, or R_INVALID_ID when the log has nothing
+    to report (a log with no diagnostic parses to no list at all)."""
+    log = _s(log)
+    return _lib.Rlatex_log_parse(log, len(log) if log is not None else 0)
+
+
+_lib.Rlatex_log_parse_file.argtypes = [ctypes.c_char_p]
+_lib.Rlatex_log_parse_file.restype = ctypes.c_uint32
+
+
+def Rlatex_log_parse_file(path):
+    """Reads a log file and parses it. R_INVALID_ID when it cannot be read or has nothing to report."""
+    return _lib.Rlatex_log_parse_file(_s(path))
+
+
+_lib.Rlatex_log_get_count.argtypes = [ctypes.c_uint32]
+_lib.Rlatex_log_get_count.restype = ctypes.c_int
+
+
+def Rlatex_log_get_count(log):
+    """Returns: How many messages the list holds, or 0 for R_INVALID_ID."""
+    return _lib.Rlatex_log_get_count(log)
+
+
+_lib.Rlatex_log_get_message.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.POINTER(RLogMessage)]
+_lib.Rlatex_log_get_message.restype = ctypes.c_int
+
+
+def Rlatex_log_get_message(log, index, message):
+    """One message of the list.
+    message Receives the fields; its strings are owned by the list.
+    Returns: R_FALSE when `index` is out of range."""
+    return _lib.Rlatex_log_get_message(log, index, _p(message))
+
+
+_lib.Rlatex_log_destroy.argtypes = [ctypes.c_uint32]
+_lib.Rlatex_log_destroy.restype = None
+
+
+def Rlatex_log_destroy(log):
+    """Frees a list given by Rlatex_log_parse. Its messages are no longer valid."""
+    _lib.Rlatex_log_destroy(log)
+
+
+_lib.Rlatex_build_start.argtypes = [ctypes.POINTER(RLatexBuildDesc), RProcessOutputCallback, RLatexBuildFinishedCallback, ctypes.c_void_p]
+_lib.Rlatex_build_start.restype = ctypes.c_uint32
+
+
+def Rlatex_build_start(desc, output, finished, user_data=None):
+    """Starts a build and returns at once.
+    desc What to build; copied.
+    output Called with what the tool prints, as it prints it, on the
+    UI thread. May be NULL.
+    user_data Passed to `output`.
+    Returns: The build, or R_INVALID_ID when it cannot start (no root file).
+    When the process ends the log is parsed, then `finished` runs."""
+    return _lib.Rlatex_build_start(_p(desc), _callback(RProcessOutputCallback, _adapt_RProcessOutputCallback, output), _callback(RLatexBuildFinishedCallback, _adapt_RLatexBuildFinishedCallback, finished), user_data)
+
+
+_lib.Rlatex_build_is_running.argtypes = [ctypes.c_uint32]
+_lib.Rlatex_build_is_running.restype = ctypes.c_int
+
+
+def Rlatex_build_is_running(build):
+    """Returns: R_TRUE while the tool runs."""
+    return _lib.Rlatex_build_is_running(build)
+
+
+_lib.Rlatex_build_cancel.argtypes = [ctypes.c_uint32]
+_lib.Rlatex_build_cancel.restype = None
+
+
+def Rlatex_build_cancel(build):
+    """Stops the tool and waits for it. The messages parsed so far stay."""
+    _lib.Rlatex_build_cancel(build)
+
+
+_lib.Rlatex_build_get_messages.argtypes = [ctypes.c_uint32]
+_lib.Rlatex_build_get_messages.restype = ctypes.c_uint32
+
+
+def Rlatex_build_get_messages(build):
+    """The diagnostics of the last finished build, as a list that
+    belongs to the build: read it with Rlatex_log_get_message, and do not
+    destroy it. Valid until the build runs again or is destroyed.
+    Returns: The list, or R_INVALID_ID before the first build ends."""
+    return _lib.Rlatex_build_get_messages(build)
+
+
+_lib.Rlatex_build_get_pdf_path.argtypes = [ctypes.c_uint32]
+_lib.Rlatex_build_get_pdf_path.restype = ctypes.c_char_p
+
+
+def Rlatex_build_get_pdf_path(build):
+    """Returns: The .pdf the build wrote, or NULL when it wrote none. Owned by the build."""
+    return _r(_lib.Rlatex_build_get_pdf_path(build))
+
+
+_lib.Rlatex_build_get_log_path.argtypes = [ctypes.c_uint32]
+_lib.Rlatex_build_get_log_path.restype = ctypes.c_char_p
+
+
+def Rlatex_build_get_log_path(build):
+    """Returns: The .log the build read, or NULL. Owned by the build."""
+    return _r(_lib.Rlatex_build_get_log_path(build))
+
+
+_lib.Rlatex_build_succeeded.argtypes = [ctypes.c_uint32]
+_lib.Rlatex_build_succeeded.restype = ctypes.c_int
+
+
+def Rlatex_build_succeeded(build):
+    """Returns: R_TRUE when the build ended and its tool exited with 0."""
+    return _lib.Rlatex_build_succeeded(build)
+
+
+_lib.Rlatex_build_destroy.argtypes = [ctypes.c_uint32]
+_lib.Rlatex_build_destroy.restype = None
+
+
+def Rlatex_build_destroy(build):
+    """Cancels the build if it still runs, frees it and its messages.
+    The handle is invalid afterwards."""
+    _lib.Rlatex_build_destroy(build)
+
+
+_lib.Rlatex_find_tool.argtypes = [ctypes.c_char_p]
+_lib.Rlatex_find_tool.restype = ctypes.c_char_p
+
+
+def Rlatex_find_tool(name):
+    """Finds a tool of the trade: "latexmk", "pdflatex", "xelatex",
+    "lualatex", "synctex", "bibtex", "biber", "hunspell", "git"...
+    Same lookup as Rprocess_find, which it forwards to.
+    Returns: An absolute path valid until the next call, or NULL."""
+    return _r(_lib.Rlatex_find_tool(_s(name)))
 
 
 _lib.Raccessibility_set_text_scale.argtypes = [ctypes.c_float]

@@ -242,11 +242,13 @@ static void rvn_table_reveal(rvn_widget_t* widget, int row) {
 	rvn_widget_invalidate_paint(widget);
 }
 
-static void rvn_table_select(rvn_widget_t* widget, int index, int notify) {
+/* `by_mouse`: the highlight is put where the pointer clicked, without gliding (a click, not a key). */
+static void rvn_table_select(rvn_widget_t* widget, int index, int notify, int by_mouse) {
 	rvn_table_t* table = (rvn_table_t*)widget;
 	if (index < -1 || index >= rvn_table_count(table)) index = -1;
 	if (table->selected == index) return;
 	table->selected = index;
+	if (by_mouse) rvn_selection_snap(&table->select_y);
 	rvn_table_reveal(widget, index);
 	rvn_widget_invalidate_paint(widget);
 	if (notify && table->selection_callback) table->selection_callback(widget->id, index, table->selection_user);
@@ -426,8 +428,8 @@ static void rvn_table_paint(rvn_widget_t* widget, RPainter* painter) {
 		}
 	}
 	if (table->selected >= 0) {
-		/* the selection slides from the previous row to the new one; a table without the focus shows it dimmer */
-		float y = rvn_paint_spring(painter, &table->select_y, row * (float)table->selected, R_MOTION_SNAPPY);
+		/* the selection of the keyboard glides when Rset_selection_animation is on (a click puts it there at once); a table without the focus shows it dimmer */
+		float y = rvn_paint_selection_spring(painter, &table->select_y, row * (float)table->selected);
 		rvn_rect_t line = rvn_rect(geometry.body.x, geometry.body.y + y - offset, geometry.body.w, row);
 		if (platform) {
 			rvn_platform_paint_item(painter, widget, rvn_platform_row(widget, line),
@@ -551,7 +553,7 @@ static int rvn_table_event(rvn_widget_t* widget, const REvent* event) {
 			}
 			row = rvn_table_row_at(widget, event->local_x, event->local_y);
 			if (row >= 0) {
-				rvn_table_select(widget, row, R_TRUE);
+				rvn_table_select(widget, row, R_TRUE, R_TRUE);
 				if (event->clicks == 2 && rvn_widget_alive(widget)) rvn_table_activate(widget);
 			}
 			return R_TRUE;
@@ -634,7 +636,7 @@ static int rvn_table_event(rvn_widget_t* widget, const REvent* event) {
 				default:
 					return R_FALSE;
 			}
-			rvn_table_select(widget, rvn_clampi(row, 0, count - 1), R_TRUE);
+			rvn_table_select(widget, rvn_clampi(row, 0, count - 1), R_TRUE, R_FALSE);
 			return R_TRUE;
 		default:
 			return R_FALSE;
@@ -755,7 +757,7 @@ static int rvn_table_set_attribute(rvn_widget_t* widget, const char* name, const
 	}
 	if (RVN_ATTR("Selected")) {
 		if (!rvn_parse_int(value, &number)) return R_FALSE;
-		rvn_table_select(widget, number, R_FALSE);
+		rvn_table_select(widget, number, R_FALSE, R_FALSE);
 		return R_TRUE;
 	}
 	if (RVN_ATTR("SortColumn")) {
@@ -999,7 +1001,7 @@ void Rtable_set_virtual_rows(Rid id, int count, RTableCellTextCallback callback,
 
 void Rtable_set_selected(Rid id, int row) {
 	RVN_WIDGET_VOID(widget, id, R_WIDGET_TABLE);
-	rvn_table_select(widget, row, R_FALSE);
+	rvn_table_select(widget, row, R_FALSE, R_FALSE);
 }
 
 int Rtable_get_selected(Rid id) {

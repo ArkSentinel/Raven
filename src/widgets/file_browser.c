@@ -715,8 +715,9 @@ static void rvn_fb_reveal(rvn_widget_t* widget, int row) {
 	rvn_widget_invalidate_paint(widget);
 }
 
-/* Moves the cursor to a row: alone, added to the selection (toggle), or as the end of a range. */
-static void rvn_fb_select_row(rvn_widget_t* widget, int row, int toggle, int range) {
+/* Moves the cursor to a row: alone, added to the selection (toggle), or as the end of a range.
+ * `by_mouse` puts the highlight where the pointer clicked instead of gliding there. */
+static void rvn_fb_select_row(rvn_widget_t* widget, int row, int toggle, int range, int by_mouse) {
 	rvn_file_browser_t* browser = (rvn_file_browser_t*)widget;
 	int i;
 	if (row < 0 || row >= (int)browser->entry_count) return;
@@ -733,6 +734,7 @@ static void rvn_fb_select_row(rvn_widget_t* widget, int row, int toggle, int ran
 		browser->anchor = row;
 	}
 	browser->cursor = row;
+	if (by_mouse) rvn_selection_snap(&browser->select_y);
 	rvn_fb_reveal(widget, row);
 	rvn_fb_notify_selection(widget);
 }
@@ -860,8 +862,8 @@ static void rvn_file_browser_paint(rvn_widget_t* widget, RPainter* painter) {
 	first = rvn_maxi((int)floorf(offset / row), 0);
 	last = rvn_mini((int)browser->entry_count, first + (int)(browser->bar.viewport / row) + 3);
 	if (browser->cursor >= 0 && browser->selected[browser->cursor]) {
-		/* the row under the cursor glides from where it was */
-		float y = rvn_paint_spring(painter, &browser->select_y, row * (float)browser->cursor, R_MOTION_SNAPPY);
+		/* the row under the cursor glides from where it was, when Rset_selection_animation asks for it */
+		float y = rvn_paint_selection_spring(painter, &browser->select_y, row * (float)browser->cursor);
 		rvn_paint_row(painter, widget, rvn_rect(list.x + 1.0f, top + y - offset, content_width, row),
 			focused ? selection : rvn_color_mix(selection, rvn_widget_color(widget, R_COLOR_INPUT), 0.45f));
 	} else {
@@ -920,7 +922,7 @@ static int rvn_fb_type(rvn_widget_t* widget, uint32_t codepoint) {
 	browser->typed_time = now;
 	for (i = 0; i < (int)browser->entry_count; i++) {
 		if (rvn_strnicmp(browser->entries[i].name, browser->typed, length) == 0) {
-			rvn_fb_select_row(widget, i, R_FALSE, R_FALSE);
+			rvn_fb_select_row(widget, i, R_FALSE, R_FALSE, R_FALSE);
 			break;
 		}
 	}
@@ -985,7 +987,7 @@ static int rvn_file_browser_event(rvn_widget_t* widget, const REvent* event) {
 				if (event->clicks == 2) {
 					rvn_fb_activate(widget, row);
 				} else {
-					rvn_fb_select_row(widget, row, (event->modifiers & R_MOD_CTRL) != 0, (event->modifiers & R_MOD_SHIFT) != 0);
+					rvn_fb_select_row(widget, row, (event->modifiers & R_MOD_CTRL) != 0, (event->modifiers & R_MOD_SHIFT) != 0, R_TRUE);
 				}
 			}
 			return R_TRUE;
@@ -1056,7 +1058,7 @@ static int rvn_file_browser_event(rvn_widget_t* widget, const REvent* event) {
 				default:
 					return R_FALSE;
 			}
-			if (count > 0) rvn_fb_select_row(widget, rvn_clampi(row, 0, count - 1), R_FALSE, (event->modifiers & R_MOD_SHIFT) != 0);
+			if (count > 0) rvn_fb_select_row(widget, rvn_clampi(row, 0, count - 1), R_FALSE, (event->modifiers & R_MOD_SHIFT) != 0, R_FALSE);
 			return R_TRUE;
 		default:
 			return R_FALSE;
@@ -1288,7 +1290,7 @@ void Rfile_browser_select(Rid id, const char* name) {
 	if (!name) return;
 	for (i = 0; i < browser->entry_count; i++) {
 		if (strcmp(browser->entries[i].name, name) == 0) {
-			rvn_fb_select_row(widget, (int)i, R_FALSE, R_FALSE);
+			rvn_fb_select_row(widget, (int)i, R_FALSE, R_FALSE, R_FALSE);
 			return;
 		}
 	}

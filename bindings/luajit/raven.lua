@@ -441,6 +441,7 @@ typedef enum RWidgetType {
 	R_WIDGET_RATING = 560,
 	R_WIDGET_PAGINATION = 561,
 	R_WIDGET_PLOT = 562,
+	R_WIDGET_PDF_VIEW = 563,
 } RWidgetType;
 typedef enum RHAlign {
 	R_HALIGN_FILL = 576,
@@ -575,6 +576,8 @@ typedef enum RLanguageFlags {
 	R_LANGUAGE_IGNORE_CASE = 32,
 	R_LANGUAGE_EMBEDS = 64,
 	R_LANGUAGE_FORMATTED_TEXT = 128,
+	R_LANGUAGE_TEX = 256,
+	R_LANGUAGE_BIBTEX = 512,
 } RLanguageFlags;
 typedef enum RToken {
 	R_TOKEN_TEXT = 928,
@@ -598,6 +601,12 @@ typedef enum RMarkerKind {
 	R_MARKER_WARNING = 849,
 	R_MARKER_INFO = 850,
 } RMarkerKind;
+typedef enum RSearchFlags {
+	R_SEARCH_NONE = 0,
+	R_SEARCH_REGEX = 1,
+	R_SEARCH_IGNORE_CASE = 2,
+	R_SEARCH_WHOLE_WORD = 4,
+} RSearchFlags;
 typedef enum RHeaderButtons {
 	R_HEADER_NO_BUTTONS = 0,
 	R_HEADER_CLOSE = 1,
@@ -678,6 +687,11 @@ typedef enum RMotion {
 	R_MOTION_BOUNCY = 802,
 	R_MOTION_WOBBLY = 803,
 } RMotion;
+typedef enum RPdfFit {
+	R_PDF_FIT_NONE = 1392,
+	R_PDF_FIT_WIDTH = 1393,
+	R_PDF_FIT_PAGE = 1394,
+} RPdfFit;
 typedef enum REffect {
 	R_EFFECT_AURORA = 2880,
 	R_EFFECT_SHIMMER = 2881,
@@ -703,6 +717,29 @@ typedef enum RXmlValueType {
 	R_XML_NUMBERS = 967,
 	R_XML_LIST = 968,
 } RXmlValueType;
+typedef enum RSettingType {
+	R_SETTING_NONE = 768,
+	R_SETTING_BOOL = 769,
+	R_SETTING_INT = 770,
+	R_SETTING_NUMBER = 771,
+	R_SETTING_TEXT = 772,
+} RSettingType;
+typedef enum RProcessState {
+	R_PROCESS_RUNNING = 1024,
+	R_PROCESS_EXITED = 1025,
+	R_PROCESS_FAILED = 1026,
+} RProcessState;
+typedef enum RLogKind {
+	R_LOG_ERROR = 1280,
+	R_LOG_WARNING = 1281,
+	R_LOG_INFO = 1282,
+	R_LOG_BAD_BOX = 1283,
+} RLogKind;
+typedef enum RLatexEngine {
+	R_LATEX_PDFLATEX = 0,
+	R_LATEX_XELATEX = 1,
+	R_LATEX_LUALATEX = 2,
+} RLatexEngine;
 typedef enum RColorFilter {
 	R_COLOR_FILTER_NONE = 1856,
 	R_COLOR_FILTER_PROTANOPIA = 1857,
@@ -767,6 +804,7 @@ typedef struct RPenEvent RPenEvent;
 typedef struct RGestureEvent RGestureEvent;
 typedef struct RTileItem RTileItem;
 typedef struct RLanguageDesc RLanguageDesc;
+typedef struct RSnippet RSnippet;
 typedef struct RJumpTask RJumpTask;
 typedef struct RFileFilter RFileFilter;
 typedef struct RFileDialogDesc RFileDialogDesc;
@@ -775,6 +813,9 @@ typedef struct RSpring RSpring;
 typedef struct RShaderLook RShaderLook;
 typedef struct RXmlError RXmlError;
 typedef struct RXmlAttributeInfo RXmlAttributeInfo;
+typedef struct RProcessDesc RProcessDesc;
+typedef struct RLogMessage RLogMessage;
+typedef struct RLatexBuildDesc RLatexBuildDesc;
 typedef struct RAccessibilitySettings RAccessibilitySettings;
 typedef struct RHostPlatformDesc RHostPlatformDesc;
 typedef void (*RFrameCallback)(double delta_seconds, void* user_data);
@@ -847,10 +888,15 @@ typedef void (*RViewportDrawCallback)(const RViewportDrawInfo* info, void* user_
 typedef void (*RViewportResizeCallback)(Rid viewport, int width, int height, void* user_data);
 typedef void (*RPaintCallback)(Rid widget, RPainter* painter, float width, float height, void* user_data);
 typedef void (*RMeasureCallback)(Rid widget, float* width, float* height, void* user_data);
+typedef void (*RPdfPageNeededCallback)(Rid pdf_view, int page, float scale, void* user_data);
+typedef void (*RPdfPageClickedCallback)(Rid pdf_view, int page, float page_x, float page_y, void* user_data);
 typedef void (*RXmlReloadCallback)(const char* path, int ok, void* user_data);
 typedef Rid (*RXmlTagCreateCallback)(const char* tag, void* user_data);
 typedef int (*RXmlTagAttributeCallback)(Rid widget, const char* name, const char* value, void* user_data);
 typedef void (*RLocaleChangedCallback)(const char* language, void* user_data);
+typedef void (*RProcessOutputCallback)(const char* text, size_t length, int is_stderr, void* user_data);
+typedef void (*RProcessExitCallback)(int exit_code, int failed, void* user_data);
+typedef void (*RLatexBuildFinishedCallback)(Rid build, int success, void* user_data);
 struct RInitDesc {
 	RBackend backend;
 	const char* app_name;
@@ -1018,6 +1064,13 @@ struct RLanguageDesc {
 	const char* annotation;
 	Ruint flags;
 	const char* script_language;
+	const char* word_characters;
+};
+struct RSnippet {
+	const char* name;
+	const char* description;
+	const char* prefix;
+	const char* body;
 };
 struct RJumpTask {
 	const char* title;
@@ -1085,6 +1138,30 @@ struct RXmlAttributeInfo {
 	const char* group;
 	const char* description;
 };
+struct RProcessDesc {
+	const char* program;
+	const char* const* arguments;
+	int argument_count;
+	const char* working_directory;
+	int merge_stderr;
+};
+struct RLogMessage {
+	RLogKind kind;
+	const char* file;
+	int line;
+	const char* message;
+	const char* context;
+};
+struct RLatexBuildDesc {
+	const char* root_file;
+	RLatexEngine engine;
+	int use_latexmk;
+	int shell_escape;
+	const char* command_override;
+	const char* const* arguments_override;
+	int arguments_override_count;
+	const char* log_path_override;
+};
 struct RAccessibilitySettings {
 	float text_scale;
 	int high_contrast;
@@ -1127,6 +1204,8 @@ int Rget_vsync(void);
 float Rget_ui_scale(void);
 void Rset_animations_enabled(int enabled);
 int Rget_animations_enabled(void);
+void Rset_selection_animation(int enabled);
+int Rget_selection_animation(void);
 void Rset_animation_speed(float speed);
 float Rget_animation_speed(void);
 void Rset_animation_time_step(double seconds);
@@ -1236,6 +1315,11 @@ const char* Rdrag_get_data(Rid window);
 void Rdrag_cancel(Rid window);
 void Rwindow_register_shortcut(Rid window, RKey key, Ruint modifiers, const char* action);
 void Rwindow_unregister_shortcut(Rid window, RKey key, Ruint modifiers);
+int Rwindow_set_keybindings(Rid window, const char* bindings);
+int Rkey_from_name(const char* name, RKey* key, Ruint* modifiers);
+const char* Rkey_to_name(RKey key, Ruint modifiers);
+int Rwindow_get_shortcut_count(Rid window);
+int Rwindow_get_shortcut(Rid window, int index, RKey* key, Ruint* modifiers, const char** action);
 void Rtouch_get_settings(RTouchSettings* settings);
 void Rtouch_set_settings(const RTouchSettings* settings);
 void Rtouch_get_default_settings(RTouchSettings* settings);
@@ -1285,6 +1369,9 @@ int Rtheme_use(const char* name);
 const char* Rtheme_get_name(void);
 int Rtheme_get_count(void);
 const char* Rtheme_get_name_at(int index);
+int Rtheme_remember_for(Rid settings, const char* project_path, const char* theme_name);
+const char* Rtheme_get_remembered(Rid settings, const char* project_path);
+int Rtheme_apply_remembered(Rid settings, const char* project_path);
 int Rtheme_save(const char* path, const char* name);
 Rid Rfont_create(const char* data, size_t data_size);
 Rid Rfont_create_from_file(const char* path);
@@ -1777,6 +1864,46 @@ void Rtext_editor_set_auto_pairs(Rid editor, int enabled);
 void Rtext_editor_add_marker(Rid editor, int line, int from_column, int to_column, RMarkerKind kind, const char* message);
 void Rtext_editor_clear_markers(Rid editor);
 int Rtext_editor_get_marker_count(Rid editor);
+const char* Rtext_editor_get_marker(Rid editor, int index, int* line, int* from_column, int* to_column, RMarkerKind* kind);
+void Rtext_editor_clear_markers_of_line(Rid editor, int line);
+int Rtext_editor_set_search(Rid editor, const char* pattern, Ruint flags);
+const char* Rtext_editor_get_search(Rid editor);
+Ruint Rtext_editor_get_search_flags(Rid editor);
+int Rtext_editor_find_next(Rid editor, int backwards);
+int Rtext_editor_count_matches(Rid editor);
+int Rtext_editor_get_match(Rid editor, int index, int* from_line, int* from_column, int* to_line, int* to_column);
+int Rtext_editor_replace(Rid editor, const char* text);
+int Rtext_editor_replace_all(Rid editor, const char* text);
+const char* Rtext_editor_expand_replacement(const char* replacement, const char* text, int from, int to, const int* groups, int group_count);
+void Rtext_editor_set_folding(Rid editor, int enabled);
+int Rtext_editor_get_folding(Rid editor);
+int Rtext_editor_toggle_fold(Rid editor);
+int Rtext_editor_fold_line(Rid editor, int line);
+int Rtext_editor_unfold_line(Rid editor, int line);
+int Rtext_editor_is_folded(Rid editor, int line);
+void Rtext_editor_unfold_all(Rid editor);
+int Rtext_editor_get_folded_count(Rid editor);
+int Rtext_editor_get_fold_start(Rid editor, int line);
+int Rsnippet_add(const RSnippet* snippet);
+void Rsnippet_clear(void);
+int Rsnippet_get_count(void);
+const char* Rsnippet_get_name(int index);
+int Rsnippet_find(const char* name);
+int Rtext_editor_insert_snippet(Rid editor, const char* name);
+int Rtext_editor_snippet_at_caret(Rid editor);
+void Rtext_editor_set_snippet_completion(Rid editor, int enabled);
+int Rtext_editor_is_in_snippet(Rid editor);
+void Rtext_editor_set_multi_cursor(Rid editor, int enabled);
+int Rtext_editor_get_multi_cursor(Rid editor);
+int Rtext_editor_get_caret_count(Rid editor);
+int Rtext_editor_get_caret(Rid editor, int index, int* line, int* column);
+int Rtext_editor_add_caret(Rid editor, int line, int column);
+void Rtext_editor_clear_carets(Rid editor);
+int Rtext_editor_select_next_occurrence(Rid editor);
+int Rtext_editor_get_word_count(Rid editor);
+int Rtext_editor_get_character_count(Rid editor);
+int Rtext_editor_get_non_empty_line_count(Rid editor);
+int Rtext_editor_get_current_line(Rid editor);
 void Rtheme_set_token_color(RToken token, float r, float g, float b, float a);
 void Rtheme_get_token_color(RToken token, float* r, float* g, float* b, float* a);
 void Rtheme_clear_token_colors(void);
@@ -2081,6 +2208,30 @@ void Rspring_kick(RSpring* spring, float velocity);
 void Rspring_set(RSpring* spring, float value);
 void Rdraw_push_clip_rect(RPainter* painter, float x, float y, float width, float height);
 void Rdraw_pop_clip_rect(RPainter* painter);
+Rid Rpdf_view_create(void);
+void Rpdf_view_set_page_count(Rid pdf_view, int count);
+int Rpdf_view_get_page_count(Rid pdf_view);
+void Rpdf_view_set_page_size(Rid pdf_view, int page, float width, float height);
+void Rpdf_view_get_page_size(Rid pdf_view, int page, float* width, float* height);
+void Rpdf_view_set_page_bitmap(Rid pdf_view, int page, Rid texture, float scale);
+int Rpdf_view_has_page_bitmap(Rid pdf_view, int page);
+void Rpdf_view_set_page(Rid pdf_view, int page);
+int Rpdf_view_get_page(Rid pdf_view);
+int Rpdf_view_get_visible_first_page(Rid pdf_view);
+int Rpdf_view_get_visible_last_page(Rid pdf_view);
+void Rpdf_view_set_zoom(Rid pdf_view, float zoom);
+float Rpdf_view_get_zoom(Rid pdf_view);
+void Rpdf_view_set_fit(Rid pdf_view, RPdfFit fit);
+RPdfFit Rpdf_view_get_fit(Rid pdf_view);
+void Rpdf_view_set_page_gap(Rid pdf_view, float gap);
+float Rpdf_view_get_page_gap(Rid pdf_view);
+void Rpdf_view_set_page_needed_callback(Rid pdf_view, RPdfPageNeededCallback callback, void* user_data);
+int Rpdf_view_get_page_at(Rid pdf_view, float x, float y, int* page, float* page_x, float* page_y);
+void Rpdf_view_set_page_clicked_callback(Rid pdf_view, RPdfPageClickedCallback callback, void* user_data);
+void Rpdf_view_invalidate_page(Rid pdf_view, int page);
+void Rpdf_view_scroll_to_position(Rid pdf_view, int page, float page_x, float page_y);
+void Rpdf_view_set_highlight(Rid pdf_view, int page, float x, float y, float width, float height);
+void Rpdf_view_set_background_color(Rid pdf_view, float r, float g, float b, float a);
 Rid Rshader_create(const void* spirv, size_t size, Ruint flags);
 Rid Rshader_create_from_file(const char* path, Ruint flags);
 void Rshader_destroy(Rid shader);
@@ -2177,6 +2328,52 @@ const char* Rtr_format(const char* key, const char* const* args, int arg_count);
 const char* Rtr_plural(const char* key, int count);
 void Rwidget_set_text_key(Rid widget, const char* attribute, const char* key);
 const char* Rlocale_format_number(double value, int decimals);
+Rid Rsettings_create(const char* path);
+void Rsettings_destroy(Rid settings);
+int Rsettings_load(Rid settings);
+int Rsettings_save(Rid settings);
+const char* Rsettings_get_path(Rid settings);
+RSettingType Rsettings_get_type(Rid settings, const char* key);
+int Rsettings_get_bool(Rid settings, const char* key, int fallback);
+int Rsettings_get_int(Rid settings, const char* key, int fallback);
+double Rsettings_get_number(Rid settings, const char* key, double fallback);
+const char* Rsettings_get_text(Rid settings, const char* key, const char* fallback);
+void Rsettings_set_bool(Rid settings, const char* key, int value);
+void Rsettings_set_int(Rid settings, const char* key, int value);
+void Rsettings_set_number(Rid settings, const char* key, double value);
+void Rsettings_set_text(Rid settings, const char* key, const char* value);
+int Rsettings_remove(Rid settings, const char* key);
+int Rsettings_has(Rid settings, const char* key);
+const char* Rsettings_get_json(Rid settings);
+int Rsettings_set_json(Rid settings, const char* json);
+int Rsettings_get_key_count(Rid settings, const char* prefix);
+const char* Rsettings_get_key(Rid settings, const char* prefix, int index);
+const char* Rsettings_get_config_folder(const char* app_name);
+const char* Rsettings_get_cache_folder(const char* app_name);
+Rid Rsettings_open(const char* app_name, const char* file_name);
+Rid Rprocess_start(const RProcessDesc* desc, RProcessOutputCallback output, RProcessExitCallback exited, void* user_data);
+int Rprocess_is_running(Rid process);
+int Rprocess_get_exit_code(Rid process);
+RProcessState Rprocess_get_state(Rid process);
+void Rprocess_cancel(Rid process);
+void Rprocess_wait(Rid process);
+int Rprocess_is_available(const char* program);
+const char* Rprocess_find(const char* program);
+char* Rprocess_run(const RProcessDesc* desc, size_t* size, size_t max_bytes);
+Rid Rlatex_log_parse(const char* log, size_t size);
+Rid Rlatex_log_parse_file(const char* path);
+int Rlatex_log_get_count(Rid log);
+int Rlatex_log_get_message(Rid log, int index, RLogMessage* message);
+void Rlatex_log_destroy(Rid log);
+Rid Rlatex_build_start(const RLatexBuildDesc* desc, RProcessOutputCallback output, RLatexBuildFinishedCallback finished, void* user_data);
+int Rlatex_build_is_running(Rid build);
+void Rlatex_build_cancel(Rid build);
+Rid Rlatex_build_get_messages(Rid build);
+const char* Rlatex_build_get_pdf_path(Rid build);
+const char* Rlatex_build_get_log_path(Rid build);
+int Rlatex_build_succeeded(Rid build);
+void Rlatex_build_destroy(Rid build);
+const char* Rlatex_find_tool(const char* name);
 void Raccessibility_set_text_scale(float scale);
 float Raccessibility_get_text_scale(void);
 void Raccessibility_set_high_contrast(int enabled);

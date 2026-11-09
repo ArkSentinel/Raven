@@ -614,6 +614,48 @@ extern "C" {
 	RAVEN_API void Rwindow_register_shortcut(Rid window, RKey key, Ruint modifiers, const char* action);
 	RAVEN_API void Rwindow_unregister_shortcut(Rid window, RKey key, Ruint modifiers);
 
+	/**
+	 * @brief Registers a whole set of shortcuts from a text, as a preferences
+	 * window writes it:
+	 *
+	 *     "Ctrl+S save | Ctrl+Shift+S save_as | F5 build | Ctrl+K,Ctrl+B clear"
+	 *
+	 * Entries are separated by '|'. The key or the keys come first, then the
+	 * action name (Raction_bind). An entry whose action is empty unbinds that
+	 * key. Several chords separated by commas are a sequence: only the first
+	 * chord is bound for now (the others are parsed and ignored).
+	 * @return How many shortcuts were registered (unbound ones included).
+	 */
+	RAVEN_API int Rwindow_set_keybindings(Rid window, const char* bindings);
+
+	/**
+	 * @brief Parses one key name to a key and its modifiers: "Ctrl+S",
+	 * "Ctrl+Shift+S", "F5", "PageUp", "Escape", "A". The modifiers are
+	 * Ctrl, Shift, Alt and Super (Cmd and Win are accepted for Super).
+	 * @return R_FALSE when the name is not a key.
+	 */
+	RAVEN_API int Rkey_from_name(const char* name, RKey* key, Ruint* modifiers);
+
+	/**
+	 * @brief The reverse, for showing a shortcut: "Ctrl+S". Super is written
+	 * "Super" (the menus show it too).
+	 * @return NULL when the key has no name. Valid until the next call.
+	 */
+	RAVEN_API const char* Rkey_to_name(RKey key, Ruint modifiers);
+
+	/** @brief How many shortcuts the window has (Rwindow_register_shortcut). */
+	RAVEN_API int Rwindow_get_shortcut_count(Rid window);
+
+	/**
+	 * @brief Reads the index-th shortcut of the window, for a preferences
+	 * window that lists them.
+	 * @param action Receives the name of the action; may be NULL. Valid until
+	 * the next call of this function (or until the window changes its
+	 * shortcuts).
+	 * @return R_FALSE when `index` is out of range.
+	 */
+	RAVEN_API int Rwindow_get_shortcut(Rid window, int index, RKey* key, Ruint* modifiers, const char** action);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

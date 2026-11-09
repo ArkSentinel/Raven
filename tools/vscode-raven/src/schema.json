@@ -1692,7 +1692,9 @@
 						"JSON",
 						"CSS",
 						"XML",
-						"HTML"
+						"HTML",
+						"LaTeX",
+						"BibTeX"
 					],
 					"description": "Colors the text and helps while typing."
 				},
@@ -1734,7 +1736,22 @@
 				{
 					"name": "AutoPairs",
 					"kind": "bool",
-					"description": "Closes brackets and quotes, indents after them."
+					"description": "Closes brackets and quotes, indents after them (\\begin{...} with its \\end)."
+				},
+				{
+					"name": "Folding",
+					"kind": "bool",
+					"description": "The blocks (braces, \\begin ... \\end, tags, titles) can be folded with the arrow of the margin (on)."
+				},
+				{
+					"name": "Snippets",
+					"kind": "bool",
+					"description": "The editor proposes the snippets while typing (on)."
+				},
+				{
+					"name": "MultiCursor",
+					"kind": "bool",
+					"description": "Ctrl+click adds a caret, and all of them are typed at once (off)."
 				},
 				{
 					"name": "TextSize",
@@ -2475,6 +2492,49 @@
 			"accepted": []
 		},
 		{
+			"name": "PdfView",
+			"description": "The pages of a document, rendered by the application as textures: zoom, scroll, page navigation, SyncTeX callbacks.",
+			"children": "none",
+			"attributes": [
+				{
+					"name": "PageCount",
+					"kind": "number",
+					"description": "Number of pages of the document."
+				},
+				{
+					"name": "Page",
+					"kind": "number",
+					"description": "The current page, from 0: it is scrolled to the top of the view."
+				},
+				{
+					"name": "Zoom",
+					"kind": "number",
+					"description": "Pixels per point: 1 = 72 dpi (0.05 .. 16)."
+				},
+				{
+					"name": "Fit",
+					"kind": "choice",
+					"choices": [
+						"None",
+						"Width",
+						"Page"
+					],
+					"description": "The zoom follows the size of the view, on the width or on the whole page."
+				},
+				{
+					"name": "PageGap",
+					"kind": "number",
+					"description": "Space between the pages and around them, in points."
+				},
+				{
+					"name": "OnChanged",
+					"kind": "action",
+					"description": "Action fired when the user clicks a page."
+				}
+			],
+			"accepted": []
+		},
+		{
 			"name": "Plot",
 			"description": "Curves of X / Y data: Series elements (Name, Color, Line, LineWidth, Marker, MarkerSize, MarkerFilled, Step, Fill, XAxis, Axis, MaxPoints, X and Y lists or Points \"x,y x,y\"), Scatter elements, and DragLine elements (Axis, Value, Label, Color).",
 			"children": "none",
@@ -2785,6 +2845,8 @@
 		"Snackbar": "Toast",
 		"Chart": "Plot",
 		"LinePlot": "Plot",
-		"XYPlot": "Plot"
+		"XYPlot": "Plot",
+		"Pdf": "PdfView",
+		"PdfPreview": "PdfView"
 	}
 }

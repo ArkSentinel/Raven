@@ -242,6 +242,7 @@ static RAccessibleRole rvn_a11y_default_role(const rvn_widget_t* widget) {
 		case R_WIDGET_RATING: return R_ROLE_SLIDER;
 		case R_WIDGET_PAGINATION: return R_ROLE_GROUP;
 		case R_WIDGET_PLOT: return R_ROLE_IMAGE;
+		case R_WIDGET_PDF_VIEW: return R_ROLE_DOCUMENT;
 		case R_WIDGET_TILE_VIEW: return R_ROLE_LIST;
 		case R_WIDGET_TREE_VIEW: return R_ROLE_TREE;
 		case R_WIDGET_MENU_BAR: return R_ROLE_MENU_BAR;

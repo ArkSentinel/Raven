@@ -132,6 +132,10 @@ typedef enum RWidgetType{
 	/** Curves of X / Y data: legend, line styles, markers, log axes, a second X and Y axis, pan and zoom. */
 	R_WIDGET_PLOT,
 
+	/* ---- raven_pdf.h ---- */
+	/** The pages of a document, rendered by the application: zoom, scroll, page navigation. */
+	R_WIDGET_PDF_VIEW,
+
 	R_WIDGET_LAST_
 }RWidgetType;
 
