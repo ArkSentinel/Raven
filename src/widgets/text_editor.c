@@ -1270,6 +1270,35 @@ static void rvn_text_editor_paint(rvn_widget_t* widget, RPainter* painter) {
 		float caret_y = rvn_paint_spring(painter, &ed->caret_y, point.y, R_MOTION_SNAPPY);
 		int moving = rvn_spring_moving(&ed->caret_x, point.x) || rvn_spring_moving(&ed->caret_y, point.y);
 		rvn_rect_t caret = rvn_rect(m.area.x + x - scroll_x - 1.0f, m.area.y + caret_y - scroll_y + 1.0f, 2.0f, m.line_height - 2.0f);
+		/* the other carets, each with what it has selected, and a caret of its own */
+		if (ed->caret_count > 0) {
+			uint32_t which;
+			for (which = 0; which < ed->caret_count; which++) {
+				rvn_ed_pos_t at = ed->carets[which].caret, anchor = ed->carets[which].anchor;
+				rvn_vec2_t other = rvn_ed_pos_point(ed, &m, at);
+				rvn_paint_box(painter, rvn_rect(m.area.x + other.x - scroll_x - 1.0f, m.area.y + other.y - scroll_y + 1.0f,
+					2.0f, m.line_height - 2.0f), 1.0f, rvn_widget_color(widget, R_COLOR_ACCENT_HOVERED), 0.0f, 0);
+				if (rvn_ed_pos_cmp(anchor, at) != 0) {
+					rvn_ed_pos_t from = rvn_ed_pos_cmp(anchor, at) < 0 ? anchor : at;
+					rvn_ed_pos_t to = rvn_ed_pos_cmp(anchor, at) < 0 ? at : anchor;
+					int other_line;
+					for (other_line = from.line; other_line <= to.line && other_line < (int)ed->line_count; other_line++) {
+						int line_row, begin, end, a, b;
+						float x0, x1, top;
+						line_row = rvn_ed_row_of(ed, other_line, other_line == from.line ? from.column : 0);
+						rvn_ed_row_range(ed, other_line, line_row, &begin, &end);
+						a = other_line == from.line ? rvn_maxi(from.column, begin) : begin;
+						b = other_line == to.line ? rvn_mini(to.column, end) : end;
+						if (b <= a) continue;
+						x0 = rvn_ed_advance(&m, ed->lines[other_line].text, begin, a, 0.0f);
+						x1 = rvn_ed_advance(&m, ed->lines[other_line].text, a, b, x0);
+						top = m.area.y + (float)rvn_ed_first_row(ed, other_line) * m.line_height - scroll_y;
+						rvn_paint_box(painter, rvn_rect(m.area.x + x0 - scroll_x, top, x1 - x0, m.line_height), 3.0f,
+							rvn_color_fade(selection, 0.75f), 0.0f, 0);
+					}
+				}
+			}
+		}
 		rvn_text_input_rect(widget, painter, caret);
 		if (moving || fmod(rvn_clock_seconds() - ed->blink_start, 1.0) < 0.55) {
 			rvn_paint_box(painter, caret,
@@ -1361,6 +1390,119 @@ static void rvn_ed_copy(const rvn_text_editor_t* ed) {
 /* Replaces the selection by a text, as one step of the history. */
 static void rvn_ed_insert(rvn_text_editor_t* ed, const char* text, int length) {
 	ed->caret = ed->anchor = rvn_ed_replace(ed, rvn_ed_sel_min(ed), rvn_ed_sel_max(ed), text, length, R_TRUE);
+}
+
+/** Where a position is in the text, as a byte offset from its start (lines are joined by '\n'). */
+static int rvn_ed_offset(const rvn_text_editor_t* ed, rvn_ed_pos_t pos) {
+	int line, offset = 0;
+	for (line = 0; line < pos.line && line < (int)ed->line_count; line++) offset += ed->lines[line].length + 1;
+	return offset + pos.column;
+}
+
+/** The position of a byte offset in the text, after an edit. */
+static rvn_ed_pos_t rvn_ed_pos_of(const rvn_text_editor_t* ed, int offset) {
+	int line = 0;
+	while (line < (int)ed->line_count - 1 && offset > ed->lines[line].length) {
+		offset -= ed->lines[line].length + 1;
+		line++;
+	}
+	return rvn_ed_pos(line, rvn_clampi(offset, 0, ed->lines[line].length));
+}
+
+/* One caret and what it is about, while several are edited at once. */
+typedef struct rvn_ed_caret_edit_t {
+	/** The start and the end of the edit, as offsets: the selection of the caret, or the character it erases. */
+	int from;
+	int to;
+	/** The caret, by index: 0 is the main one. */
+	int index;
+} rvn_ed_caret_edit_t;
+
+/* From the end of the text to its start: an edit never moves the bytes still to be edited. */
+static int rvn_ed_caret_edit_compare(const void* a, const void* b) {
+	const rvn_ed_caret_edit_t* x = (const rvn_ed_caret_edit_t*)a;
+	const rvn_ed_caret_edit_t* y = (const rvn_ed_caret_edit_t*)b;
+	return x->from == y->from ? (x->to == y->to ? 0 : (x->to < y->to ? 1 : -1)) : (x->from < y->from ? 1 : -1);
+}
+
+/*
+ * Types (or deletes) at every caret at once, as one step of the history.
+ * mode 0: typing, which replaces what each caret has selected; 1: backspace;
+ * 2: delete.
+ *
+ * The carets are edited from the end of the text to its start, so an edit
+ * leaves the bytes that come before it where they are. Each caret remembers
+ * where its own edit ended, as an offset, and the offsets that come after an
+ * edit move with it: the places are exact even when an edit adds lines.
+ */
+static void rvn_ed_multi_edit(rvn_text_editor_t* ed, const char* text, int length, int mode) {
+	uint32_t total = 1 + ed->caret_count, i, k;
+	rvn_ed_caret_edit_t* edits = (rvn_ed_caret_edit_t*)rvn_alloc(sizeof(rvn_ed_caret_edit_t) * total);
+	int* after = (int*)rvn_alloc(sizeof(int) * total);
+
+	for (i = 0; i < total; i++) {
+		rvn_ed_pos_t caret = i == 0 ? ed->caret : ed->carets[i - 1].caret;
+		rvn_ed_pos_t anchor = i == 0 ? ed->anchor : ed->carets[i - 1].anchor;
+		rvn_ed_pos_t from = rvn_ed_pos_cmp(anchor, caret) <= 0 ? anchor : caret;
+		rvn_ed_pos_t to = rvn_ed_pos_cmp(anchor, caret) <= 0 ? caret : anchor;
+		rvn_ed_caret_edit_t* edit = &edits[i];
+		if (mode == 1 && rvn_ed_pos_cmp(from, to) == 0) from = rvn_ed_char_left(ed, from);
+		if (mode == 2 && rvn_ed_pos_cmp(from, to) == 0) to = rvn_ed_char_right(ed, to);
+		edit->from = rvn_ed_offset(ed, from);
+		edit->to = rvn_ed_offset(ed, to);
+		edit->index = (int)i;
+		after[i] = edit->from;
+	}
+	qsort(edits, total, sizeof(rvn_ed_caret_edit_t), rvn_ed_caret_edit_compare);
+
+	rvn_ed_break_typing(ed);
+	for (i = 0; i < total; i++) {
+		rvn_ed_caret_edit_t* edit = &edits[i];
+		uint32_t slot = (uint32_t)edit->index;
+		int delta;
+		/* (two carets on the same place, or one inside the selection of another, are edited once) */
+		if (i > 0) {
+			const rvn_ed_caret_edit_t* previous = &edits[i - 1];
+			if (edit->from == previous->from && edit->to == previous->to) continue;
+			if (edit->to > previous->from) continue;
+		}
+		/* (where the edit ended, as an offset in the text as it is now) */
+		after[slot] = rvn_ed_offset(ed, rvn_ed_replace(ed, rvn_ed_pos_of(ed, edit->from), rvn_ed_pos_of(ed, edit->to),
+			text, length, R_TRUE));
+		delta = length - (edit->to - edit->from);
+		/* (every other caret that lies after this edit moves with what it added or removed:
+		   the ones still to be edited, which come before it in the text, and the ones already
+		   edited, which come after it) */
+		for (k = 0; k < total; k++) {
+			uint32_t other = (uint32_t)edits[k].index;
+			if (other == slot) continue;
+			if (after[other] > edit->from) after[other] += delta;
+		}
+	}
+	rvn_ed_break_typing(ed);
+
+	{
+		rvn_ed_pos_t caret = rvn_ed_pos_of(ed, after[0]);
+		ed->caret = ed->anchor = caret;
+		for (k = 0; k < ed->caret_count; k++) {
+			rvn_ed_pos_t place = rvn_ed_pos_of(ed, after[k + 1]);
+			ed->carets[k].caret = ed->carets[k].anchor = place;
+		}
+	}
+	/* (a caret that came to rest on another one is one caret) */
+	for (k = 0; k < ed->caret_count; ) {
+		uint32_t other;
+		int same = R_FALSE;
+		if (rvn_ed_pos_cmp(ed->carets[k].caret, ed->caret) == 0) same = R_TRUE;
+		for (other = 0; !same && other < ed->caret_count; other++) {
+			if (other != k && rvn_ed_pos_cmp(ed->carets[k].caret, ed->carets[other].caret) == 0) same = R_TRUE;
+		}
+		if (same) ed->carets[k] = ed->carets[--ed->caret_count];
+		else k++;
+	}
+	rvn_free(edits);
+	rvn_free(after);
+	rvn_ed_caret_moved(ed, R_FALSE);
 }
 
 static int rvn_ed_delete_selection(rvn_text_editor_t* ed) {
@@ -3106,6 +3248,11 @@ static int rvn_ed_key(rvn_widget_t* widget, const REvent* event) {
 		case R_KEY_BACKSPACE:
 		case R_KEY_DELETE:
 			if (ed->read_only) return R_TRUE;
+			if (ed->multi_cursor && ed->caret_count > 0) {
+				rvn_ed_multi_edit(ed, "", 0, event->key == R_KEY_BACKSPACE ? 1 : 2);
+				changed = R_TRUE;
+				break;
+			}
 			if (!rvn_ed_has_selection(ed)) {
 				if (event->key == R_KEY_BACKSPACE) ed->anchor = command ? rvn_ed_word_left(ed, ed->caret) : rvn_ed_char_left(ed, ed->caret);
 				else ed->anchor = command ? rvn_ed_word_right(ed, ed->caret) : rvn_ed_char_right(ed, ed->caret);
@@ -3242,8 +3389,14 @@ static int rvn_text_editor_event(rvn_widget_t* widget, const REvent* event) {
 			uint32_t version = ed->version;
 			if (!(widget->flags & RVN_WF_FOCUSED) || ed->read_only) return R_FALSE;
 			if (event->codepoint < 32 || event->codepoint == 127) return R_FALSE;
-			rvn_ed_type(ed, event->codepoint);
-			rvn_ed_caret_moved(ed, R_FALSE);
+			if (ed->multi_cursor && ed->caret_count > 0) {
+				/* (every caret types the character, at once) */
+				char encoded[4];
+				rvn_ed_multi_edit(ed, encoded, rvn_utf8_encode(event->codepoint, encoded), 0);
+			} else {
+				rvn_ed_type(ed, event->codepoint);
+				rvn_ed_caret_moved(ed, R_FALSE);
+			}
 			if (ed->version != version) rvn_ed_notify(widget);
 			if (!rvn_widget_get(id)) return R_TRUE;
 			/* each character of a word narrows the proposals down; anything else ends the word */

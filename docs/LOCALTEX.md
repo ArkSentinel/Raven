@@ -9,6 +9,9 @@ Every entry says what was added, where, and how to use it. Upstream Raven is
 untouched apart from the merge that brought the fork level with `main`
 (Plot, #53); a diff against upstream is meant to stay readable.
 
+For the exact list of what was implemented, with function counts and test
+results, see [IMPLEMENTADO.md](IMPLEMENTADO.md).
+
 ## Build
 
 ```sh

@@ -327,6 +327,28 @@ static void test_carets(void) {
 	CHECK(Rtext_editor_get_caret(g_editor, 1, &line, &column));
 	CHECK(line == 0 && column == 8);
 	CHECK(Rtext_editor_get_caret(g_editor, 2, &line, &column) == R_FALSE);
+
+	/* typing writes at every caret at once, as one step of the history */
+	Rtext_editor_set_text(g_editor, "one two one");
+	Rtext_editor_set_cursor(g_editor, 0, 3);
+	Rtext_editor_clear_carets(g_editor);
+	CHECK(Rtext_editor_add_caret(g_editor, 0, 11));
+	type("X");
+	CHECK_STR(Rtext_editor_get_text(g_editor), "oneX two oneX");
+	/* (each caret is after the character it typed) */
+	CHECK(Rtext_editor_get_caret(g_editor, 1, &line, &column));
+	CHECK(line == 0 && column == 13);
+	key(R_KEY_BACKSPACE, 0);
+	CHECK_STR(Rtext_editor_get_text(g_editor), "one two one");
+
+	/* each caret erased the character before it: the "e" of "one" and the "o" of "two" */
+	Rtext_editor_set_text(g_editor, "one two three");
+	Rtext_editor_set_cursor(g_editor, 0, 3);
+	Rtext_editor_clear_carets(g_editor);
+	Rtext_editor_add_caret(g_editor, 0, 7);
+	key(R_KEY_BACKSPACE, 0);
+	CHECK_STR(Rtext_editor_get_text(g_editor), "on tw three");
+	CHECK(Rtext_editor_get_caret_count(g_editor) == 2);
 	Rtext_editor_clear_carets(g_editor);
 	CHECK(Rtext_editor_get_caret_count(g_editor) == 1);
 	Rwindow_destroy(g_window);
