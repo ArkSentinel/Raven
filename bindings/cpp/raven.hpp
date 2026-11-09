@@ -70,6 +70,17 @@ inline void* keep(std::uint64_t object, std::uint32_t slot, Function function) {
 	return entry.callable;
 }
 
+/// The callable of a factory (Rtimer_create, Rprocess_start...): every
+/// call gets a block of its own, since the factory has no handle to name
+/// it by and two calls must not share one callable.
+template <typename Function>
+inline void* keep_new(Function function) {
+	auto* callable = new Function(std::move(function));
+	kept()[(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(callable)) << 16) ^ 0xFFFF]
+		= Kept{ callable, [](void* pointer) { delete static_cast<Function*>(pointer); } };
+	return callable;
+}
+
 inline std::uint64_t key_of(const char* text) {
 	std::uint64_t hash = 1469598103934665603ull;
 	for (; text && *text; text++) hash = (hash ^ static_cast<unsigned char>(*text)) * 1099511628211ull;
@@ -1361,9 +1372,12 @@ public:
 	/// Replaces every match, as one step of the history. Returns: How many were replaced.
 	int replace_all(const char* text) const { return Rtext_editor_replace_all(id_, text); }
 
-	/// The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
-	/// (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
-	/// with `matches`, the groups of the regex that matched. Pure: no editor needed.
+	/// The text of a replacement where `$1` .. `$9` and `${1}` (a group
+	/// of the regex), `${1:text}` (the group, or that text when the group did
+	/// not take part), `$&` (the whole match), `$$` (a dollar), `\n`, `\t` and
+	/// `\\` mean something; `groups` holds the pairs of the match, as
+	/// `Rtext_editor_get_match` gives them, `group_count` how many are.
+	/// Pure: no editor needed.
 	/// Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
 	static const char* expand_replacement(const char* replacement, const char* text, int from, int to, const int* groups, int group_count) { return Rtext_editor_expand_replacement(replacement, text, from, to, groups, group_count); }
 
@@ -2313,7 +2327,7 @@ public:
 	/// repeat R_TRUE to fire repeatedly, R_FALSE to fire once and delete itself.
 	static Timer create(double interval_seconds, int repeat, RTimerCallback callback, void* user_data) { return Timer(Rtimer_create(interval_seconds, repeat, callback, user_data)); }
 	static Rid create(double interval_seconds, int repeat, std::function<void(Rid)> callback) {
-		return Rtimer_create(interval_seconds, repeat, [](Rid timer, void* kept_) -> void { return (*static_cast<std::function<void(Rid)>*>(kept_))(timer); }, detail::keep(0, 42, std::move(callback)));
+		return Rtimer_create(interval_seconds, repeat, [](Rid timer, void* kept_) -> void { return (*static_cast<std::function<void(Rid)>*>(kept_))(timer); }, detail::keep_new(std::move(callback)));
 	}
 
 	void destroy() const { Rtimer_destroy(id_); }
@@ -2587,7 +2601,7 @@ inline void wait_events(double timeout_seconds) { Rwait_events(timeout_seconds);
 
 inline void set_frame_callback(RFrameCallback callback, void* user_data) { Rset_frame_callback(callback, user_data); }
 inline void set_frame_callback(std::function<void(double)> callback) {
-	Rset_frame_callback([](double delta_seconds, void* kept_) -> void { return (*static_cast<std::function<void(double)>*>(kept_))(delta_seconds); }, detail::keep(0, 43, std::move(callback)));
+	Rset_frame_callback([](double delta_seconds, void* kept_) -> void { return (*static_cast<std::function<void(double)>*>(kept_))(delta_seconds); }, detail::keep_new(std::move(callback)));
 }
 
 /// Returns: Seconds between the last two frames.
@@ -2639,20 +2653,20 @@ inline void set_animation_time_step(double seconds) { Rset_animation_time_step(s
 /// and wakes Rwait_frame. Thread-safe: this is how worker threads touch the UI.
 inline void task_post(RTaskCallback task, void* user_data) { Rtask_post(task, user_data); }
 inline void task_post(std::function<void()> task) {
-	Rtask_post([](void* kept_) -> void { return (*static_cast<std::function<void()>*>(kept_))(); }, detail::keep(0, 44, std::move(task)));
+	Rtask_post([](void* kept_) -> void { return (*static_cast<std::function<void()>*>(kept_))(); }, detail::keep_new(std::move(task)));
 }
 
 /// Runs a function on a worker thread of the job system. Thread-safe.
 inline void task_run_async(RTaskCallback task, void* user_data) { Rtask_run_async(task, user_data); }
 inline void task_run_async(std::function<void()> task) {
-	Rtask_run_async([](void* kept_) -> void { return (*static_cast<std::function<void()>*>(kept_))(); }, detail::keep(0, 45, std::move(task)));
+	Rtask_run_async([](void* kept_) -> void { return (*static_cast<std::function<void()>*>(kept_))(); }, detail::keep_new(std::move(task)));
 }
 
 /// Splits [0, count) into ranges of at most `grain` items and runs them
 /// on the worker threads and the calling thread. Returns when all are done.
 inline void parallel_for(Ruint count, Ruint grain, RParallelRangeCallback function, void* user_data) { Rparallel_for(count, grain, function, user_data); }
 inline void parallel_for(Ruint count, Ruint grain, std::function<void(Ruint, Ruint)> function) {
-	Rparallel_for(count, grain, [](Ruint begin, Ruint end, void* kept_) -> void { return (*static_cast<std::function<void(Ruint, Ruint)>*>(kept_))(begin, end); }, detail::keep(0, 46, std::move(function)));
+	Rparallel_for(count, grain, [](Ruint begin, Ruint end, void* kept_) -> void { return (*static_cast<std::function<void(Ruint, Ruint)>*>(kept_))(begin, end); }, detail::keep_new(std::move(function)));
 }
 
 /// Wakes Rwait_frame and Rwait_events from any thread.
@@ -2678,7 +2692,7 @@ inline void action_fire(const char* name, Rid sender) { Raction_fire(name, sende
 /// Receives every action that has no bound function and is not one of the built-in actions (e.g. a script bridge).
 inline void action_set_default_handler(RActionCallback callback, void* user_data) { Raction_set_default_handler(callback, user_data); }
 inline void action_set_default_handler(std::function<void(Rid, const char*)> callback) {
-	Raction_set_default_handler([](Rid sender, const char* action, void* kept_) -> void { return (*static_cast<std::function<void(Rid, const char*)>*>(kept_))(sender, action); }, detail::keep(0, 48, std::move(callback)));
+	Raction_set_default_handler([](Rid sender, const char* action, void* kept_) -> void { return (*static_cast<std::function<void(Rid, const char*)>*>(kept_))(sender, action); }, detail::keep_new(std::move(callback)));
 }
 
 /// The actions Raven knows by itself: an interface written in XML
@@ -2744,7 +2758,7 @@ inline void error_set_callback(RErrorCallback callback) { Rerror_set_callback(ca
 
 inline void set_device_reset_callback(RDeviceResetCallback callback, void* user_data) { Rset_device_reset_callback(callback, user_data); }
 inline void set_device_reset_callback(std::function<void()> callback) {
-	Rset_device_reset_callback([](void* kept_) -> void { return (*static_cast<std::function<void()>*>(kept_))(); }, detail::keep(0, 49, std::move(callback)));
+	Rset_device_reset_callback([](void* kept_) -> void { return (*static_cast<std::function<void()>*>(kept_))(); }, detail::keep_new(std::move(callback)));
 }
 
 /// Starts dragging `data` from `source` (call it while a mouse button
@@ -3442,6 +3456,13 @@ inline const char* snippet_get_name(int index) { return Rsnippet_get_name(index)
 
 inline int snippet_find(const char* name) { return Rsnippet_find(name); }
 
+/// Gives the text that `$NAME` in a snippet body stands for
+/// ("DATE", "AUTHOR"...). Case is ignored. A NULL or empty value removes
+/// the variable, and a body that names one that is not set keeps it as
+/// written. The text is copied.
+/// Returns: R_FALSE when the name is empty.
+inline int snippet_set_variable(const char* name, const char* value) { return Rsnippet_set_variable(name, value); }
+
 /// Color of a kind of token in the theme in use, instead of the
 /// one Raven picks for dark and for light themes. Theme files set them
 /// with <Syntax Keyword="#FF7AB2" String="..."/>.
@@ -4138,7 +4159,7 @@ inline int notification_is_supported() { return Rnotification_is_supported(); }
 /// Called with the notifications the system could not show; NULL: none.
 inline void notification_set_fallback(RNotificationFallback callback, void* user_data) { Rnotification_set_fallback(callback, user_data); }
 inline void notification_set_fallback(std::function<void(const char*, const char*, RNotificationUrgency)> callback) {
-	Rnotification_set_fallback([](const char* title, const char* body, RNotificationUrgency urgency, void* kept_) -> void { return (*static_cast<std::function<void(const char*, const char*, RNotificationUrgency)>*>(kept_))(title, body, urgency); }, detail::keep(0, 87, std::move(callback)));
+	Rnotification_set_fallback([](const char* title, const char* body, RNotificationUrgency urgency, void* kept_) -> void { return (*static_cast<std::function<void(const char*, const char*, RNotificationUrgency)>*>(kept_))(title, body, urgency); }, detail::keep_new(std::move(callback)));
 }
 
 /// Called when the user clicks a notification of Rnotification_show
@@ -4148,7 +4169,7 @@ inline void notification_set_fallback(std::function<void(const char*, const char
 /// Windows only for now (elsewhere it is never called).
 inline void notification_set_clicked_callback(RNotificationClickedCallback callback, void* user_data) { Rnotification_set_clicked_callback(callback, user_data); }
 inline void notification_set_clicked_callback(std::function<void()> callback) {
-	Rnotification_set_clicked_callback([](void* kept_) -> void { return (*static_cast<std::function<void()>*>(kept_))(); }, detail::keep(0, 88, std::move(callback)));
+	Rnotification_set_clicked_callback([](void* kept_) -> void { return (*static_cast<std::function<void()>*>(kept_))(); }, detail::keep_new(std::move(callback)));
 }
 
 /// Pushes a spring away from its target (units per second): it bounces back.
@@ -4290,7 +4311,7 @@ inline int xml_get_live_reload() { return Rxml_get_live_reload(); }
 
 inline void xml_set_reload_callback(RXmlReloadCallback callback, void* user_data) { Rxml_set_reload_callback(callback, user_data); }
 inline void xml_set_reload_callback(std::function<void(const char*, int)> callback) {
-	Rxml_set_reload_callback([](const char* path, int ok, void* kept_) -> void { return (*static_cast<std::function<void(const char*, int)>*>(kept_))(path, ok); }, detail::keep(0, 91, std::move(callback)));
+	Rxml_set_reload_callback([](const char* path, int ok, void* kept_) -> void { return (*static_cast<std::function<void(const char*, int)>*>(kept_))(path, ok); }, detail::keep_new(std::move(callback)));
 }
 
 /// Looks at the files now, without waiting for the next look
@@ -4393,7 +4414,7 @@ inline int locale_is_rtl() { return Rlocale_is_rtl(); }
 /// Called after the language or the tables changed (the widgets are already updated).
 inline void locale_set_changed_callback(RLocaleChangedCallback callback, void* user_data) { Rlocale_set_changed_callback(callback, user_data); }
 inline void locale_set_changed_callback(std::function<void(const char*)> callback) {
-	Rlocale_set_changed_callback([](const char* language, void* kept_) -> void { return (*static_cast<std::function<void(const char*)>*>(kept_))(language); }, detail::keep(0, 93, std::move(callback)));
+	Rlocale_set_changed_callback([](const char* language, void* kept_) -> void { return (*static_cast<std::function<void(const char*)>*>(kept_))(language); }, detail::keep_new(std::move(callback)));
 }
 
 /// The text of a key in the current language (see the fallbacks above). Never NULL.
@@ -4513,7 +4534,7 @@ inline Rid settings_open(const char* app_name, const char* file_name) { return R
 /// reported through `exited` with failed set, not here.
 inline Rid process_start(const RProcessDesc* desc, RProcessOutputCallback output, RProcessExitCallback exited, void* user_data) { return Rprocess_start(desc, output, exited, user_data); }
 inline Rid process_start(const RProcessDesc* desc, RProcessOutputCallback output, std::function<void(int, int)> exited) {
-	return Rprocess_start(desc, output, [](int exit_code, int failed, void* kept_) -> void { return (*static_cast<std::function<void(int, int)>*>(kept_))(exit_code, failed); }, detail::keep(0, 94, std::move(exited)));
+	return Rprocess_start(desc, output, [](int exit_code, int failed, void* kept_) -> void { return (*static_cast<std::function<void(int, int)>*>(kept_))(exit_code, failed); }, detail::keep_new(std::move(exited)));
 }
 
 /// Returns: R_TRUE while the program runs.
@@ -4535,7 +4556,7 @@ inline void process_cancel(Rid process) { Rprocess_cancel(process); }
 /// it from the UI thread of a running application.
 inline void process_wait(Rid process) { Rprocess_wait(process); }
 
-/// Returns: R_TRUE when the program is found (PATH lookup only).
+/// Returns: R_TRUE when the program is found (the same lookup as Rprocess_find).
 inline int process_is_available(const char* program) { return Rprocess_is_available(program); }
 
 /// Finds a program without running it.
@@ -4589,7 +4610,7 @@ inline void latex_log_destroy(Rid log) { Rlatex_log_destroy(log); }
 /// When the process ends the log is parsed, then `finished` runs.
 inline Rid latex_build_start(const RLatexBuildDesc* desc, RProcessOutputCallback output, RLatexBuildFinishedCallback finished, void* user_data) { return Rlatex_build_start(desc, output, finished, user_data); }
 inline Rid latex_build_start(const RLatexBuildDesc* desc, RProcessOutputCallback output, std::function<void(Rid, int)> finished) {
-	return Rlatex_build_start(desc, output, [](Rid build, int success, void* kept_) -> void { return (*static_cast<std::function<void(Rid, int)>*>(kept_))(build, success); }, detail::keep(0, 95, std::move(finished)));
+	return Rlatex_build_start(desc, output, [](Rid build, int success, void* kept_) -> void { return (*static_cast<std::function<void(Rid, int)>*>(kept_))(build, success); }, detail::keep_new(std::move(finished)));
 }
 
 /// Returns: R_TRUE while the tool runs.

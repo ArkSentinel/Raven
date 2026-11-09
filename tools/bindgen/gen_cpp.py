@@ -113,6 +113,17 @@ def generate(api):
     w("\treturn entry.callable;")
     w("}")
     w("")
+    w("/// The callable of a factory (Rtimer_create, Rprocess_start...): every")
+    w("/// call gets a block of its own, since the factory has no handle to name")
+    w("/// it by and two calls must not share one callable.")
+    w("template <typename Function>")
+    w("inline void* keep_new(Function function) {")
+    w("\tauto* callable = new Function(std::move(function));")
+    w("\tkept()[(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(callable)) << 16) ^ 0xFFFF]")
+    w("\t\t= Kept{ callable, [](void* pointer) { delete static_cast<Function*>(pointer); } };")
+    w("\treturn callable;")
+    w("}")
+    w("")
     w("inline std::uint64_t key_of(const char* text) {")
     w("\tstd::uint64_t hash = 1469598103934665603ull;")
     w("\tfor (; text && *text; text++) hash = (hash ^ static_cast<unsigned char>(*text)) * 1099511628211ull;")
@@ -168,7 +179,12 @@ def generate(api):
         first = f.params[0] if f.params else None
         slot_counter[0] += 1
         slot = slot_counter[0]
-        # what the callable is kept for: the object, or the text that names it (an action)
+        # What the callable is kept for: the object, or the text that names it
+        # (an action). A factory (no handle before the callback: Rtimer_create)
+        # has nothing to name it by, and a key of 0 would make every call
+        # replace the callable of the one before it, so the next free number is
+        # used: the callables of the factories live until the program ends,
+        # which is what their signatures say.
         if skip_first:
             key = "id_"
         elif first and first.ctype == "Rid":
@@ -176,7 +192,7 @@ def generate(api):
         elif first and first.ctype == "const char*":
             key = "detail::key_of(%s)" % safe(first.name)
         else:
-            key = "0"
+            key = None
         for i, p in enumerate(f.params):
             if i == 0 and skip_first:
                 call_args.append("id_")
@@ -189,7 +205,10 @@ def generate(api):
                     lam_params, ", " if lam_params else "", cb.ret, signature, lam_call))
                 continue
             if i == at + 1:
-                call_args.append("detail::keep(%s, %d, std::move(%s))" % (key, slot, safe(f.params[at].name)))
+                if key is None:
+                    call_args.append("detail::keep_new(std::move(%s))" % safe(f.params[at].name))
+                else:
+                    call_args.append("detail::keep(%s, %d, std::move(%s))" % (key, slot, safe(f.params[at].name)))
                 continue
             params.append("%s %s" % (p.ctype, safe(p.name)))
             call_args.append(safe(p.name))
