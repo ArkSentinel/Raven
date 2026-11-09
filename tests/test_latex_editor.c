@@ -116,6 +116,12 @@ static void test_counts(void) {
 	Rtext_editor_set_text(g_editor, "\\section{Hello world}\n% a comment\n");
 	CHECK(Rtext_editor_get_word_count(g_editor) == 2);
 	Rwindow_destroy(g_window);
+
+	/* (the rules of TeX are for TeX: in another language "%" and "\" are just characters) */
+	open_editor("C");
+	Rtext_editor_set_text(g_editor, "int a = b % 2; int c = 3;");
+	CHECK(Rtext_editor_get_word_count(g_editor) == 7);
+	Rwindow_destroy(g_window);
 }
 
 /* ---------------------------------------------------------------------------
@@ -154,6 +160,9 @@ static void test_search(void) {
 	CHECK(Rtext_editor_count_matches(g_editor) == 3);
 	CHECK(Rtext_editor_set_search(g_editor, "bet", R_SEARCH_WHOLE_WORD));
 	CHECK(Rtext_editor_count_matches(g_editor) == 0);
+	/* (the same, with a regular expression: the flag is not ignored) */
+	CHECK(Rtext_editor_set_search(g_editor, "bet[a-z]*", R_SEARCH_REGEX | R_SEARCH_WHOLE_WORD));
+	CHECK(Rtext_editor_count_matches(g_editor) == 3);
 
 	/* regular expressions, with a group */
 	CHECK(Rtext_editor_set_search(g_editor, "(b[a-z]+)", R_SEARCH_REGEX));
@@ -161,6 +170,8 @@ static void test_search(void) {
 	{
 		int groups[4] = { 0, 4, 0, 4 };
 		CHECK_STR(Rtext_editor_expand_replacement("<$1> $& $$ \\n", "beta", 0, 4, groups, 2), "<beta> beta $ \n");
+		/* (${1}: the group, and ${1:text}: the text to use when it did not take part) */
+		CHECK_STR(Rtext_editor_expand_replacement("${1} ${1:x} ${2:y} $<1>", "beta", 0, 4, groups, 2), "beta beta y beta");
 	}
 	/* a pattern that is not valid leaves the search as it was */
 	EXPECT_ERRORS_BEGIN();
@@ -180,6 +191,12 @@ static void test_search(void) {
 	CHECK(Rtext_editor_replace_all(g_editor, "yy") == 3);
 	CHECK_STR(Rtext_editor_get_text(g_editor), "yy yy yy");
 	CHECK(Rtext_editor_can_undo(g_editor));
+	/* (every match replaced is one step of the history, undone and redone at once) */
+	Rtext_editor_undo(g_editor);
+	CHECK_STR(Rtext_editor_get_text(g_editor), "x x x");
+	CHECK(!Rtext_editor_can_undo(g_editor));
+	Rtext_editor_redo(g_editor);
+	CHECK_STR(Rtext_editor_get_text(g_editor), "yy yy yy");
 	Rwindow_destroy(g_window);
 }
 
@@ -300,6 +317,26 @@ static void test_snippets(void) {
 	CHECK(Rtext_editor_insert_snippet(g_editor, "fig"));
 	CHECK(strstr(Rtext_editor_get_text(g_editor), "\\begin{figure}") != NULL);
 
+	/* $NAME: a variable the application sets, typed as it is */
+	CHECK(Rsnippet_set_variable("AUTHOR", "Ada Lovelace"));
+	{
+		RSnippet letter;
+		memset(&letter, 0, sizeof(letter));
+		letter.name = "letter";
+		letter.body = "% $AUTHOR, $TODAY, $UNSET";
+		CHECK(Rsnippet_add(&letter));
+	}
+	Rtext_editor_set_text(g_editor, "");
+	Rtext_editor_set_cursor(g_editor, 0, 0);
+	CHECK(Rtext_editor_insert_snippet(g_editor, "letter"));
+	CHECK_STR(Rtext_editor_get_text(g_editor), "% Ada Lovelace, $TODAY, $UNSET");
+	/* (removing a variable makes the body keep the name) */
+	CHECK(Rsnippet_set_variable("AUTHOR", NULL));
+	Rtext_editor_set_text(g_editor, "");
+	Rtext_editor_set_cursor(g_editor, 0, 0);
+	CHECK(Rtext_editor_insert_snippet(g_editor, "letter"));
+	CHECK_STR(Rtext_editor_get_text(g_editor), "% $AUTHOR, $TODAY, $UNSET");
+
 	/* an unknown snippet is reported, and nothing changes */
 	EXPECT_ERRORS_BEGIN();
 	CHECK(!Rtext_editor_insert_snippet(g_editor, "nope"));
@@ -341,6 +378,30 @@ static void test_carets(void) {
 	key(R_KEY_BACKSPACE, 0);
 	CHECK_STR(Rtext_editor_get_text(g_editor), "one two one");
 
+	/* (one undo takes back what every caret typed, and one redo puts it back) */
+	Rtext_editor_set_text(g_editor, "one two one");
+	Rtext_editor_set_cursor(g_editor, 0, 3);
+	Rtext_editor_clear_carets(g_editor);
+	CHECK(Rtext_editor_add_caret(g_editor, 0, 11));
+	type("X");
+	Rtext_editor_undo(g_editor);
+	CHECK_STR(Rtext_editor_get_text(g_editor), "one two one");
+	CHECK(!Rtext_editor_can_undo(g_editor));
+	Rtext_editor_redo(g_editor);
+	CHECK_STR(Rtext_editor_get_text(g_editor), "oneX two oneX");
+
+	/* (one undo takes back what every caret erased) */
+	Rtext_editor_set_text(g_editor, "abcdef");
+	Rtext_editor_set_multi_cursor(g_editor, R_TRUE);
+	Rtext_editor_set_cursor(g_editor, 0, 2);
+	Rtext_editor_clear_carets(g_editor);
+	CHECK(Rtext_editor_add_caret(g_editor, 0, 5));
+	key(R_KEY_BACKSPACE, 0);
+	CHECK_STR(Rtext_editor_get_text(g_editor), "acdf");
+	Rtext_editor_undo(g_editor);
+	CHECK_STR(Rtext_editor_get_text(g_editor), "abcdef");
+	Rtext_editor_set_multi_cursor(g_editor, R_TRUE);
+
 	/* each caret erased the character before it: the "e" of "one" and the "o" of "two" */
 	Rtext_editor_set_text(g_editor, "one two three");
 	Rtext_editor_set_cursor(g_editor, 0, 3);
@@ -351,6 +412,61 @@ static void test_carets(void) {
 	CHECK(Rtext_editor_get_caret_count(g_editor) == 2);
 	Rtext_editor_clear_carets(g_editor);
 	CHECK(Rtext_editor_get_caret_count(g_editor) == 1);
+	Rwindow_destroy(g_window);
+}
+
+/* ---------------------------------------------------------------------------
+ *  Ctrl+D and Alt+drag: the carets of a column, and the next occurrence
+ * ------------------------------------------------------------------------- */
+
+static void test_multi_cursor_mouse(void) {
+	int line = -1, column = -1;
+	float x, y, w, h;
+	open_editor("None");
+	Rtext_editor_set_text(g_editor, "aaaa\nbbbb\ncccc");
+	Rtext_editor_set_multi_cursor(g_editor, R_TRUE);
+	Rtext_editor_set_cursor(g_editor, 0, 0);
+	Rtext_editor_clear_carets(g_editor);
+	Rdraw_frame();
+
+	/* Alt+drag down and to the right: a selection in that column on every line it crosses */
+	Rwidget_get_rect(g_editor, &x, &y, &w, &h);
+	Rwindow_inject_mouse_move(g_window, x + 55.0f, y + 12.0f);
+	Rwindow_inject_key(g_window, R_KEY_LEFT_ALT, R_TRUE, R_MOD_ALT);
+	Rwindow_inject_mouse_button(g_window, R_MOUSE_LEFT, R_TRUE);
+	Rwindow_inject_mouse_move(g_window, x + 85.0f, y + 60.0f);
+	Rwindow_inject_mouse_button(g_window, R_MOUSE_LEFT, R_FALSE);
+	Rwindow_inject_key(g_window, R_KEY_LEFT_ALT, R_FALSE, 0);
+	CHECK(Rtext_editor_get_caret_count(g_editor) == 3);
+	CHECK(Rtext_editor_get_caret(g_editor, 1, &line, &column) && line == 1);
+	CHECK(Rtext_editor_get_caret(g_editor, 2, &line, &column) && line == 2);
+	{
+		/* the column is where the pointer was, which depends on the font: it is read back */
+		int from_line = -1, from_column = -1, to_line = -1, to_column = -1;
+		char expected[64];
+		CHECK(Rtext_editor_get_selection(g_editor, &from_line, &from_column, &to_line, &to_column));
+		CHECK(from_line == 0 && to_line == 0 && to_column > from_column);
+		/* typing replaces what each line has selected, as one step of the history */
+		type("|");
+		snprintf(expected, sizeof(expected), "%.*s|%s\n%.*s|%s\n%.*s|%s", from_column, "aaaa", "aaaa" + to_column,
+			from_column, "bbbb", "bbbb" + to_column, from_column, "cccc", "cccc" + to_column);
+		CHECK_STR(Rtext_editor_get_text(g_editor), expected);
+		Rtext_editor_undo(g_editor);
+		CHECK_STR(Rtext_editor_get_text(g_editor), "aaaa\nbbbb\ncccc");
+	}
+	Rwindow_destroy(g_window);
+
+	/* Ctrl+D: every press takes the next occurrence, and one caret stays on each */
+	open_editor("None");
+	Rtext_editor_set_text(g_editor, "one two one two one");
+	Rtext_editor_set_multi_cursor(g_editor, R_TRUE);
+	Rtext_editor_select(g_editor, 0, 0, 0, 3);
+	key(R_KEY_D, R_MOD_CTRL);
+	CHECK(Rtext_editor_get_caret_count(g_editor) == 2);
+	key(R_KEY_D, R_MOD_CTRL);
+	CHECK(Rtext_editor_get_caret_count(g_editor) == 3);
+	type("X");
+	CHECK_STR(Rtext_editor_get_text(g_editor), "X two X two X");
 	Rwindow_destroy(g_window);
 }
 
@@ -412,6 +528,7 @@ int main(void) {
 	RUN(test_folding);
 	RUN(test_snippets);
 	RUN(test_carets);
+	RUN(test_multi_cursor_mouse);
 	RUN(test_markers_read);
 	RUN(test_tex_typing);
 	Rshutdown();

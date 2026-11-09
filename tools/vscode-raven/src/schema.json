@@ -2527,6 +2527,11 @@
 					"description": "Space between the pages and around them, in points."
 				},
 				{
+					"name": "Background",
+					"kind": "color",
+					"description": "Color behind the pages."
+				},
+				{
 					"name": "OnChanged",
 					"kind": "action",
 					"description": "Action fired when the user clicks a page."

@@ -99,6 +99,11 @@ extern "C" {
 
 	/** @brief Removes a key. R_TRUE when it was there. */
 	RAVEN_API int Rsettings_remove(Rid settings, const char* key);
+	/**
+	 * @brief Removes every key whose full name starts with `prefix` (a whole list, such as
+	 * "project.recent", with the keys it had). Returns how many keys were removed.
+	 */
+	RAVEN_API int Rsettings_remove_prefix(Rid settings, const char* prefix);
 	/** @brief R_TRUE when the key is there, whatever it holds. */
 	RAVEN_API int Rsettings_has(Rid settings, const char* key);
 

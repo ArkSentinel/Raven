@@ -17,6 +17,8 @@ typedef struct rvn_tab_view_t {
 	int active;
 	int hot;
 	RTabChangedCallback callback;
+	RTabReorderedCallback reordered;
+	void* reordered_user;
 	void* user_data;
 	/** Left edge and width of the mark of the active tab: it slides from one tab to the next. */
 	RSpring mark_x;
@@ -666,6 +668,12 @@ int Rtab_view_get_active(Rid id) {
 	return ((rvn_tab_view_t*)widget)->active;
 }
 
+void Rtab_view_set_reordered_callback(Rid id, RTabReorderedCallback callback, void* user_data) {
+	RVN_WIDGET_VOID(widget, id, R_WIDGET_TAB_VIEW);
+	((rvn_tab_view_t*)widget)->reordered = callback;
+	((rvn_tab_view_t*)widget)->reordered_user = user_data;
+}
+
 void Rtab_view_set_changed_callback(Rid id, RTabChangedCallback callback, void* user_data) {
 	RVN_WIDGET_VOID(widget, id, R_WIDGET_TAB_VIEW);
 	((rvn_tab_view_t*)widget)->callback = callback;
@@ -705,6 +713,34 @@ int Rtab_view_find_tab(Rid id, Rid content) {
 	for (i = 0; i < widget->child_count; i++)
 		if (widget->children[i]->id == content) return (int)i;
 	return -1;
+}
+
+/* Moves the tab at "from" to the position "to". The page is only reordered: it keeps its state,
+ * and the active page stays the active one. */
+int Rtab_view_move_tab(Rid id, int from, int to) {
+	rvn_tab_view_t* tabs;
+	rvn_widget_t* moved;
+	uint32_t i;
+	RVN_WIDGET(widget, id, R_WIDGET_TAB_VIEW, 0);
+	tabs = (rvn_tab_view_t*)widget;
+	if (from < 0 || to < 0 || from >= (int)widget->child_count || to >= (int)widget->child_count) return 0;
+	if (from == to) return 1;
+	moved = widget->children[from];
+	if (from < to) {
+		memmove(&widget->children[from], &widget->children[from + 1], sizeof(rvn_widget_t*) * (size_t)(to - from));
+	} else {
+		memmove(&widget->children[to + 1], &widget->children[to], sizeof(rvn_widget_t*) * (size_t)(from - to));
+	}
+	widget->children[to] = moved;
+	/* the active page is found again: it may have moved, or the others around it did */
+	for (i = 0; i < widget->child_count; i++) {
+		if (widget->children[i] == tabs->active_page) tabs->active = (int)i;
+	}
+	rvn_a11y_structure_changed();
+	rvn_widget_invalidate_layout(widget);
+	rvn_widget_invalidate_paint(widget);
+	if (tabs->reordered) tabs->reordered(widget->id, from, to, tabs->reordered_user);
+	return 1;
 }
 
 void Rtab_view_set_tab_title(Rid id, Rid content, const char* title) {

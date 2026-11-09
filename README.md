@@ -1411,7 +1411,10 @@ lists what this fork adds for an editor of LaTeX documents: a PDF preview
 widget, LaTeX and BibTeX in the text editor (folding, snippets, search), the
 process runner and the log parser, and the settings store.
 [docs/IMPLEMENTADO.md](docs/IMPLEMENTADO.md) is the record of that work: what,
-where and how it is verified.
+where and how it is verified. [docs/MEJORAS.md](docs/MEJORAS.md) is the review
+of what still needs work, written from the first application built on the fork:
+the three tests that fail, the handle generation, the missing editor
+operations, and the PDF text layer.
 
 ## Not implemented yet
 

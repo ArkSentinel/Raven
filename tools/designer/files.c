@@ -31,6 +31,8 @@ typedef struct file_t {
 	char* path;
 	file_kind_t kind;
 	double time;
+	/* the size too: the system may give two writes the same time (its clock is coarser than a write) */
+	long long size;
 } file_t;
 
 static struct {
@@ -103,6 +105,7 @@ static void add_file(file_t** files, int* count, const char* path, file_kind_t k
 	(*files)[*count].path = ds_strdup(path);
 	(*files)[*count].kind = kind;
 	(*files)[*count].time = ds_file_time(path);
+	(*files)[*count].size = ds_file_size(path);
 	(*count)++;
 }
 
@@ -340,6 +343,7 @@ void folder_refresh(void) {
 	int count = 0, i, listing_changed, tables = 0, widgets = 0;
 	const char* open = designer_get_path();
 	double open_time = 0.0, open_was = 0.0;
+	int open_changed = 0;
 	if (!g_folder) return;
 	scan(g_folder, 0, &files, &count);
 	listing_changed = !same_listing(files, count, g_f.files, g_f.file_count);
@@ -350,7 +354,13 @@ void folder_refresh(void) {
 			if (strcmp(files[i].path, g_f.files[k].path) != 0) continue;
 			if (files[i].kind == FILE_TABLE && files[i].time != g_f.files[k].time) tables = 1;
 			if (files[i].kind == FILE_WIDGETS && files[i].time != g_f.files[k].time) widgets = 1;
+			if (files[i].size != g_f.files[k].size) {
+				if (files[i].kind == FILE_TABLE) tables = 1;
+				if (files[i].kind == FILE_WIDGETS) widgets = 1;
+			}
 			if (open && ds_same_path(open, files[i].path)) {
+				/* a change of the time or of the size is a change of the file */
+				open_changed = files[i].time != g_f.files[k].time || files[i].size != g_f.files[k].size;
 				open_time = files[i].time;
 				open_was = g_f.files[k].time;
 			}
@@ -358,7 +368,7 @@ void folder_refresh(void) {
 		}
 		if (k == g_f.file_count && files[i].kind == FILE_TABLE) tables = 1;
 	}
-	if (!listing_changed && !tables && !widgets && open_time == open_was) {
+	if (!listing_changed && !tables && !widgets && !open_changed) {
 		free_files(files, count);
 		return;
 	}
@@ -381,7 +391,7 @@ void folder_refresh(void) {
 	}
 	/* (the tables with unsaved changes here are not read over them) */
 	if (tables && !strings_any_modified()) strings_reload();
-	if (open_time != open_was && open_time > 0.0) designer_file_changed();
+	if (open_changed && open_time > 0.0) designer_file_changed();
 	g_f.tables_time = tables_time();
 }
 

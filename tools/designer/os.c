@@ -237,6 +237,18 @@ int ds_make_dirs(const char* path) {
 	return ok;
 }
 
+long long ds_file_size(const char* path) {
+	WIN32_FILE_ATTRIBUTE_DATA data;
+	wchar_t* wide = widen(path);
+	BOOL ok = GetFileAttributesExW(wide, GetFileExInfoStandard, &data);
+	ULARGE_INTEGER t;
+	free(wide);
+	if (!ok) return -1;
+	t.LowPart = data.nFileSizeLow;
+	t.HighPart = data.nFileSizeHigh;
+	return (long long)t.QuadPart;
+}
+
 double ds_file_time(const char* path) {
 	WIN32_FILE_ATTRIBUTE_DATA data;
 	wchar_t* wide = widen(path);
@@ -381,6 +393,12 @@ int ds_make_dirs(const char* path) {
 	ok = ds_is_dir(copy);
 	free(copy);
 	return ok;
+}
+
+long long ds_file_size(const char* path) {
+	struct stat s;
+	if (stat(path, &s) != 0) return -1;
+	return (long long)s.st_size;
 }
 
 double ds_file_time(const char* path) {

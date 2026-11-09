@@ -45,6 +45,16 @@ static void on_page_render(Rid view, int page, float scale, void* user_data) {
 	Rpdf_view_set_page_bitmap(view, page, g_render_texture, scale);
 }
 
+static int g_link_calls, g_link_target = -1;
+
+static void on_link_clicked(Rid view, int page, int target, void* user_data) {
+	(void)view;
+	(void)page;
+	(void)user_data;
+	g_link_calls++;
+	g_link_target = target;
+}
+
 static void on_page_clicked(Rid view, int page, float page_x, float page_y, void* user_data) {
 	(void)view;
 	(void)user_data;
@@ -154,6 +164,19 @@ static void test_pdf_view(void) {
 		CHECK(g_clicked_page == 0);
 		CHECK(g_clicked_x > 300.0f && g_clicked_x < 312.0f);
 		CHECK(g_clicked_y > 390.0f && g_clicked_y < 402.0f);
+
+		/* a link is a rectangle of the page: a click inside it says which one, one outside says nothing */
+		Rpdf_view_add_link(view, 0, 290.0f, 380.0f, 320.0f, 410.0f, 7);
+		Rpdf_view_set_link_clicked_callback(view, on_link_clicked, NULL);
+		g_link_calls = 0;
+		g_link_target = -1;
+		test_click_at(g_window, x + cx, y + cy);
+		CHECK(g_link_calls == 1 && g_link_target == 7);
+		CHECK(g_clicked_calls == 2);             /* the page click still comes */
+		Rpdf_view_clear_links(view, 0);
+		test_click_at(g_window, x + cx, y + cy);
+		CHECK(g_link_calls == 1);
+		Rpdf_view_set_link_clicked_callback(view, NULL, NULL);
 	}
 
 	/* the callback of the pages needed fires during a frame, with the scale in pixels per point */
@@ -292,6 +315,8 @@ static void test_pdf_view(void) {
 		CHECK(Rpdf_view_get_page_gap(q) == 6.0f);
 		CHECK(Rwidget_set_attribute(q, "Page", "3"));
 		CHECK(Rpdf_view_get_page(q) == 3);
+		CHECK(Rwidget_set_attribute(q, "Background", "#204060"));
+		CHECK(!Rwidget_set_attribute(q, "Background", "not a color"));
 		CHECK(!Rwidget_set_attribute(q, "Fit", "Diagonal"));
 		CHECK(!Rwidget_set_attribute(q, "Nope", "1"));
 		root = content("<VBox><PdfView Name=\"pdf\" Height=\"400\" PageCount=\"3\" Zoom=\"1\" Fit=\"None\" PageGap=\"10\"/></VBox>");
@@ -415,6 +440,34 @@ static void test_pdf_view(void) {
 	Rdraw_frame();
 }
 
+static int g_page_changes;
+static int g_last_changed_page;
+
+static void on_page_changed(Rid view, int page, void* user_data) {
+	(void)view;
+	(void)user_data;
+	g_page_changes++;
+	g_last_changed_page = page;
+}
+
+/* The application hears of each change of the current page, once, with the new page. */
+static void test_page_changed(void) {
+	Rid root = content("<VBox><PdfView Name=\"pdf\" Height=\"400\" PageCount=\"3\" Zoom=\"1\" Fit=\"None\" PageGap=\"10\"/></VBox>");
+	Rid view = Rwidget_find(root, "pdf");
+	Rpdf_view_set_page_changed_callback(view, on_page_changed, NULL);
+	g_page_changes = 0;
+	Rpdf_view_set_page(view, 1);
+	CHECK(g_page_changes == 1 && g_last_changed_page == 1);
+	Rpdf_view_set_page(view, 1);            /* the same page: nothing */
+	CHECK(g_page_changes == 1);
+	Rpdf_view_set_page(view, 2);
+	CHECK(g_page_changes == 2 && g_last_changed_page == 2);
+	Rpdf_view_set_page_changed_callback(view, NULL, NULL);
+	Rpdf_view_set_page(view, 0);
+	CHECK(g_page_changes == 2);
+	Rwidget_destroy(root);
+}
+
 int main(void) {
 	if (!test_init(0)) {
 		printf("cannot initialize Raven\n");
@@ -423,6 +476,7 @@ int main(void) {
 	g_window = Rwindow_create("pdf view", 500, 400, R_WINDOW_DEFAULT);
 
 	RUN(test_pdf_view);
+	RUN(test_page_changed);
 
 	Rdraw_frame();
 	Rshutdown();

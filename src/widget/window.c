@@ -1939,10 +1939,13 @@ void rvn_windows_device_reset(void) {
 		g_rvn.platform->window_get_native(window->platform, &native);
 		if (!rvn_renderer_create_surface(window->id, &native, (uint32_t)rvn_maxi(window->width_px, 1),
 			(uint32_t)rvn_maxi(window->height_px, 1))) {
-			rvn_error(R_ERROR_BACKEND, R_SEVERITY_ERROR, "after the loss of the device: cannot make the surface of a window again");
+			static const char message[] = "after the loss of the device: cannot make the surface of a window again";
+			rvn_error(R_ERROR_BACKEND, R_SEVERITY_ERROR, "%s", message);
 			window->surface_ready = R_FALSE;
+			rvn_str_set(&window->surface_error, message);
 			continue;
 		}
+		rvn_str_set(&window->surface_error, NULL);
 		window->needs_layout = R_TRUE;
 		window->needs_paint = R_TRUE;
 	}
@@ -1965,6 +1968,7 @@ static void rvn_window_free(rvn_window_t* window) {
 	rvn_free(window->ghosts);
 	rvn_free(window->layout_springs);
 	rvn_free(window->title);
+	rvn_free(window->surface_error);
 	rvn_free(window->drag_type);
 	rvn_free(window->drag_data);
 	rvn_free(window->drag_label);
@@ -2044,6 +2048,7 @@ Rid Rwindow_create(const char* title, int width, int height, Ruint flags) {
 	window->id = rvn_pool_add(&g_rvn.windows, window);
 	if (window->id == R_INVALID_ID) {
 		rvn_free(window->title);
+		rvn_free(window->surface_error);
 		rvn_free(window);
 		return R_INVALID_ID;
 	}
@@ -2064,6 +2069,7 @@ Rid Rwindow_create(const char* title, int width, int height, Ruint flags) {
 		rvn_error(R_ERROR_PLATFORM, R_SEVERITY_ERROR, "Rwindow_create: the window system refused to create the window");
 		rvn_pool_remove(&g_rvn.windows, window->id);
 		rvn_free(window->title);
+		rvn_free(window->surface_error);
 		rvn_free(window);
 		return R_INVALID_ID;
 	}
@@ -2079,6 +2085,7 @@ Rid Rwindow_create(const char* title, int width, int height, Ruint flags) {
 		g_rvn.platform->window_destroy(window->platform);
 		rvn_pool_remove(&g_rvn.windows, window->id);
 		rvn_free(window->title);
+		rvn_free(window->surface_error);
 		rvn_free(window);
 		return R_INVALID_ID;
 	}
@@ -2114,6 +2121,16 @@ void Rwindow_destroy(Rid id) {
 
 int Rwindow_is_valid(Rid window) {
 	return g_rvn.initialized && rvn_window_get(window) != NULL;
+}
+
+const char* Rwindow_get_surface_error(Rid window) {
+	rvn_window_t* w = g_rvn.initialized ? rvn_window_get(window) : NULL;
+	return w ? w->surface_error : NULL;
+}
+
+int Rwindow_has_surface(Rid window) {
+	rvn_window_t* w = g_rvn.initialized ? rvn_window_get(window) : NULL;
+	return w ? w->surface_ready : R_FALSE;
 }
 
 void Rwindow_set_content(Rid id, Rid widget_id) {

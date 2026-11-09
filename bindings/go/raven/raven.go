@@ -1413,6 +1413,19 @@ func WindowIsValid(window ID) int {
 	return int(C.Rwindow_is_valid(C.Rid(window)))
 }
 
+// WindowHasSurface: R_FALSE when the window has no rendering surface, so nothing is drawn in it: the backend
+// refused it, or it could not be made again after the loss of the device. The window stays valid.
+func WindowHasSurface(window ID) int {
+	return int(C.Rwindow_has_surface(C.Rid(window)))
+}
+
+// WindowGetSurfaceError: Why the window has no surface, as text, for the application to show in the window:
+// the last refusal of the backend. NULL when the surface is there. The text stays until the surface is made
+// again.
+func WindowGetSurfaceError(window ID) string {
+	return C.GoString(C.Rwindow_get_surface_error(C.Rid(window)))
+}
+
 // WindowSetContent: Sets the root widget of the window. The window takes ownership of the widget; the
 // previous content is deleted.
 func WindowSetContent(window ID, widget ID) {
@@ -2285,6 +2298,14 @@ func TextureGetSize(texture ID) (width int, height int) {
 	return
 }
 
+// TextureIsPlaceholder: R_TRUE when the device was lost and the texture could not be rebuilt (it came from
+// pixels too large to keep a copy of): it is blank now, and the application must upload it again with
+// Rtexture_update. Set to R_FALSE by any upload. Use it after the reset callback to re-upload only what was
+// lost.
+func TextureIsPlaceholder(texture ID) int {
+	return int(C.Rtexture_is_placeholder(C.Rid(texture)))
+}
+
 // TextureSetFilter: How the texture is smoothed when it is scaled. The textures made from image files start
 // with R_FILTER_MIPMAP, the others with R_FILTER_LINEAR.
 func TextureSetFilter(texture ID, filter RFilterType) {
@@ -2919,6 +2940,12 @@ func TabViewGetTab(tab_view ID, index int) ID {
 // TabViewFindTab: Index of the tab of a page, -1 if none.
 func TabViewFindTab(tab_view ID, content ID) int {
 	return int(C.Rtab_view_find_tab(C.Rid(tab_view), C.Rid(content)))
+}
+
+// TabViewMoveTab: Moves the tab at index "from" to index "to" (both in 0 .. count-1). The page keeps its
+// state, and the active page stays active. R_FALSE when an index is out of range.
+func TabViewMoveTab(tab_view ID, from int, to int) int {
+	return int(C.Rtab_view_move_tab(C.Rid(tab_view), C.int(from), C.int(to)))
 }
 
 func TabViewSetTabTitle(tab_view ID, content ID, title string) {
@@ -4534,6 +4561,20 @@ func TextEditorClearMarkers(editor ID) {
 	C.Rtext_editor_clear_markers(C.Rid(editor))
 }
 
+// TextEditorAddMarkerFrom: Like Rtext_editor_add_marker, with the source of the marker: an application with
+// two sources (the compiler log and a spell checker) can then replace one without touching the other.
+// Rtext_editor_add_marker adds to source 0.
+func TextEditorAddMarkerFrom(editor ID, source int, line int, from_column int, to_column int, kind RMarkerKind, message string) {
+	message_ := C.CString(message)
+	defer C.free(unsafe.Pointer(message_))
+	C.Rtext_editor_add_marker_from(C.Rid(editor), C.int(source), C.int(line), C.int(from_column), C.int(to_column), C.RMarkerKind(kind), message_)
+}
+
+// TextEditorClearMarkersOfSource: Removes the markers added with this source, and only those.
+func TextEditorClearMarkersOfSource(editor ID, source int) {
+	C.Rtext_editor_clear_markers_of_source(C.Rid(editor), C.int(source))
+}
+
 func TextEditorGetMarkerCount(editor ID) int {
 	return int(C.Rtext_editor_get_marker_count(C.Rid(editor)))
 }
@@ -4617,10 +4658,50 @@ func TextEditorReplaceAll(editor ID, text string) int {
 	return int(C.Rtext_editor_replace_all(C.Rid(editor), text_))
 }
 
-// TextEditorExpandReplacement: The text of a replacement where `$1` .. `$9`, `${name}`, `$&` (the whole
-// match), `$$` (a dollar), `\n`, `\t` and `\\` mean something; with `matches`, the groups of the regex that
-// matched. Pure: no editor needed. Returns: The text, in a buffer of the editor (valid until the next call),
-// or NULL.
+// TextEditorToggleComment: Comments the lines of the selection with the line comment of the language, or
+// uncomments them when all already are, as one step of the history. Returns: R_FALSE when the language has no
+// line comment (or the editor is read-only).
+func TextEditorToggleComment(editor ID) int {
+	return int(C.Rtext_editor_toggle_comment(C.Rid(editor)))
+}
+
+// TextEditorBeginEdit: Groups the edits made until Rtext_editor_end_edit into one step of the history. The
+// calls nest. Use it when an application changes several lines at once (a menu action, a reformat).
+func TextEditorBeginEdit(editor ID) {
+	C.Rtext_editor_begin_edit(C.Rid(editor))
+}
+
+// TextEditorEndEdit: Ends the group opened by Rtext_editor_begin_edit.
+func TextEditorEndEdit(editor ID) {
+	C.Rtext_editor_end_edit(C.Rid(editor))
+}
+
+// TextEditorIsModified: R_TRUE when the text changed since it was last loaded or saved. Undoing back to the
+// saved text still counts as modified: only Rtext_editor_set_modified(editor, R_FALSE) clears it.
+// Rtext_editor_set_text does not clear it either.
+func TextEditorIsModified(editor ID) int {
+	return int(C.Rtext_editor_is_modified(C.Rid(editor)))
+}
+
+// TextEditorSetModified: Marks the current text as saved (modified = R_FALSE) or as changed (modified =
+// R_TRUE). Call it with R_FALSE after saving, or after loading a file from disk.
+func TextEditorSetModified(editor ID, modified int) {
+	C.Rtext_editor_set_modified(C.Rid(editor), C.int(modified))
+}
+
+// TextEditorReloadText: Replaces the text with one read from disk, keeping the caret and the scroll where
+// they were (as far as the new text reaches). The history is cleared, and the text counts as saved.
+func TextEditorReloadText(editor ID, text string) {
+	text_ := C.CString(text)
+	defer C.free(unsafe.Pointer(text_))
+	C.Rtext_editor_reload_text(C.Rid(editor), text_)
+}
+
+// TextEditorExpandReplacement: The text of a replacement where `$1` .. `$9` and `${1}` (a group of the
+// regex), `${1:text}` (the group, or that text when the group did not take part), `$&` (the whole match),
+// `$$` (a dollar), `\n`, `\t` and `\\` mean something; `groups` holds the pairs of the match, as
+// `Rtext_editor_get_match` gives them, `group_count` how many are. Pure: no editor needed. Returns: The text,
+// in a buffer of the editor (valid until the next call), or NULL.
 func TextEditorExpandReplacement(replacement string, text string, from int, to int, groups []int, group_count int) string {
 	replacement_ := C.CString(replacement)
 	defer C.free(unsafe.Pointer(replacement_))
@@ -4694,6 +4775,17 @@ func SnippetFind(name string) int {
 	name_ := C.CString(name)
 	defer C.free(unsafe.Pointer(name_))
 	return int(C.Rsnippet_find(name_))
+}
+
+// SnippetSetVariable: Gives the text that `$NAME` in a snippet body stands for ("DATE", "AUTHOR"...). Case is
+// ignored. A NULL or empty value removes the variable, and a body that names one that is not set keeps it as
+// written. The text is copied. Returns: R_FALSE when the name is empty.
+func SnippetSetVariable(name string, value string) int {
+	name_ := C.CString(name)
+	defer C.free(unsafe.Pointer(name_))
+	value_ := C.CString(value)
+	defer C.free(unsafe.Pointer(value_))
+	return int(C.Rsnippet_set_variable(name_, value_))
 }
 
 // TextEditorInsertSnippet: Types the snippet at the caret, replacing the word before it when that word is its
@@ -6144,6 +6236,31 @@ func FileWrite(path string, data []byte) int {
 	return int(C.Rfile_write(path_, data_, C.size_t(len(data))))
 }
 
+// FileCopy: Copies a file. R_FALSE when the source cannot be read or the target cannot be written.
+func FileCopy(from string, to string) int {
+	from_ := C.CString(from)
+	defer C.free(unsafe.Pointer(from_))
+	to_ := C.CString(to)
+	defer C.free(unsafe.Pointer(to_))
+	return int(C.Rfile_copy(from_, to_))
+}
+
+// FileMove: Moves (renames) a file, copying it when the system cannot rename it.
+func FileMove(from string, to string) int {
+	from_ := C.CString(from)
+	defer C.free(unsafe.Pointer(from_))
+	to_ := C.CString(to)
+	defer C.free(unsafe.Pointer(to_))
+	return int(C.Rfile_move(from_, to_))
+}
+
+// FileMkdirP: Creates a folder and the ones above it that are missing. R_TRUE when it exists afterwards.
+func FileMkdirP(path string) int {
+	path_ := C.CString(path)
+	defer C.free(unsafe.Pointer(path_))
+	return int(C.Rfile_mkdir_p(path_))
+}
+
 func FileBrowserCreate() ID {
 	return ID(C.Rfile_browser_create())
 }
@@ -6371,6 +6488,18 @@ func PdfViewGetPageAt(pdf_view ID, x float32, y float32) (result int, page int, 
 	page_x = float32(page_x_)
 	page_y = float32(page_y_)
 	return
+}
+
+// PdfViewAddLink: Adds a link to a page: a rectangle in points from the top left of the page (the coordinates
+// page_x / page_y of the clicks), and the number the application gives it. The application reads the links of
+// a page from the document (PDFium), so Raven does not.
+func PdfViewAddLink(pdf_view ID, page int, x0 float32, y0 float32, x1 float32, y1 float32, target int) {
+	C.Rpdf_view_add_link(C.Rid(pdf_view), C.int(page), C.float(x0), C.float(y0), C.float(x1), C.float(y1), C.int(target))
+}
+
+// PdfViewClearLinks: Removes the links of a page (before its links are read again).
+func PdfViewClearLinks(pdf_view ID, page int) {
+	C.Rpdf_view_clear_links(C.Rid(pdf_view), C.int(page))
 }
 
 // PdfViewInvalidatePage: Asks for one page to be painted again, once its bitmap has arrived.
@@ -7023,6 +7152,14 @@ func SettingsRemove(settings ID, key string) int {
 	return int(C.Rsettings_remove(C.Rid(settings), key_))
 }
 
+// SettingsRemovePrefix: Removes every key whose full name starts with `prefix` (a whole list, such as
+// "project.recent", with the keys it had). Returns how many keys were removed.
+func SettingsRemovePrefix(settings ID, prefix string) int {
+	prefix_ := C.CString(prefix)
+	defer C.free(unsafe.Pointer(prefix_))
+	return int(C.Rsettings_remove_prefix(C.Rid(settings), prefix_))
+}
+
 // SettingsHas: R_TRUE when the key is there, whatever it holds.
 func SettingsHas(settings ID, key string) int {
 	key_ := C.CString(key)
@@ -7116,7 +7253,14 @@ func ProcessWait(process ID) {
 	C.Rprocess_wait(C.Rid(process))
 }
 
-// ProcessIsAvailable: Returns: R_TRUE when the program is found (PATH lookup only).
+// ProcessDestroy: Frees a process that ended. Its callbacks are not called again. A process still running is
+// stopped first, as Rprocess_cancel does. The library keeps every process until Rshutdown, so an application
+// that starts many of them (a check after each pause) calls this when it no longer needs the exit code.
+func ProcessDestroy(process ID) {
+	C.Rprocess_destroy(C.Rid(process))
+}
+
+// ProcessIsAvailable: Returns: R_TRUE when the program is found (the same lookup as Rprocess_find).
 func ProcessIsAvailable(program string) int {
 	program_ := C.CString(program)
 	defer C.free(unsafe.Pointer(program_))
@@ -7373,14 +7517,14 @@ func HostInjectClose(window ID) {
 // Rwidget_set_pen_callback, Rwidget_set_gesture_callback, Rtexture_create_from_pixels, Rtexture_update
 // Rimage_decode, Rpixels_free, Rwidget_set_user_handle, Rwidget_get_user_handle
 // Rwidget_set_destroy_callback, Rwidget_set_event_callback, Rwidget_set_drop_callback
-// Rtab_view_set_changed_callback, Rtab_view_set_close_callback, Rexpander_set_changed_callback
-// Rlabel_set_link_callback, Rbutton_set_clicked_callback, Rcheckbox_set_changed_callback
-// Rslider_set_changed_callback, Rtext_input_set_changed_callback, Rtext_input_set_committed_callback
-// Rspin_box_set_changed_callback, Rcombo_box_set_changed_callback, Rlist_view_set_virtual_items
-// Rlist_view_set_selection_changed_callback, Rlist_view_set_activated_callback, Rtree_item_set_user_handle
-// Rtree_item_get_user_handle, Rtree_view_set_selection_changed_callback, Rtree_view_set_activated_callback
-// Rtree_view_set_context_callback, Rmenu_item_set_clicked_callback, Rtile_view_set_items
-// Rtile_view_set_drag_data_callback, Rtile_view_set_selection_changed_callback
+// Rtab_view_set_changed_callback, Rtab_view_set_reordered_callback, Rtab_view_set_close_callback
+// Rexpander_set_changed_callback, Rlabel_set_link_callback, Rbutton_set_clicked_callback
+// Rcheckbox_set_changed_callback, Rslider_set_changed_callback, Rtext_input_set_changed_callback
+// Rtext_input_set_committed_callback, Rspin_box_set_changed_callback, Rcombo_box_set_changed_callback
+// Rlist_view_set_virtual_items, Rlist_view_set_selection_changed_callback, Rlist_view_set_activated_callback
+// Rtree_item_set_user_handle, Rtree_item_get_user_handle, Rtree_view_set_selection_changed_callback
+// Rtree_view_set_activated_callback, Rtree_view_set_context_callback, Rmenu_item_set_clicked_callback
+// Rtile_view_set_items, Rtile_view_set_drag_data_callback, Rtile_view_set_selection_changed_callback
 // Rtile_view_set_activated_callback, Rtile_view_set_context_callback, Rtable_set_virtual_rows
 // Rtable_set_selection_changed_callback, Rtable_set_activated_callback, Rtable_set_sort_callback
 // Rdate_picker_set_changed_callback, Rtime_picker_set_changed_callback, Rtoast_set_action_callback
@@ -7403,8 +7547,9 @@ func HostInjectClose(window ID) {
 // Rviewport_set_resize_callback, Rcustom_set_paint_callback, Rcustom_set_measure_callback, Rdraw_rect
 // Rdraw_rect_outline, Rdraw_circle, Rdraw_line, Rdraw_curve, Rdraw_triangle, Rdraw_image, Rdraw_text
 // Rdraw_glass, Rdraw_spring, Rspring_kick, Rspring_set, Rdraw_push_clip_rect, Rdraw_pop_clip_rect
-// Rpdf_view_set_page_needed_callback, Rpdf_view_set_page_clicked_callback, Reffect_get_defaults
+// Rpdf_view_set_page_needed_callback, Rpdf_view_set_page_changed_callback
+// Rpdf_view_set_page_clicked_callback, Rpdf_view_set_link_clicked_callback, Reffect_get_defaults
 // Rshader_look_init, Rshader_look_defaults, Rdraw_shader, Rborder_set_effect, Rxml_set_reload_callback
 // Rxml_register_tag, Rxml_document_parse, Rxml_get_attribute_info, Rlocale_set_changed_callback, Rtr_format
-// Rprocess_start, Rprocess_run, Rlatex_log_get_message, Rlatex_build_start
+// Rprocess_start, Rprocess_find_copy, Rprocess_run, Rlatex_log_get_message, Rlatex_build_start
 // Raccessibility_get_system_settings, Rhost_platform_register

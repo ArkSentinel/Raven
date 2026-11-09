@@ -2933,6 +2933,12 @@ namespace Raven
     public delegate void RTabChangedCallback(uint tab_view, int index, IntPtr user_data);
 
     /// <summary>
+    /// Called after a tab was moved with Rtab_view_move_tab, with its old and new index.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RTabReorderedCallback(uint tab_view, int from, int to, IntPtr user_data);
+
+    /// <summary>
     /// The user closes a tab (its button, a middle click). Return R_TRUE
     /// to delete its page now, R_FALSE to keep it (the application may ask to
     /// save, then delete the page itself with Rwidget_destroy).
@@ -3247,10 +3253,24 @@ namespace Raven
     public delegate void RPdfPageNeededCallback(uint pdf_view, int page, float scale, IntPtr user_data);
 
     /// <summary>
+    /// Called when the page the view is at changes: by scrolling, by the keys, by
+    /// Rpdf_view_set_page, or when the pages change. Not called when the page stays the same.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RPdfPageChangedCallback(uint pdf_view, int page, IntPtr user_data);
+
+    /// <summary>
     /// Called when the user clicks on a page. This also fires the action of the widget.
     /// </summary>
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void RPdfPageClickedCallback(uint pdf_view, int page, float page_x, float page_y, IntPtr user_data);
+
+    /// <summary>
+    /// Called when the user clicks inside a link, with the target given to Rpdf_view_add_link.
+    /// The page click (Rpdf_view_set_page_clicked_callback) is still called after it.
+    /// </summary>
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void RPdfLinkClickedCallback(uint pdf_view, int page, int target, IntPtr user_data);
 
     /// <summary>
     /// Called each time a file was loaded again.
@@ -3773,6 +3793,22 @@ namespace Raven
 
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rwindow_is_valid(uint window);
+
+        /// <summary>
+        /// R_FALSE when the window has no rendering surface, so nothing is drawn in it: the backend
+        /// refused it, or it could not be made again after the loss of the device. The window stays valid.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rwindow_has_surface(uint window);
+
+        /// <summary>
+        /// Why the window has no surface, as text, for the application to show in the window:
+        /// the last refusal of the backend. NULL when the surface is there. The text stays until the
+        /// surface is made again.
+        /// </summary>
+        [DllImport(Lib, EntryPoint = "Rwindow_get_surface_error", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr Rwindow_get_surface_error_(uint window);
+        public static string Rwindow_get_surface_error(uint window) { return Text(Rwindow_get_surface_error_(window)); }
 
         /// <summary>
         /// Sets the root widget of the window. The window takes ownership of
@@ -4802,6 +4838,14 @@ namespace Raven
         public static extern void Rtexture_get_size(uint texture, out int width, out int height);
 
         /// <summary>
+        /// R_TRUE when the device was lost and the texture could not be rebuilt (it came from pixels
+        /// too large to keep a copy of): it is blank now, and the application must upload it again with
+        /// Rtexture_update. Set to R_FALSE by any upload. Use it after the reset callback to re-upload only what was lost.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtexture_is_placeholder(uint texture);
+
+        /// <summary>
         /// How the texture is smoothed when it is scaled. The textures made
         /// from image files start with R_FILTER_MIPMAP, the others with
         /// R_FILTER_LINEAR.
@@ -5464,6 +5508,16 @@ namespace Raven
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rtab_view_find_tab(uint tab_view, uint content);
+
+        /// <summary>
+        /// Moves the tab at index "from" to index "to" (both in 0 .. count-1). The page keeps its state,
+        /// and the active page stays active. R_FALSE when an index is out of range.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtab_view_move_tab(uint tab_view, int from, int to);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtab_view_set_reordered_callback(uint tab_view, RTabReorderedCallback callback, IntPtr user_data);
 
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rtab_view_set_tab_title(uint tab_view, uint content, [MarshalAs(Utf8.Str)] string title);
@@ -7109,6 +7163,20 @@ namespace Raven
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rtext_editor_clear_markers(uint editor);
 
+        /// <summary>
+        /// Like Rtext_editor_add_marker, with the source of the marker: an application with two
+        /// sources (the compiler log and a spell checker) can then replace one without touching the other.
+        /// Rtext_editor_add_marker adds to source 0.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_add_marker_from(uint editor, int source, int line, int from_column, int to_column, RMarkerKind kind, [MarshalAs(Utf8.Str)] string message);
+
+        /// <summary>
+        /// Removes the markers added with this source, and only those.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_clear_markers_of_source(uint editor, int source);
+
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rtext_editor_get_marker_count(uint editor);
 
@@ -7177,9 +7245,55 @@ namespace Raven
         public static extern int Rtext_editor_replace_all(uint editor, [MarshalAs(Utf8.Str)] string text);
 
         /// <summary>
-        /// The text of a replacement where `$1` .. `$9`, `${name}`, `$&amp;`
-        /// (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
-        /// with `matches`, the groups of the regex that matched. Pure: no editor needed.
+        /// Comments the lines of the selection with the line comment of the language, or uncomments
+        /// them when all already are, as one step of the history.
+        /// Returns: R_FALSE when the language has no line comment (or the editor is read-only).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_toggle_comment(uint editor);
+
+        /// <summary>
+        /// Groups the edits made until Rtext_editor_end_edit into one step of the history. The calls nest.
+        /// Use it when an application changes several lines at once (a menu action, a reformat).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_begin_edit(uint editor);
+
+        /// <summary>
+        /// Ends the group opened by Rtext_editor_begin_edit.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_end_edit(uint editor);
+
+        /// <summary>
+        /// R_TRUE when the text changed since it was last loaded or saved. Undoing back to the saved
+        /// text still counts as modified: only Rtext_editor_set_modified(editor, R_FALSE) clears it.
+        /// Rtext_editor_set_text does not clear it either.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rtext_editor_is_modified(uint editor);
+
+        /// <summary>
+        /// Marks the current text as saved (modified = R_FALSE) or as changed (modified = R_TRUE).
+        /// Call it with R_FALSE after saving, or after loading a file from disk.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_set_modified(uint editor, int modified);
+
+        /// <summary>
+        /// Replaces the text with one read from disk, keeping the caret and the scroll where they were
+        /// (as far as the new text reaches). The history is cleared, and the text counts as saved.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rtext_editor_reload_text(uint editor, [MarshalAs(Utf8.Str)] string text);
+
+        /// <summary>
+        /// The text of a replacement where `$1` .. `$9` and `${1}` (a group
+        /// of the regex), `${1:text}` (the group, or that text when the group did
+        /// not take part), `$&amp;` (the whole match), `$$` (a dollar), `\n`, `\t` and
+        /// `\\` mean something; `groups` holds the pairs of the match, as
+        /// `Rtext_editor_get_match` gives them, `group_count` how many are.
+        /// Pure: no editor needed.
         /// Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
         /// </summary>
         [DllImport(Lib, EntryPoint = "Rtext_editor_expand_replacement", CallingConvention = CallingConvention.Cdecl)]
@@ -7250,6 +7364,16 @@ namespace Raven
 
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rsnippet_find([MarshalAs(Utf8.Str)] string name);
+
+        /// <summary>
+        /// Gives the text that `$NAME` in a snippet body stands for
+        /// ("DATE", "AUTHOR"...). Case is ignored. A NULL or empty value removes
+        /// the variable, and a body that names one that is not set keeps it as
+        /// written. The text is copied.
+        /// Returns: R_FALSE when the name is empty.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsnippet_set_variable([MarshalAs(Utf8.Str)] string name, [MarshalAs(Utf8.Str)] string value);
 
         /// <summary>
         /// Types the snippet at the caret, replacing the word before it
@@ -8776,6 +8900,24 @@ namespace Raven
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rfile_write([MarshalAs(Utf8.Str)] string path, byte[] data, UIntPtr size);
 
+        /// <summary>
+        /// Copies a file. R_FALSE when the source cannot be read or the target cannot be written.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rfile_copy([MarshalAs(Utf8.Str)] string from, [MarshalAs(Utf8.Str)] string to);
+
+        /// <summary>
+        /// Moves (renames) a file, copying it when the system cannot rename it.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rfile_move([MarshalAs(Utf8.Str)] string from, [MarshalAs(Utf8.Str)] string to);
+
+        /// <summary>
+        /// Creates a folder and the ones above it that are missing. R_TRUE when it exists afterwards.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rfile_mkdir_p([MarshalAs(Utf8.Str)] string path);
+
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern uint Rfile_browser_create();
 
@@ -9171,6 +9313,9 @@ namespace Raven
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rpdf_view_set_page_needed_callback(uint pdf_view, RPdfPageNeededCallback callback, IntPtr user_data);
 
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_page_changed_callback(uint pdf_view, RPdfPageChangedCallback callback, IntPtr user_data);
+
         /// <summary>
         /// The page and the point of the page (in points, from its top-left
         /// corner) under a point of the widget, for SyncTeX inverse search.
@@ -9181,6 +9326,23 @@ namespace Raven
 
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern void Rpdf_view_set_page_clicked_callback(uint pdf_view, RPdfPageClickedCallback callback, IntPtr user_data);
+
+        /// <summary>
+        /// Adds a link to a page: a rectangle in points from the top left of the page (the
+        /// coordinates page_x / page_y of the clicks), and the number the application gives it.
+        /// The application reads the links of a page from the document (PDFium), so Raven does not.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_add_link(uint pdf_view, int page, float x0, float y0, float x1, float y1, int target);
+
+        /// <summary>
+        /// Removes the links of a page (before its links are read again).
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_clear_links(uint pdf_view, int page);
+
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rpdf_view_set_link_clicked_callback(uint pdf_view, RPdfLinkClickedCallback callback, IntPtr user_data);
 
         /// <summary>
         /// Asks for one page to be painted again, once its bitmap has arrived.
@@ -9902,6 +10064,13 @@ namespace Raven
         public static extern int Rsettings_remove(uint settings, [MarshalAs(Utf8.Str)] string key);
 
         /// <summary>
+        /// Removes every key whose full name starts with `prefix` (a whole list, such as
+        /// "project.recent", with the keys it had). Returns how many keys were removed.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int Rsettings_remove_prefix(uint settings, [MarshalAs(Utf8.Str)] string prefix);
+
+        /// <summary>
         /// R_TRUE when the key is there, whatever it holds.
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
@@ -10030,7 +10199,17 @@ namespace Raven
         public static extern void Rprocess_wait(uint process);
 
         /// <summary>
-        /// Returns: R_TRUE when the program is found (PATH lookup only).
+        /// Frees a process that ended. Its callbacks are not called again.
+        /// A process still running is stopped first, as Rprocess_cancel does. The
+        /// library keeps every process until Rshutdown, so an application that
+        /// starts many of them (a check after each pause) calls this when it no
+        /// longer needs the exit code.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Rprocess_destroy(uint process);
+
+        /// <summary>
+        /// Returns: R_TRUE when the program is found (the same lookup as Rprocess_find).
         /// </summary>
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Rprocess_is_available([MarshalAs(Utf8.Str)] string program);
@@ -10047,6 +10226,14 @@ namespace Raven
         [DllImport(Lib, EntryPoint = "Rprocess_find", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr Rprocess_find_([MarshalAs(Utf8.Str)] string program);
         public static string Rprocess_find(string program) { return Text(Rprocess_find_(program)); }
+
+        /// <summary>
+        /// Same as Rprocess_find, but the path is a copy the application owns: it stays the same
+        /// after the next call. Its length (without the terminating zero) is written to `size` when it is
+        /// not NULL. Free it with Rmemory_free. NULL when the program is not found.
+        /// </summary>
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr Rprocess_find_copy([MarshalAs(Utf8.Str)] string program, out UIntPtr size);
 
         /// <summary>
         /// Runs a program to the end and collects what it printed.

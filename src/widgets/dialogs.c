@@ -819,3 +819,44 @@ int Rfile_write(const char* path, const void* data, size_t size) {
 	if (!path || (!data && size > 0)) return R_FALSE;
 	return rvn_write_file(path, data, size);
 }
+
+int Rfile_copy(const char* from, const char* to) {
+	size_t size = 0;
+	char* data;
+	int ok;
+	if (!from || !to || !from[0] || !to[0]) return R_FALSE;
+	data = rvn_read_file(from, &size);
+	if (!data) return R_FALSE;
+	ok = rvn_write_file(to, data, size);
+	rvn_free(data);
+	return ok;
+}
+
+int Rfile_move(const char* from, const char* to) {
+	if (!from || !to || !from[0] || !to[0]) return R_FALSE;
+	if (rename(from, to) == 0) return R_TRUE;
+	/* another disk, or a file the system does not rename: copied, then the original goes */
+	if (!Rfile_copy(from, to)) return R_FALSE;
+	return remove(from) == 0;
+}
+
+int Rfile_mkdir_p(const char* path) {
+	char* buffer;
+	size_t length, i;
+	if (!path || !path[0]) return R_FALSE;
+	length = strlen(path);
+	buffer = (char*)rvn_alloc(length + 1);
+	memcpy(buffer, path, length + 1);
+	for (i = 1; i <= length; i++) {
+		if (buffer[i] != '/' && buffer[i] != '\\' && buffer[i] != '\0') continue;
+		if (buffer[i - 1] == '/' || buffer[i - 1] == '\\' || buffer[i - 1] == ':') continue;
+		{
+			char saved = buffer[i];
+			buffer[i] = '\0';
+			if (!rvn_path_is_dir(buffer)) rvn_make_dir(buffer);
+			buffer[i] = saved;
+		}
+	}
+	rvn_free(buffer);
+	return rvn_path_is_dir(path);
+}

@@ -216,6 +216,8 @@ const _symbols = {
 	Rwindow_create: { args: ["ptr", "i32", "i32", "u32"], returns: "u32" },
 	Rwindow_destroy: { args: ["u32"], returns: "void" },
 	Rwindow_is_valid: { args: ["u32"], returns: "i32" },
+	Rwindow_has_surface: { args: ["u32"], returns: "i32" },
+	Rwindow_get_surface_error: { args: ["u32"], returns: "cstring" },
 	Rwindow_set_content: { args: ["u32", "u32"], returns: "void" },
 	Rwindow_get_content: { args: ["u32"], returns: "u32" },
 	Rwindow_set_title: { args: ["u32", "ptr"], returns: "void" },
@@ -377,6 +379,7 @@ const _symbols = {
 	Rtexture_destroy: { args: ["u32"], returns: "void" },
 	Rtexture_is_valid: { args: ["u32"], returns: "i32" },
 	Rtexture_get_size: { args: ["u32", "ptr", "ptr"], returns: "void" },
+	Rtexture_is_placeholder: { args: ["u32"], returns: "i32" },
 	Rtexture_set_filter: { args: ["u32", "i32"], returns: "void" },
 	Rwidget_create: { args: ["i32"], returns: "u32" },
 	Rwidget_destroy: { args: ["u32"], returns: "void" },
@@ -500,6 +503,8 @@ const _symbols = {
 	Rtab_view_get_tab_count: { args: ["u32"], returns: "i32" },
 	Rtab_view_get_tab: { args: ["u32", "i32"], returns: "u32" },
 	Rtab_view_find_tab: { args: ["u32", "u32"], returns: "i32" },
+	Rtab_view_move_tab: { args: ["u32", "i32", "i32"], returns: "i32" },
+	Rtab_view_set_reordered_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
 	Rtab_view_set_tab_title: { args: ["u32", "u32", "ptr"], returns: "void" },
 	Rtab_view_set_tab_icon: { args: ["u32", "u32", "u32", "f32", "f32", "f32", "f32", "i32"], returns: "void" },
 	Rtab_view_set_tab_closable: { args: ["u32", "u32", "i32"], returns: "void" },
@@ -842,6 +847,8 @@ const _symbols = {
 	Rtext_editor_set_auto_pairs: { args: ["u32", "i32"], returns: "void" },
 	Rtext_editor_add_marker: { args: ["u32", "i32", "i32", "i32", "i32", "ptr"], returns: "void" },
 	Rtext_editor_clear_markers: { args: ["u32"], returns: "void" },
+	Rtext_editor_add_marker_from: { args: ["u32", "i32", "i32", "i32", "i32", "i32", "ptr"], returns: "void" },
+	Rtext_editor_clear_markers_of_source: { args: ["u32", "i32"], returns: "void" },
 	Rtext_editor_get_marker_count: { args: ["u32"], returns: "i32" },
 	Rtext_editor_get_marker: { args: ["u32", "i32", "ptr", "ptr", "ptr", "ptr"], returns: "cstring" },
 	Rtext_editor_clear_markers_of_line: { args: ["u32", "i32"], returns: "void" },
@@ -853,6 +860,12 @@ const _symbols = {
 	Rtext_editor_get_match: { args: ["u32", "i32", "ptr", "ptr", "ptr", "ptr"], returns: "i32" },
 	Rtext_editor_replace: { args: ["u32", "ptr"], returns: "i32" },
 	Rtext_editor_replace_all: { args: ["u32", "ptr"], returns: "i32" },
+	Rtext_editor_toggle_comment: { args: ["u32"], returns: "i32" },
+	Rtext_editor_begin_edit: { args: ["u32"], returns: "void" },
+	Rtext_editor_end_edit: { args: ["u32"], returns: "void" },
+	Rtext_editor_is_modified: { args: ["u32"], returns: "i32" },
+	Rtext_editor_set_modified: { args: ["u32", "i32"], returns: "void" },
+	Rtext_editor_reload_text: { args: ["u32", "ptr"], returns: "void" },
 	Rtext_editor_expand_replacement: { args: ["ptr", "ptr", "i32", "i32", "ptr", "i32"], returns: "cstring" },
 	Rtext_editor_set_folding: { args: ["u32", "i32"], returns: "void" },
 	Rtext_editor_get_folding: { args: ["u32"], returns: "i32" },
@@ -868,6 +881,7 @@ const _symbols = {
 	Rsnippet_get_count: { args: [], returns: "i32" },
 	Rsnippet_get_name: { args: ["i32"], returns: "cstring" },
 	Rsnippet_find: { args: ["ptr"], returns: "i32" },
+	Rsnippet_set_variable: { args: ["ptr", "ptr"], returns: "i32" },
 	Rtext_editor_insert_snippet: { args: ["u32", "ptr"], returns: "i32" },
 	Rtext_editor_snippet_at_caret: { args: ["u32"], returns: "i32" },
 	Rtext_editor_set_snippet_completion: { args: ["u32", "i32"], returns: "void" },
@@ -1140,6 +1154,9 @@ const _symbols = {
 	Rfile_is_memory: { args: ["ptr"], returns: "i32" },
 	Rfile_read: { args: ["ptr", "ptr"], returns: "ptr" },
 	Rfile_write: { args: ["ptr", "ptr", "usize"], returns: "i32" },
+	Rfile_copy: { args: ["ptr", "ptr"], returns: "i32" },
+	Rfile_move: { args: ["ptr", "ptr"], returns: "i32" },
+	Rfile_mkdir_p: { args: ["ptr"], returns: "i32" },
 	Rfile_browser_create: { args: [], returns: "u32" },
 	Rfile_browser_set_mode: { args: ["u32", "i32"], returns: "void" },
 	Rfile_browser_set_directory: { args: ["u32", "ptr"], returns: "i32" },
@@ -1205,8 +1222,12 @@ const _symbols = {
 	Rpdf_view_set_page_gap: { args: ["u32", "f32"], returns: "void" },
 	Rpdf_view_get_page_gap: { args: ["u32"], returns: "f32" },
 	Rpdf_view_set_page_needed_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
+	Rpdf_view_set_page_changed_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
 	Rpdf_view_get_page_at: { args: ["u32", "f32", "f32", "ptr", "ptr", "ptr"], returns: "i32" },
 	Rpdf_view_set_page_clicked_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
+	Rpdf_view_add_link: { args: ["u32", "i32", "f32", "f32", "f32", "f32", "i32"], returns: "void" },
+	Rpdf_view_clear_links: { args: ["u32", "i32"], returns: "void" },
+	Rpdf_view_set_link_clicked_callback: { args: ["u32", "ptr", "ptr"], returns: "void" },
 	Rpdf_view_invalidate_page: { args: ["u32", "i32"], returns: "void" },
 	Rpdf_view_scroll_to_position: { args: ["u32", "i32", "f32", "f32"], returns: "void" },
 	Rpdf_view_set_highlight: { args: ["u32", "i32", "f32", "f32", "f32", "f32"], returns: "void" },
@@ -1322,6 +1343,7 @@ const _symbols = {
 	Rsettings_set_number: { args: ["u32", "ptr", "f64"], returns: "void" },
 	Rsettings_set_text: { args: ["u32", "ptr", "ptr"], returns: "void" },
 	Rsettings_remove: { args: ["u32", "ptr"], returns: "i32" },
+	Rsettings_remove_prefix: { args: ["u32", "ptr"], returns: "i32" },
 	Rsettings_has: { args: ["u32", "ptr"], returns: "i32" },
 	Rsettings_get_json: { args: ["u32"], returns: "cstring" },
 	Rsettings_set_json: { args: ["u32", "ptr"], returns: "i32" },
@@ -1336,8 +1358,10 @@ const _symbols = {
 	Rprocess_get_state: { args: ["u32"], returns: "i32" },
 	Rprocess_cancel: { args: ["u32"], returns: "void" },
 	Rprocess_wait: { args: ["u32"], returns: "void" },
+	Rprocess_destroy: { args: ["u32"], returns: "void" },
 	Rprocess_is_available: { args: ["ptr"], returns: "i32" },
 	Rprocess_find: { args: ["ptr"], returns: "cstring" },
+	Rprocess_find_copy: { args: ["ptr", "ptr"], returns: "ptr" },
 	Rprocess_run: { args: ["ptr", "ptr", "usize"], returns: "ptr" },
 	Rlatex_log_parse: { args: ["ptr", "usize"], returns: "u32" },
 	Rlatex_log_parse_file: { args: ["ptr"], returns: "u32" },
@@ -5855,6 +5879,22 @@ function _adapt_RTabChangedCallback(function_: RTabChangedCallback | Pointer | n
 	}, { args: ["u32", "i32", "ptr"], returns: "void", threadsafe }));
 }
 
+/** Called after a tab was moved with Rtab_view_move_tab, with its old and new index. */
+export type RTabReorderedCallback = (tab_view: Rid, from: number, to: number, user_data: Pointer | null) => void;
+
+function _adapt_RTabReorderedCallback(function_: RTabReorderedCallback | Pointer | null, threadsafe = false): Pointer | null {
+	if (typeof function_ !== "function") {
+		return function_;
+	}
+	return _keep(new _JSCallback((tab_view: number, from: number, to: number, user_data: Pointer | null): void => {
+		try {
+			function_(tab_view, from, to, user_data);
+		} catch (error) {
+			_report(error as Error);
+		}
+	}, { args: ["u32", "i32", "i32", "ptr"], returns: "void", threadsafe }));
+}
+
 /**
  * The user closes a tab (its button, a middle click). Return R_TRUE
  * to delete its page now, R_FALSE to keep it (the application may ask to
@@ -6781,6 +6821,25 @@ function _adapt_RPdfPageNeededCallback(function_: RPdfPageNeededCallback | Point
 	}, { args: ["u32", "i32", "f32", "ptr"], returns: "void", threadsafe }));
 }
 
+/**
+ * Called when the page the view is at changes: by scrolling, by the keys, by
+ * Rpdf_view_set_page, or when the pages change. Not called when the page stays the same.
+ */
+export type RPdfPageChangedCallback = (pdf_view: Rid, page: number, user_data: Pointer | null) => void;
+
+function _adapt_RPdfPageChangedCallback(function_: RPdfPageChangedCallback | Pointer | null, threadsafe = false): Pointer | null {
+	if (typeof function_ !== "function") {
+		return function_;
+	}
+	return _keep(new _JSCallback((pdf_view: number, page: number, user_data: Pointer | null): void => {
+		try {
+			function_(pdf_view, page, user_data);
+		} catch (error) {
+			_report(error as Error);
+		}
+	}, { args: ["u32", "i32", "ptr"], returns: "void", threadsafe }));
+}
+
 /** Called when the user clicks on a page. This also fires the action of the widget. */
 export type RPdfPageClickedCallback = (pdf_view: Rid, page: number, page_x: number, page_y: number, user_data: Pointer | null) => void;
 
@@ -6795,6 +6854,25 @@ function _adapt_RPdfPageClickedCallback(function_: RPdfPageClickedCallback | Poi
 			_report(error as Error);
 		}
 	}, { args: ["u32", "i32", "f32", "f32", "ptr"], returns: "void", threadsafe }));
+}
+
+/**
+ * Called when the user clicks inside a link, with the target given to Rpdf_view_add_link.
+ * The page click (Rpdf_view_set_page_clicked_callback) is still called after it.
+ */
+export type RPdfLinkClickedCallback = (pdf_view: Rid, page: number, target: number, user_data: Pointer | null) => void;
+
+function _adapt_RPdfLinkClickedCallback(function_: RPdfLinkClickedCallback | Pointer | null, threadsafe = false): Pointer | null {
+	if (typeof function_ !== "function") {
+		return function_;
+	}
+	return _keep(new _JSCallback((pdf_view: number, page: number, target: number, user_data: Pointer | null): void => {
+		try {
+			function_(pdf_view, page, target, user_data);
+		} catch (error) {
+			_report(error as Error);
+		}
+	}, { args: ["u32", "i32", "i32", "ptr"], returns: "void", threadsafe }));
 }
 
 /**
@@ -7357,6 +7435,23 @@ export function Rwindow_destroy(window: Rid): void {
 
 export function Rwindow_is_valid(window: Rid): number {
 	return _lib.Rwindow_is_valid(window);
+}
+
+/**
+ * R_FALSE when the window has no rendering surface, so nothing is drawn in it: the backend
+ * refused it, or it could not be made again after the loss of the device. The window stays valid.
+ */
+export function Rwindow_has_surface(window: Rid): number {
+	return _lib.Rwindow_has_surface(window);
+}
+
+/**
+ * Why the window has no surface, as text, for the application to show in the window:
+ * the last refusal of the backend. NULL when the surface is there. The text stays until the
+ * surface is made again.
+ */
+export function Rwindow_get_surface_error(window: Rid): string | null {
+	return _lib.Rwindow_get_surface_error(window);
 }
 
 /**
@@ -8431,6 +8526,15 @@ export function Rtexture_get_size(texture: Rid): [width: number, height: number]
 }
 
 /**
+ * R_TRUE when the device was lost and the texture could not be rebuilt (it came from pixels
+ * too large to keep a copy of): it is blank now, and the application must upload it again with
+ * Rtexture_update. Set to R_FALSE by any upload. Use it after the reset callback to re-upload only what was lost.
+ */
+export function Rtexture_is_placeholder(texture: Rid): number {
+	return _lib.Rtexture_is_placeholder(texture);
+}
+
+/**
  * How the texture is smoothed when it is scaled. The textures made
  * from image files start with R_FILTER_MIPMAP, the others with
  * R_FILTER_LINEAR.
@@ -9140,6 +9244,18 @@ export function Rtab_view_get_tab(tab_view: Rid, index: number): Rid {
 /** Index of the tab of a page, -1 if none. */
 export function Rtab_view_find_tab(tab_view: Rid, content: Rid): number {
 	return _lib.Rtab_view_find_tab(tab_view, content);
+}
+
+/**
+ * Moves the tab at index "from" to index "to" (both in 0 .. count-1). The page keeps its state,
+ * and the active page stays active. R_FALSE when an index is out of range.
+ */
+export function Rtab_view_move_tab(tab_view: Rid, from: number, to: number): number {
+	return _lib.Rtab_view_move_tab(tab_view, from, to);
+}
+
+export function Rtab_view_set_reordered_callback(tab_view: Rid, callback: RTabReorderedCallback | Pointer | null, user_data: RPointer = null): void {
+	_lib.Rtab_view_set_reordered_callback(tab_view, _adapt_RTabReorderedCallback(callback), user_data);
 }
 
 export function Rtab_view_set_tab_title(tab_view: Rid, content: Rid, title: string | null): void {
@@ -10843,6 +10959,20 @@ export function Rtext_editor_clear_markers(editor: Rid): void {
 	_lib.Rtext_editor_clear_markers(editor);
 }
 
+/**
+ * Like Rtext_editor_add_marker, with the source of the marker: an application with two
+ * sources (the compiler log and a spell checker) can then replace one without touching the other.
+ * Rtext_editor_add_marker adds to source 0.
+ */
+export function Rtext_editor_add_marker_from(editor: Rid, source: number, line: number, from_column: number, to_column: number, kind: RMarkerKind, message: string | null): void {
+	_lib.Rtext_editor_add_marker_from(editor, source, line, from_column, to_column, kind, _s(message));
+}
+
+/** Removes the markers added with this source, and only those. */
+export function Rtext_editor_clear_markers_of_source(editor: Rid, source: number): void {
+	_lib.Rtext_editor_clear_markers_of_source(editor, source);
+}
+
 export function Rtext_editor_get_marker_count(editor: Rid): number {
 	return _lib.Rtext_editor_get_marker_count(editor);
 }
@@ -10922,9 +11052,59 @@ export function Rtext_editor_replace_all(editor: Rid, text: string | null): numb
 }
 
 /**
- * The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
- * (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
- * with `matches`, the groups of the regex that matched. Pure: no editor needed.
+ * Comments the lines of the selection with the line comment of the language, or uncomments
+ * them when all already are, as one step of the history.
+ * Returns: R_FALSE when the language has no line comment (or the editor is read-only).
+ */
+export function Rtext_editor_toggle_comment(editor: Rid): number {
+	return _lib.Rtext_editor_toggle_comment(editor);
+}
+
+/**
+ * Groups the edits made until Rtext_editor_end_edit into one step of the history. The calls nest.
+ * Use it when an application changes several lines at once (a menu action, a reformat).
+ */
+export function Rtext_editor_begin_edit(editor: Rid): void {
+	_lib.Rtext_editor_begin_edit(editor);
+}
+
+/** Ends the group opened by Rtext_editor_begin_edit. */
+export function Rtext_editor_end_edit(editor: Rid): void {
+	_lib.Rtext_editor_end_edit(editor);
+}
+
+/**
+ * R_TRUE when the text changed since it was last loaded or saved. Undoing back to the saved
+ * text still counts as modified: only Rtext_editor_set_modified(editor, R_FALSE) clears it.
+ * Rtext_editor_set_text does not clear it either.
+ */
+export function Rtext_editor_is_modified(editor: Rid): number {
+	return _lib.Rtext_editor_is_modified(editor);
+}
+
+/**
+ * Marks the current text as saved (modified = R_FALSE) or as changed (modified = R_TRUE).
+ * Call it with R_FALSE after saving, or after loading a file from disk.
+ */
+export function Rtext_editor_set_modified(editor: Rid, modified: number): void {
+	_lib.Rtext_editor_set_modified(editor, modified);
+}
+
+/**
+ * Replaces the text with one read from disk, keeping the caret and the scroll where they were
+ * (as far as the new text reaches). The history is cleared, and the text counts as saved.
+ */
+export function Rtext_editor_reload_text(editor: Rid, text: string | null): void {
+	_lib.Rtext_editor_reload_text(editor, _s(text));
+}
+
+/**
+ * The text of a replacement where `$1` .. `$9` and `${1}` (a group
+ * of the regex), `${1:text}` (the group, or that text when the group did
+ * not take part), `$&` (the whole match), `$$` (a dollar), `\n`, `\t` and
+ * `\\` mean something; `groups` holds the pairs of the match, as
+ * `Rtext_editor_get_match` gives them, `group_count` how many are.
+ * Pure: no editor needed.
  * Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
  */
 export function Rtext_editor_expand_replacement(replacement: string | null, text: string | null, from: number, to: number, groups: Int32Array | readonly number[] | null, group_count: number): string | null {
@@ -10998,6 +11178,17 @@ export function Rsnippet_get_name(index: number): string | null {
 
 export function Rsnippet_find(name: string | null): number {
 	return _lib.Rsnippet_find(_s(name));
+}
+
+/**
+ * Gives the text that `$NAME` in a snippet body stands for
+ * ("DATE", "AUTHOR"...). Case is ignored. A NULL or empty value removes
+ * the variable, and a body that names one that is not set keeps it as
+ * written. The text is copied.
+ * Returns: R_FALSE when the name is empty.
+ */
+export function Rsnippet_set_variable(name: string | null, value: string | null): number {
+	return _lib.Rsnippet_set_variable(_s(name), _s(value));
 }
 
 /**
@@ -12576,6 +12767,21 @@ export function Rfile_write(path: string | null, data: NodeJS.TypedArray | null)
 	return _lib.Rfile_write(_s(path), _b(data), data?.byteLength ?? 0);
 }
 
+/** Copies a file. R_FALSE when the source cannot be read or the target cannot be written. */
+export function Rfile_copy(from: string | null, to: string | null): number {
+	return _lib.Rfile_copy(_s(from), _s(to));
+}
+
+/** Moves (renames) a file, copying it when the system cannot rename it. */
+export function Rfile_move(from: string | null, to: string | null): number {
+	return _lib.Rfile_move(_s(from), _s(to));
+}
+
+/** Creates a folder and the ones above it that are missing. R_TRUE when it exists afterwards. */
+export function Rfile_mkdir_p(path: string | null): number {
+	return _lib.Rfile_mkdir_p(_s(path));
+}
+
 export function Rfile_browser_create(): Rid {
 	return _lib.Rfile_browser_create();
 }
@@ -12938,6 +13144,10 @@ export function Rpdf_view_set_page_needed_callback(pdf_view: Rid, callback: RPdf
 	_lib.Rpdf_view_set_page_needed_callback(pdf_view, _adapt_RPdfPageNeededCallback(callback), user_data);
 }
 
+export function Rpdf_view_set_page_changed_callback(pdf_view: Rid, callback: RPdfPageChangedCallback | Pointer | null, user_data: RPointer = null): void {
+	_lib.Rpdf_view_set_page_changed_callback(pdf_view, _adapt_RPdfPageChangedCallback(callback), user_data);
+}
+
 /**
  * The page and the point of the page (in points, from its top-left
  * corner) under a point of the widget, for SyncTeX inverse search.
@@ -12953,6 +13163,24 @@ export function Rpdf_view_get_page_at(pdf_view: Rid, x: number, y: number): [res
 
 export function Rpdf_view_set_page_clicked_callback(pdf_view: Rid, callback: RPdfPageClickedCallback | Pointer | null, user_data: RPointer = null): void {
 	_lib.Rpdf_view_set_page_clicked_callback(pdf_view, _adapt_RPdfPageClickedCallback(callback), user_data);
+}
+
+/**
+ * Adds a link to a page: a rectangle in points from the top left of the page (the
+ * coordinates page_x / page_y of the clicks), and the number the application gives it.
+ * The application reads the links of a page from the document (PDFium), so Raven does not.
+ */
+export function Rpdf_view_add_link(pdf_view: Rid, page: number, x0: number, y0: number, x1: number, y1: number, target: number): void {
+	_lib.Rpdf_view_add_link(pdf_view, page, x0, y0, x1, y1, target);
+}
+
+/** Removes the links of a page (before its links are read again). */
+export function Rpdf_view_clear_links(pdf_view: Rid, page: number): void {
+	_lib.Rpdf_view_clear_links(pdf_view, page);
+}
+
+export function Rpdf_view_set_link_clicked_callback(pdf_view: Rid, callback: RPdfLinkClickedCallback | Pointer | null, user_data: RPointer = null): void {
+	_lib.Rpdf_view_set_link_clicked_callback(pdf_view, _adapt_RPdfLinkClickedCallback(callback), user_data);
 }
 
 /** Asks for one page to be painted again, once its bitmap has arrived. */
@@ -13631,6 +13859,14 @@ export function Rsettings_remove(settings: Rid, key: string | null): number {
 	return _lib.Rsettings_remove(settings, _s(key));
 }
 
+/**
+ * Removes every key whose full name starts with `prefix` (a whole list, such as
+ * "project.recent", with the keys it had). Returns how many keys were removed.
+ */
+export function Rsettings_remove_prefix(settings: Rid, prefix: string | null): number {
+	return _lib.Rsettings_remove_prefix(settings, _s(prefix));
+}
+
 /** R_TRUE when the key is there, whatever it holds. */
 export function Rsettings_has(settings: Rid, key: string | null): number {
 	return _lib.Rsettings_has(settings, _s(key));
@@ -13745,7 +13981,18 @@ export function Rprocess_wait(process: Rid): void {
 	_lib.Rprocess_wait(process);
 }
 
-/** Returns: R_TRUE when the program is found (PATH lookup only). */
+/**
+ * Frees a process that ended. Its callbacks are not called again.
+ * A process still running is stopped first, as Rprocess_cancel does. The
+ * library keeps every process until Rshutdown, so an application that
+ * starts many of them (a check after each pause) calls this when it no
+ * longer needs the exit code.
+ */
+export function Rprocess_destroy(process: Rid): void {
+	_lib.Rprocess_destroy(process);
+}
+
+/** Returns: R_TRUE when the program is found (the same lookup as Rprocess_find). */
 export function Rprocess_is_available(program: string | null): number {
 	return _lib.Rprocess_is_available(_s(program));
 }
@@ -13761,6 +14008,23 @@ export function Rprocess_is_available(program: string | null): number {
  */
 export function Rprocess_find(program: string | null): string | null {
 	return _lib.Rprocess_find(_s(program));
+}
+
+/**
+ * Same as Rprocess_find, but the path is a copy the application owns: it stays the same
+ * after the next call. Its length (without the terminating zero) is written to `size` when it is
+ * not NULL. Free it with Rmemory_free. NULL when the program is not found.
+ */
+export function Rprocess_find_copy(program: string | null): Uint8Array | null {
+	const size_ = new BigUint64Array(1);
+	const address = _lib.Rprocess_find_copy(_s(program), size_) as Pointer | null;
+	if (!address) {
+		return null;
+	}
+	const size = Number(size_[0]!);
+	const data = size > 0 ? new Uint8Array(_toArrayBuffer(address, 0, size).slice(0)) : new Uint8Array(0);
+	_lib.Rmemory_free(address);
+	return data;
 }
 
 /**

@@ -1132,6 +1132,58 @@ int Rsettings_get_key_count(Rid id, const char* prefix) {
 	return (int)node->count;
 }
 
+/* Adds to the list the full name of every value under node that starts with prefix. */
+static void rvn_settings_collect(const rvn_json_t* node, const char* base, const char* prefix,
+	char*** list, size_t* count, size_t* cap, int depth) {
+	uint32_t i;
+	if (!node || depth > RVN_SETTINGS_MAX_DEPTH) return;
+	for (i = 0; i < node->count; i++) {
+		char number[16];
+		const char* name = NULL;
+		char* full;
+		size_t length;
+		const rvn_json_t* child = node->values ? node->values[i] : NULL;
+		if (node->kind == RVN_JSON_ARRAY) {
+			snprintf(number, sizeof(number), "%u", (unsigned)i);
+			name = number;
+		} else if (node->kind == RVN_JSON_OBJECT && node->names) {
+			name = node->names[i];
+		}
+		if (!name) continue;
+		length = (base[0] ? strlen(base) + 1 : 0) + strlen(name);
+		full = (char*)rvn_alloc(length + 1);
+		if (base[0]) sprintf(full, "%s.%s", base, name);
+		else strcpy(full, name);
+		/* containers are walked into whatever their name: the keys are the values */
+		if (child && (child->kind == RVN_JSON_OBJECT || child->kind == RVN_JSON_ARRAY)) {
+			rvn_settings_collect(child, full, prefix, list, count, cap, depth + 1);
+		} else if (strncmp(full, prefix, strlen(prefix)) == 0) {
+			if (*count == *cap) {
+				*cap = *cap ? *cap * 2 : 16;
+				*list = (char**)rvn_realloc(*list, sizeof(char*) * *cap);
+			}
+			(*list)[(*count)++] = full;
+			full = NULL;
+		}
+		rvn_free(full);
+	}
+}
+
+int Rsettings_remove_prefix(Rid id, const char* prefix) {
+	rvn_settings_t* settings = rvn_settings_check(id, __func__);
+	char** list = NULL;
+	size_t count = 0, cap = 0, i;
+	int removed = 0;
+	if (!settings || !prefix || !prefix[0]) return 0;
+	rvn_settings_collect(settings->root, "", prefix, &list, &count, &cap, 0);
+	for (i = 0; i < count; i++) {
+		if (Rsettings_remove(id, list[i])) removed++;
+		rvn_free(list[i]);
+	}
+	rvn_free(list);
+	return removed;
+}
+
 const char* Rsettings_get_key(Rid id, const char* prefix, int index) {
 	rvn_settings_t* settings = rvn_settings_check(id, __func__);
 	rvn_json_t* node;

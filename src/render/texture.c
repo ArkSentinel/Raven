@@ -74,6 +74,7 @@ static void rvn_texture_upload(rvn_texture_t* texture, int width, int height, vo
 	if (texture->created) rvn_renderer_destroy_texture(texture->id);
 	texture->width = width;
 	texture->height = height;
+	texture->placeholder = R_FALSE;
 	desc.width = (Ruint)width;
 	desc.height = (Ruint)height;
 	desc.format = texture->format;
@@ -142,8 +143,14 @@ void rvn_texture_restore(rvn_texture_t* texture) {
 			pixels = NULL;
 		}
 	}
-	/* no pixels: the backend makes it transparent */
+	/* no pixels: the backend makes it transparent, and the application must upload it again */
 	rvn_texture_upload(texture, width, height, pixels);
+	texture->placeholder = pixels == NULL;
+}
+
+int Rtexture_is_placeholder(Rid id) {
+	rvn_texture_t* texture = g_rvn.initialized ? rvn_texture_get(id) : NULL;
+	return texture ? texture->placeholder : R_FALSE;
 }
 
 /* ---------------------------------------------------------------------------
@@ -387,6 +394,7 @@ void Rtexture_update(Rid id, const uint8_t* rgba, int width, int height) {
 	texture->source_path = NULL;
 	texture->source_data = NULL;
 	texture->source_size = 0;
+	texture->placeholder = R_FALSE;
 	if (texture->created && texture->width == width && texture->height == height) {
 		rvn_texture_keep_pixels(texture, width, height, copy);
 		rvn_renderer_update_texture(id, 0, 0, (uint32_t)width, (uint32_t)height, copy);

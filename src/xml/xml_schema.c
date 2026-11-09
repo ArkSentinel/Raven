@@ -324,6 +324,7 @@ static const rvn_schema_attribute_t g_pdf_view[] = {
 	N("Zoom", "Pixels per point: 1 = 72 dpi (0.05 .. 16)."),
 	C("Fit", "None|Width|Page", "The zoom follows the size of the view, on the width or on the whole page."),
 	N("PageGap", "Space between the pages and around them, in points."),
+	K("Background", "Color behind the pages."),
 	A("OnChanged", "Action fired when the user clicks a page."),
 };
 static const rvn_schema_attribute_t g_plot[] = {

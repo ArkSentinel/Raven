@@ -2163,6 +2163,14 @@ def _adapt_RTabChangedCallback(function):
         function(tab_view, index, user_data)
     return call
 
+RTabReorderedCallback = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_int, ctypes.c_int, ctypes.c_void_p)
+
+
+def _adapt_RTabReorderedCallback(function):
+    def call(tab_view, from_, to, user_data):
+        function(tab_view, from_, to, user_data)
+    return call
+
 RTabCloseCallback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32, ctypes.c_void_p)
 
 
@@ -2601,12 +2609,28 @@ def _adapt_RPdfPageNeededCallback(function):
         function(pdf_view, page, scale, user_data)
     return call
 
+RPdfPageChangedCallback = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_int, ctypes.c_void_p)
+
+
+def _adapt_RPdfPageChangedCallback(function):
+    def call(pdf_view, page, user_data):
+        function(pdf_view, page, user_data)
+    return call
+
 RPdfPageClickedCallback = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_void_p)
 
 
 def _adapt_RPdfPageClickedCallback(function):
     def call(pdf_view, page, page_x, page_y, user_data):
         function(pdf_view, page, page_x, page_y, user_data)
+    return call
+
+RPdfLinkClickedCallback = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_int, ctypes.c_int, ctypes.c_void_p)
+
+
+def _adapt_RPdfLinkClickedCallback(function):
+    def call(pdf_view, page, target, user_data):
+        function(pdf_view, page, target, user_data)
     return call
 
 RXmlReloadCallback = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p)
@@ -3287,6 +3311,27 @@ _lib.Rwindow_is_valid.restype = ctypes.c_int
 
 def Rwindow_is_valid(window):
     return _lib.Rwindow_is_valid(window)
+
+
+_lib.Rwindow_has_surface.argtypes = [ctypes.c_uint32]
+_lib.Rwindow_has_surface.restype = ctypes.c_int
+
+
+def Rwindow_has_surface(window):
+    """R_FALSE when the window has no rendering surface, so nothing is drawn in it: the backend
+    refused it, or it could not be made again after the loss of the device. The window stays valid."""
+    return _lib.Rwindow_has_surface(window)
+
+
+_lib.Rwindow_get_surface_error.argtypes = [ctypes.c_uint32]
+_lib.Rwindow_get_surface_error.restype = ctypes.c_char_p
+
+
+def Rwindow_get_surface_error(window):
+    """Why the window has no surface, as text, for the application to show in the window:
+    the last refusal of the backend. NULL when the surface is there. The text stays until the
+    surface is made again."""
+    return _r(_lib.Rwindow_get_surface_error(window))
 
 
 _lib.Rwindow_set_content.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
@@ -4911,6 +4956,17 @@ def Rtexture_get_size(texture):
     return (width_.value, height_.value)
 
 
+_lib.Rtexture_is_placeholder.argtypes = [ctypes.c_uint32]
+_lib.Rtexture_is_placeholder.restype = ctypes.c_int
+
+
+def Rtexture_is_placeholder(texture):
+    """R_TRUE when the device was lost and the texture could not be rebuilt (it came from pixels
+    too large to keep a copy of): it is blank now, and the application must upload it again with
+    Rtexture_update. Set to R_FALSE by any upload. Use it after the reset callback to re-upload only what was lost."""
+    return _lib.Rtexture_is_placeholder(texture)
+
+
 _lib.Rtexture_set_filter.argtypes = [ctypes.c_uint32, ctypes.c_int]
 _lib.Rtexture_set_filter.restype = None
 
@@ -6057,6 +6113,24 @@ _lib.Rtab_view_find_tab.restype = ctypes.c_int
 def Rtab_view_find_tab(tab_view, content):
     """Index of the tab of a page, -1 if none."""
     return _lib.Rtab_view_find_tab(tab_view, content)
+
+
+_lib.Rtab_view_move_tab.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_int]
+_lib.Rtab_view_move_tab.restype = ctypes.c_int
+
+
+def Rtab_view_move_tab(tab_view, from_, to):
+    """Moves the tab at index "from" to index "to" (both in 0 .. count-1). The page keeps its state,
+    and the active page stays active. R_FALSE when an index is out of range."""
+    return _lib.Rtab_view_move_tab(tab_view, from_, to)
+
+
+_lib.Rtab_view_set_reordered_callback.argtypes = [ctypes.c_uint32, RTabReorderedCallback, ctypes.c_void_p]
+_lib.Rtab_view_set_reordered_callback.restype = None
+
+
+def Rtab_view_set_reordered_callback(tab_view, callback, user_data=None):
+    _lib.Rtab_view_set_reordered_callback(tab_view, _callback(RTabReorderedCallback, _adapt_RTabReorderedCallback, callback), user_data)
 
 
 _lib.Rtab_view_set_tab_title.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p]
@@ -9078,6 +9152,26 @@ def Rtext_editor_clear_markers(editor):
     _lib.Rtext_editor_clear_markers(editor)
 
 
+_lib.Rtext_editor_add_marker_from.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
+_lib.Rtext_editor_add_marker_from.restype = None
+
+
+def Rtext_editor_add_marker_from(editor, source, line, from_column, to_column, kind, message):
+    """Like Rtext_editor_add_marker, with the source of the marker: an application with two
+    sources (the compiler log and a spell checker) can then replace one without touching the other.
+    Rtext_editor_add_marker adds to source 0."""
+    _lib.Rtext_editor_add_marker_from(editor, source, line, from_column, to_column, int(kind), _s(message))
+
+
+_lib.Rtext_editor_clear_markers_of_source.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtext_editor_clear_markers_of_source.restype = None
+
+
+def Rtext_editor_clear_markers_of_source(editor, source):
+    """Removes the markers added with this source, and only those."""
+    _lib.Rtext_editor_clear_markers_of_source(editor, source)
+
+
 _lib.Rtext_editor_get_marker_count.argtypes = [ctypes.c_uint32]
 _lib.Rtext_editor_get_marker_count.restype = ctypes.c_int
 
@@ -9192,14 +9286,78 @@ def Rtext_editor_replace_all(editor, text):
     return _lib.Rtext_editor_replace_all(editor, _s(text))
 
 
+_lib.Rtext_editor_toggle_comment.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_toggle_comment.restype = ctypes.c_int
+
+
+def Rtext_editor_toggle_comment(editor):
+    """Comments the lines of the selection with the line comment of the language, or uncomments
+    them when all already are, as one step of the history.
+    Returns: R_FALSE when the language has no line comment (or the editor is read-only)."""
+    return _lib.Rtext_editor_toggle_comment(editor)
+
+
+_lib.Rtext_editor_begin_edit.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_begin_edit.restype = None
+
+
+def Rtext_editor_begin_edit(editor):
+    """Groups the edits made until Rtext_editor_end_edit into one step of the history. The calls nest.
+    Use it when an application changes several lines at once (a menu action, a reformat)."""
+    _lib.Rtext_editor_begin_edit(editor)
+
+
+_lib.Rtext_editor_end_edit.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_end_edit.restype = None
+
+
+def Rtext_editor_end_edit(editor):
+    """Ends the group opened by Rtext_editor_begin_edit."""
+    _lib.Rtext_editor_end_edit(editor)
+
+
+_lib.Rtext_editor_is_modified.argtypes = [ctypes.c_uint32]
+_lib.Rtext_editor_is_modified.restype = ctypes.c_int
+
+
+def Rtext_editor_is_modified(editor):
+    """R_TRUE when the text changed since it was last loaded or saved. Undoing back to the saved
+    text still counts as modified: only Rtext_editor_set_modified(editor, R_FALSE) clears it.
+    Rtext_editor_set_text does not clear it either."""
+    return _lib.Rtext_editor_is_modified(editor)
+
+
+_lib.Rtext_editor_set_modified.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rtext_editor_set_modified.restype = None
+
+
+def Rtext_editor_set_modified(editor, modified):
+    """Marks the current text as saved (modified = R_FALSE) or as changed (modified = R_TRUE).
+    Call it with R_FALSE after saving, or after loading a file from disk."""
+    _lib.Rtext_editor_set_modified(editor, modified)
+
+
+_lib.Rtext_editor_reload_text.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rtext_editor_reload_text.restype = None
+
+
+def Rtext_editor_reload_text(editor, text):
+    """Replaces the text with one read from disk, keeping the caret and the scroll where they were
+    (as far as the new text reaches). The history is cleared, and the text counts as saved."""
+    _lib.Rtext_editor_reload_text(editor, _s(text))
+
+
 _lib.Rtext_editor_expand_replacement.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.c_int]
 _lib.Rtext_editor_expand_replacement.restype = ctypes.c_char_p
 
 
 def Rtext_editor_expand_replacement(replacement, text, from_, to, groups, group_count):
-    """The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
-    (the whole match), `$$` (a dollar), `\\n`, `\\t` and `\\\\` mean something;
-    with `matches`, the groups of the regex that matched. Pure: no editor needed.
+    """The text of a replacement where `$1` .. `$9` and `${1}` (a group
+    of the regex), `${1:text}` (the group, or that text when the group did
+    not take part), `$&` (the whole match), `$$` (a dollar), `\\n`, `\\t` and
+    `\\\\` mean something; `groups` holds the pairs of the match, as
+    `Rtext_editor_get_match` gives them, `group_count` how many are.
+    Pure: no editor needed.
     Returns: The text, in a buffer of the editor (valid until the next call), or NULL."""
     return _r(_lib.Rtext_editor_expand_replacement(_s(replacement), _s(text), from_, to, _a(ctypes.c_int, groups), group_count))
 
@@ -9323,6 +9481,19 @@ _lib.Rsnippet_find.restype = ctypes.c_int
 
 def Rsnippet_find(name):
     return _lib.Rsnippet_find(_s(name))
+
+
+_lib.Rsnippet_set_variable.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+_lib.Rsnippet_set_variable.restype = ctypes.c_int
+
+
+def Rsnippet_set_variable(name, value):
+    """Gives the text that `$NAME` in a snippet body stands for
+    ("DATE", "AUTHOR"...). Case is ignored. A NULL or empty value removes
+    the variable, and a body that names one that is not set keeps it as
+    written. The text is copied.
+    Returns: R_FALSE when the name is empty."""
+    return _lib.Rsnippet_set_variable(_s(name), _s(value))
 
 
 _lib.Rtext_editor_insert_snippet.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
@@ -11887,6 +12058,33 @@ def Rfile_write(path, data):
     return _lib.Rfile_write(_s(path), data, len(data) if data is not None else 0)
 
 
+_lib.Rfile_copy.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+_lib.Rfile_copy.restype = ctypes.c_int
+
+
+def Rfile_copy(from_, to):
+    """Copies a file. R_FALSE when the source cannot be read or the target cannot be written."""
+    return _lib.Rfile_copy(_s(from_), _s(to))
+
+
+_lib.Rfile_move.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+_lib.Rfile_move.restype = ctypes.c_int
+
+
+def Rfile_move(from_, to):
+    """Moves (renames) a file, copying it when the system cannot rename it."""
+    return _lib.Rfile_move(_s(from_), _s(to))
+
+
+_lib.Rfile_mkdir_p.argtypes = [ctypes.c_char_p]
+_lib.Rfile_mkdir_p.restype = ctypes.c_int
+
+
+def Rfile_mkdir_p(path):
+    """Creates a folder and the ones above it that are missing. R_TRUE when it exists afterwards."""
+    return _lib.Rfile_mkdir_p(_s(path))
+
+
 _lib.Rfile_browser_create.argtypes = []
 _lib.Rfile_browser_create.restype = ctypes.c_uint32
 
@@ -12486,6 +12684,14 @@ def Rpdf_view_set_page_needed_callback(pdf_view, callback, user_data=None):
     _lib.Rpdf_view_set_page_needed_callback(pdf_view, _callback(RPdfPageNeededCallback, _adapt_RPdfPageNeededCallback, callback), user_data)
 
 
+_lib.Rpdf_view_set_page_changed_callback.argtypes = [ctypes.c_uint32, RPdfPageChangedCallback, ctypes.c_void_p]
+_lib.Rpdf_view_set_page_changed_callback.restype = None
+
+
+def Rpdf_view_set_page_changed_callback(pdf_view, callback, user_data=None):
+    _lib.Rpdf_view_set_page_changed_callback(pdf_view, _callback(RPdfPageChangedCallback, _adapt_RPdfPageChangedCallback, callback), user_data)
+
+
 _lib.Rpdf_view_get_page_at.argtypes = [ctypes.c_uint32, ctypes.c_float, ctypes.c_float, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float)]
 _lib.Rpdf_view_get_page_at.restype = ctypes.c_int
 
@@ -12507,6 +12713,34 @@ _lib.Rpdf_view_set_page_clicked_callback.restype = None
 
 def Rpdf_view_set_page_clicked_callback(pdf_view, callback, user_data=None):
     _lib.Rpdf_view_set_page_clicked_callback(pdf_view, _callback(RPdfPageClickedCallback, _adapt_RPdfPageClickedCallback, callback), user_data)
+
+
+_lib.Rpdf_view_add_link.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int]
+_lib.Rpdf_view_add_link.restype = None
+
+
+def Rpdf_view_add_link(pdf_view, page, x0, y0, x1, y1, target):
+    """Adds a link to a page: a rectangle in points from the top left of the page (the
+    coordinates page_x / page_y of the clicks), and the number the application gives it.
+    The application reads the links of a page from the document (PDFium), so Raven does not."""
+    _lib.Rpdf_view_add_link(pdf_view, page, x0, y0, x1, y1, target)
+
+
+_lib.Rpdf_view_clear_links.argtypes = [ctypes.c_uint32, ctypes.c_int]
+_lib.Rpdf_view_clear_links.restype = None
+
+
+def Rpdf_view_clear_links(pdf_view, page):
+    """Removes the links of a page (before its links are read again)."""
+    _lib.Rpdf_view_clear_links(pdf_view, page)
+
+
+_lib.Rpdf_view_set_link_clicked_callback.argtypes = [ctypes.c_uint32, RPdfLinkClickedCallback, ctypes.c_void_p]
+_lib.Rpdf_view_set_link_clicked_callback.restype = None
+
+
+def Rpdf_view_set_link_clicked_callback(pdf_view, callback, user_data=None):
+    _lib.Rpdf_view_set_link_clicked_callback(pdf_view, _callback(RPdfLinkClickedCallback, _adapt_RPdfLinkClickedCallback, callback), user_data)
 
 
 _lib.Rpdf_view_invalidate_page.argtypes = [ctypes.c_uint32, ctypes.c_int]
@@ -13588,6 +13822,16 @@ def Rsettings_remove(settings, key):
     return _lib.Rsettings_remove(settings, _s(key))
 
 
+_lib.Rsettings_remove_prefix.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
+_lib.Rsettings_remove_prefix.restype = ctypes.c_int
+
+
+def Rsettings_remove_prefix(settings, prefix):
+    """Removes every key whose full name starts with `prefix` (a whole list, such as
+    "project.recent", with the keys it had). Returns how many keys were removed."""
+    return _lib.Rsettings_remove_prefix(settings, _s(prefix))
+
+
 _lib.Rsettings_has.argtypes = [ctypes.c_uint32, ctypes.c_char_p]
 _lib.Rsettings_has.restype = ctypes.c_int
 
@@ -13740,12 +13984,25 @@ def Rprocess_wait(process):
     _lib.Rprocess_wait(process)
 
 
+_lib.Rprocess_destroy.argtypes = [ctypes.c_uint32]
+_lib.Rprocess_destroy.restype = None
+
+
+def Rprocess_destroy(process):
+    """Frees a process that ended. Its callbacks are not called again.
+    A process still running is stopped first, as Rprocess_cancel does. The
+    library keeps every process until Rshutdown, so an application that
+    starts many of them (a check after each pause) calls this when it no
+    longer needs the exit code."""
+    _lib.Rprocess_destroy(process)
+
+
 _lib.Rprocess_is_available.argtypes = [ctypes.c_char_p]
 _lib.Rprocess_is_available.restype = ctypes.c_int
 
 
 def Rprocess_is_available(program):
-    """Returns: R_TRUE when the program is found (PATH lookup only)."""
+    """Returns: R_TRUE when the program is found (the same lookup as Rprocess_find)."""
     return _lib.Rprocess_is_available(_s(program))
 
 
@@ -13762,6 +14019,23 @@ def Rprocess_find(program):
     /opt/homebrew/bin, C:\\\\texlive\\\\ * \\\\bin\\\\windows and the bin folder of
     MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%)."""
     return _r(_lib.Rprocess_find(_s(program)))
+
+
+_lib.Rprocess_find_copy.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_size_t)]
+_lib.Rprocess_find_copy.restype = ctypes.c_void_p
+
+
+def Rprocess_find_copy(program):
+    """Same as Rprocess_find, but the path is a copy the application owns: it stays the same
+    after the next call. Its length (without the terminating zero) is written to `size` when it is
+    not NULL. Free it with Rmemory_free. NULL when the program is not found."""
+    size_ = ctypes.c_size_t()
+    address = _lib.Rprocess_find_copy(_s(program), ctypes.byref(size_))
+    if not address:
+        return None
+    data = ctypes.string_at(address, size_.value)
+    _lib.Rmemory_free(address)
+    return data
 
 
 _lib.Rprocess_run.argtypes = [ctypes.POINTER(RProcessDesc), ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t]

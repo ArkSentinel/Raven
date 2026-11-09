@@ -32,6 +32,27 @@ static char* temp_path(const char* name) {
  *  Values
  * ------------------------------------------------------------------------- */
 
+/* A list stored as one key per entry: removing the prefix drops all of them, and only them. */
+static void test_remove_prefix(void) {
+	Rid settings = Rsettings_create(NULL);
+	char key[64];
+	int i;
+	for (i = 0; i < 5; i++) {
+		snprintf(key, sizeof(key), "project.recent.%d", i);
+		Rsettings_set_text(settings, key, "x");
+	}
+	Rsettings_set_text(settings, "project.last", "keep");
+	Rsettings_set_text(settings, "app.theme", "keep");
+	CHECK(Rsettings_remove_prefix(settings, "project.recent") == 5);
+	CHECK(!Rsettings_has(settings, "project.recent.0"));
+	CHECK(!Rsettings_has(settings, "project.recent.4"));
+	CHECK(Rsettings_has(settings, "project.last"));
+	CHECK(Rsettings_has(settings, "app.theme"));
+	CHECK(Rsettings_remove_prefix(settings, "project.recent") == 0);
+	CHECK(Rsettings_remove_prefix(settings, "") == 0);
+	Rsettings_destroy(settings);
+}
+
 static void test_values(void) {
 	Rid settings = Rsettings_create(NULL);
 	CHECK(Rsettings_get_path(settings)[0] == '\0');
@@ -178,6 +199,67 @@ static void test_json(void) {
 	EXPECT_ERRORS_END(0);
 	CHECK(Rsettings_get_int(settings, "keep", 0) == 5);
 
+	Rsettings_destroy(settings);
+}
+
+/* ---------------------------------------------------------------------------
+ *  A random reader: documents of random characters, and of valid pieces
+ *  shaken about. Under AddressSanitizer this is the fuzz of the parser.
+ * ------------------------------------------------------------------------- */
+
+static uint32_t g_fuzz_state = 12345u;
+static uint32_t fuzz_next(void) {
+	g_fuzz_state ^= g_fuzz_state << 13;
+	g_fuzz_state ^= g_fuzz_state >> 17;
+	g_fuzz_state ^= g_fuzz_state << 5;
+	return g_fuzz_state;
+}
+
+static void test_fuzz(void) {
+	static const char* pieces[] = {
+		"{", "}", "[", "]", ":", ",", "\"a\"", "\"b\"", "1", "-2.5e3", "true", "false", "null",
+		"\"\\u00e9\"", "\"\\ud83d\\ude00\"", "// c\n", "/* c */", "\"\\\"\"", "0", "\"\\\\\"", "\"\\u12\""
+	};
+	Rid settings = Rsettings_create(NULL);
+	uint32_t step, accepted = 0, read_back = 0;
+	char text[256];
+	/* the errors of the documents that are not valid JSON are expected */
+	EXPECT_ERRORS_BEGIN();
+	for (step = 0; step < 200000u; step++) {
+		size_t used = 0;
+		int parts, i;
+		if (step % 3 == 0) {
+			/* bytes at random, as a damaged file has them */
+			parts = (int)(fuzz_next() % 40u);
+			for (i = 0; i < parts && used + 2 < sizeof(text); i++) {
+				unsigned char c = (unsigned char)(fuzz_next() & 0xFFu);
+				if (c == 0) c = 'x';
+				text[used++] = (char)c;
+			}
+		} else {
+			/* pieces that are each valid on their own, in an order that mostly is not */
+			parts = (int)(fuzz_next() % 24u);
+			for (i = 0; i < parts; i++) {
+				const char* piece = pieces[fuzz_next() % (sizeof(pieces) / sizeof(pieces[0]))];
+				size_t length = strlen(piece);
+				if (used + length + 2 >= sizeof(text)) break;
+				memcpy(text + used, piece, length);
+				used += length;
+			}
+		}
+		text[used] = '\0';
+		if (Rsettings_set_json(settings, text)) accepted++;
+		/* (a document that was taken is read back: the reader and the writer agree) */
+		if (Rsettings_get_key_count(settings, "") > 0) {
+			const char* written = Rsettings_get_json(settings);
+			CHECK(Rsettings_set_json(settings, written));
+			read_back++;
+		}
+	}
+	EXPECT_ERRORS_END(0);
+	/* (the test is worth something only when both paths were taken: documents refused and documents read) */
+	CHECK(accepted > 1000);
+	CHECK(read_back > 100);
 	Rsettings_destroy(settings);
 }
 
@@ -592,7 +674,9 @@ int main(void) {
 		return 1;
 	}
 	RUN(test_values);
+	RUN(test_remove_prefix);
 	RUN(test_json);
+	RUN(test_fuzz);
 	RUN(test_files);
 	RUN(test_key_names);
 	RUN(test_window_bindings);

@@ -51,6 +51,8 @@ typedef struct rvn_ed_marker_t {
 	int to;
 	RMarkerKind kind;
 	char* message;
+	/** Who added it (0 by default): the application's own sources of markers are told apart by it. */
+	int source;
 } rvn_ed_marker_t;
 
 /** A block that can be folded: its first line, its last line, and whether it is folded now. */
@@ -87,6 +89,12 @@ typedef struct rvn_ed_snippet_t {
 	char* body;
 } rvn_ed_snippet_t;
 
+/** A variable that a snippet body may name with `$NAME`. */
+typedef struct rvn_ed_variable_t {
+	char* name;
+	char* value;
+} rvn_ed_variable_t;
+
 /** One step of the history: `removed` was replaced by `inserted` at `start`. */
 typedef struct rvn_ed_edit_t {
 	rvn_ed_pos_t start;
@@ -97,6 +105,11 @@ typedef struct rvn_ed_edit_t {
 	rvn_ed_pos_t caret_before, anchor_before, caret_after;
 	/** A run of typed characters that the next one may join. */
 	int typing;
+	/**
+	 * The change this edit belongs to, when several edits make one step of
+	 * the history (typing at every caret, Replace All): 0 is a step of its own.
+	 */
+	uint32_t group;
 } rvn_ed_edit_t;
 
 typedef struct rvn_text_editor_t {
@@ -124,6 +137,8 @@ typedef struct rvn_text_editor_t {
 	int no_completion;
 	/** Counts the changes of the text: what was computed for a version is forgotten with it. */
 	uint32_t version;
+	/** The version the application last saved or loaded: the text is modified when they differ. */
+	uint32_t saved_version;
 	/** The bracket next to the caret and the one that closes it, found for (match_version, match_caret). */
 	uint32_t match_version;
 	rvn_ed_pos_t match_caret;
@@ -168,6 +183,8 @@ typedef struct rvn_text_editor_t {
 	uint32_t caret_count;
 	uint32_t caret_cap;
 	int multi_cursor;
+	/** Alt is held while the pointer drags: a caret on every line it crosses. */
+	int column_drag;
 	int no_snippets;
 	/** The list of proposals (a popup of the window), created on first use. */
 	rvn_widget_t* complete;
@@ -203,6 +220,12 @@ typedef struct rvn_text_editor_t {
 	rvn_ed_edit_t* redo;
 	uint32_t redo_count;
 	uint32_t redo_cap;
+	/** The group the next recorded edits belong to (0: one step of its own). */
+	uint32_t edit_group;
+	/** How many rvn_ed_group_begin calls are open. */
+	int edit_group_depth;
+	/** Numbers the groups, so that a group is never 0. */
+	uint32_t edit_group_serial;
 
 	int selecting;
 	Rid blink_timer;
@@ -409,6 +432,23 @@ static void rvn_ed_changed_state(rvn_text_editor_t* ed, int first_line) {
 	rvn_widget_invalidate_paint(&ed->base);
 }
 
+/* Drops the oldest steps, whole groups at a time, until the history fits in RVN_ED_MAX_UNDO. */
+static void rvn_ed_history_trim(rvn_text_editor_t* ed) {
+	while (ed->undo_count > RVN_ED_MAX_UNDO) {
+		uint32_t oldest = ed->undo[0].group, drop = 1;
+		/* (the edits of a group go together: no undo is left half a change) */
+		while (drop < ed->undo_count && oldest && ed->undo[drop].group == oldest) drop++;
+		/* (the only group there is stays, however long it is: losing it would lose the change) */
+		if (drop >= ed->undo_count) break;
+		{
+			uint32_t i;
+			for (i = 0; i < drop; i++) rvn_ed_edit_free(&ed->undo[i]);
+			memmove(ed->undo, ed->undo + drop, sizeof(rvn_ed_edit_t) * (size_t)(ed->undo_count - drop));
+			ed->undo_count -= drop;
+		}
+	}
+}
+
 /*
  * The one function that changes the text: replaces what lies between two
  * positions by `text` (either may be empty) and returns the position after
@@ -433,9 +473,10 @@ static rvn_ed_pos_t rvn_ed_replace(rvn_text_editor_t* ed, rvn_ed_pos_t from, rvn
 		rvn_ed_edit_t* last = ed->undo_count ? &ed->undo[ed->undo_count - 1] : NULL;
 		int typed = length > 0 && rvn_ed_pos_cmp(from, to) == 0 && !memchr(text, '\n', (size_t)length) &&
 			rvn_utf8_count(text, length) == 1;
-		rvn_ed_history_clear(ed->redo, &ed->redo_count);
+		/* (edits of the same group are one step: what was undone or redone is gone for good only when a new change starts) */
+		if (!ed->edit_group || !last || last->group != ed->edit_group) rvn_ed_history_clear(ed->redo, &ed->redo_count);
 		if (typed && last && last->typing && last->removed_length == 0 && last->inserted_length < RVN_ED_TYPING_GROUP &&
-			rvn_ed_pos_cmp(last->caret_after, from) == 0) {
+			last->group == ed->edit_group && rvn_ed_pos_cmp(last->caret_after, from) == 0) {
 			/* one more character of a run that is being typed: same step */
 			last->inserted = (char*)rvn_realloc(last->inserted, (size_t)(last->inserted_length + length) + 1);
 			memcpy(last->inserted + last->inserted_length, text, (size_t)length);
@@ -444,11 +485,8 @@ static rvn_ed_pos_t rvn_ed_replace(rvn_text_editor_t* ed, rvn_ed_pos_t from, rvn
 			last->caret_after = rvn_ed_pos(from.line, from.column + length);
 		} else {
 			rvn_ed_edit_t* edit;
-			if (ed->undo_count == RVN_ED_MAX_UNDO) {
-				rvn_ed_edit_free(&ed->undo[0]);
-				memmove(ed->undo, ed->undo + 1, sizeof(rvn_ed_edit_t) * (ed->undo_count - 1));
-				ed->undo_count--;
-			}
+			/* (at the limit the oldest steps go, whole groups at a time) */
+			rvn_ed_history_trim(ed);
 			RVN_ARRAY_RESERVE(ed->undo, ed->undo_cap, ed->undo_count + 1);
 			edit = &ed->undo[ed->undo_count++];
 			memset(edit, 0, sizeof(*edit));
@@ -460,6 +498,7 @@ static rvn_ed_pos_t rvn_ed_replace(rvn_text_editor_t* ed, rvn_ed_pos_t from, rvn
 			edit->anchor_before = ed->anchor;
 			edit->caret_after = rvn_ed_pos_after(from, text, length);
 			edit->typing = typed;
+			edit->group = ed->edit_group;
 		}
 	}
 
@@ -533,32 +572,73 @@ static void rvn_ed_break_typing(rvn_text_editor_t* ed) {
 	if (ed->undo_count) ed->undo[ed->undo_count - 1].typing = R_FALSE;
 }
 
+/*
+ * Several edits as one step of the history: what is recorded between these
+ * two calls is undone and redone together (typing at every caret, Replace
+ * All). The calls nest; the outermost one makes the step.
+ */
+static void rvn_ed_group_begin(rvn_text_editor_t* ed) {
+	if (ed->edit_group_depth++) return;
+	if (++ed->edit_group_serial == 0) ed->edit_group_serial = 1;
+	ed->edit_group = ed->edit_group_serial;
+	rvn_ed_break_typing(ed);
+}
+
+static void rvn_ed_group_end(rvn_text_editor_t* ed) {
+	if (ed->edit_group_depth == 0 || --ed->edit_group_depth > 0) return;
+	ed->edit_group = 0;
+	rvn_ed_break_typing(ed);
+}
+
 static void rvn_ed_move_edit(rvn_ed_edit_t** to, uint32_t* to_count, uint32_t* to_cap, rvn_ed_edit_t* from, uint32_t* from_count) {
 	RVN_ARRAY_RESERVE(*to, *to_cap, *to_count + 1);
 	(*to)[(*to_count)++] = from[--(*from_count)];
 }
 
+/* Takes the edits of the last group off `from` and returns their count (0: one edit). */
+static uint32_t rvn_ed_group_take(const rvn_ed_edit_t* edits, uint32_t count) {
+	uint32_t group, taken = 1;
+	if (count == 0) return 0;
+	group = edits[count - 1].group;
+	if (!group) return 1;
+	while (taken < count && edits[count - 1 - taken].group == group) taken++;
+	return taken;
+}
+
 static int rvn_ed_undo(rvn_text_editor_t* ed) {
-	rvn_ed_edit_t* edit;
+	rvn_ed_pos_t caret, anchor;
+	uint32_t taken, k;
 	if (ed->undo_count == 0 || ed->read_only) return R_FALSE;
-	edit = &ed->undo[ed->undo_count - 1];
-	edit->typing = R_FALSE;
-	rvn_ed_replace(ed, edit->start, rvn_ed_pos_after(edit->start, edit->inserted, edit->inserted_length),
-		edit->removed, edit->removed_length, R_FALSE);
-	ed->caret = rvn_ed_clamp(ed, edit->caret_before);
-	ed->anchor = rvn_ed_clamp(ed, edit->anchor_before);
-	rvn_ed_move_edit(&ed->redo, &ed->redo_count, &ed->redo_cap, ed->undo, &ed->undo_count);
+	taken = rvn_ed_group_take(ed->undo, ed->undo_count);
+	caret = ed->undo[ed->undo_count - taken].caret_before;
+	anchor = ed->undo[ed->undo_count - taken].anchor_before;
+	/* (the edits of a group were made from the end of the text to its start: undoing them goes the other way) */
+	for (k = 0; k < taken; k++) {
+		rvn_ed_edit_t* edit = &ed->undo[ed->undo_count - 1 - k];
+		edit->typing = R_FALSE;
+		rvn_ed_replace(ed, edit->start, rvn_ed_pos_after(edit->start, edit->inserted, edit->inserted_length),
+			edit->removed, edit->removed_length, R_FALSE);
+	}
+	while (taken-- > 0) rvn_ed_move_edit(&ed->redo, &ed->redo_count, &ed->redo_cap, ed->undo, &ed->undo_count);
+	ed->caret = rvn_ed_clamp(ed, caret);
+	ed->anchor = rvn_ed_clamp(ed, anchor);
 	return R_TRUE;
 }
 
 static int rvn_ed_redo(rvn_text_editor_t* ed) {
-	rvn_ed_edit_t* edit;
+	rvn_ed_pos_t caret;
+	uint32_t taken, k;
 	if (ed->redo_count == 0 || ed->read_only) return R_FALSE;
-	edit = &ed->redo[ed->redo_count - 1];
-	rvn_ed_replace(ed, edit->start, rvn_ed_pos_after(edit->start, edit->removed, edit->removed_length),
-		edit->inserted, edit->inserted_length, R_FALSE);
-	ed->caret = ed->anchor = rvn_ed_clamp(ed, edit->caret_after);
-	rvn_ed_move_edit(&ed->undo, &ed->undo_count, &ed->undo_cap, ed->redo, &ed->redo_count);
+	taken = rvn_ed_group_take(ed->redo, ed->redo_count);
+	/* (the undo moved the edits the other way round: the last one of the array was the first that was made) */
+	caret = ed->redo[ed->redo_count - taken].caret_after;
+	for (k = 0; k < taken; k++) {
+		rvn_ed_edit_t* edit = &ed->redo[ed->redo_count - 1 - k];
+		rvn_ed_replace(ed, edit->start, rvn_ed_pos_after(edit->start, edit->removed, edit->removed_length),
+			edit->inserted, edit->inserted_length, R_FALSE);
+	}
+	while (taken-- > 0) rvn_ed_move_edit(&ed->undo, &ed->undo_count, &ed->undo_cap, ed->redo, &ed->redo_count);
+	ed->caret = ed->anchor = rvn_ed_clamp(ed, caret);
 	return R_TRUE;
 }
 
@@ -1455,7 +1535,8 @@ static void rvn_ed_multi_edit(rvn_text_editor_t* ed, const char* text, int lengt
 	}
 	qsort(edits, total, sizeof(rvn_ed_caret_edit_t), rvn_ed_caret_edit_compare);
 
-	rvn_ed_break_typing(ed);
+	/* (every caret is typed at once: one step of the history, not one per caret) */
+	rvn_ed_group_begin(ed);
 	for (i = 0; i < total; i++) {
 		rvn_ed_caret_edit_t* edit = &edits[i];
 		uint32_t slot = (uint32_t)edit->index;
@@ -1479,7 +1560,7 @@ static void rvn_ed_multi_edit(rvn_text_editor_t* ed, const char* text, int lengt
 			if (after[other] > edit->from) after[other] += delta;
 		}
 	}
-	rvn_ed_break_typing(ed);
+	rvn_ed_group_end(ed);
 
 	{
 		rvn_ed_pos_t caret = rvn_ed_pos_of(ed, after[0]);
@@ -2264,6 +2345,7 @@ static void rvn_ed_search_regex(rvn_text_editor_t* ed, const char* pattern) {
 	char* text;
 	int* starts;
 	int length, at = 0, line = 0, i;
+	int whole = (ed->search_flags & R_SEARCH_WHOLE_WORD) != 0;
 	int groups[64];
 
 	if (!regex) {
@@ -2292,6 +2374,12 @@ static void rvn_ed_search_regex(rvn_text_editor_t* ed, const char* pattern) {
 		to_line = from_line;
 		while (to_line + 1 < (int)ed->line_count && starts[to_line + 1] <= groups[1]) to_line++;
 		to_column = groups[1] - starts[to_line];
+		/* (a whole word is one whose ends are not next to a letter or a digit: the same rule as the plain search) */
+		if (whole && ((groups[0] > 0 && rvn_ed_is_word_byte(text[groups[0] - 1])) ||
+			(groups[1] < length && rvn_ed_is_word_byte(text[groups[1]])))) {
+			at = groups[1] > groups[0] ? groups[1] : groups[0] + 1;
+			continue;
+		}
 		rvn_ed_match_add(ed, rvn_ed_pos(from_line, from_column), rvn_ed_pos(to_line, to_column));
 		at = groups[1] > groups[0] ? groups[1] : groups[0] + 1;
 	}
@@ -2327,12 +2415,26 @@ static void rvn_ed_update_matches(rvn_text_editor_t* ed) {
 static rvn_ed_snippet_t* g_snippets;
 static uint32_t g_snippet_count;
 static uint32_t g_snippet_cap;
+static rvn_ed_variable_t* g_variables;
+static uint32_t g_variable_count;
+static uint32_t g_variable_cap;
 
 static void rvn_ed_snippet_free(rvn_ed_snippet_t* snippet) {
 	rvn_free(snippet->name);
 	rvn_free(snippet->description);
 	rvn_free(snippet->prefix);
 	rvn_free(snippet->body);
+}
+
+/* The value of a $NAME a snippet body names, or NULL. */
+static const char* rvn_snippet_variable(const char* name, int length) {
+	uint32_t i;
+	for (i = 0; i < g_variable_count; i++) {
+		if ((int)strlen(g_variables[i].name) == length && memcmp(g_variables[i].name, name, (size_t)length) == 0) {
+			return g_variables[i].value;
+		}
+	}
+	return NULL;
 }
 
 void rvn_snippets_shutdown(void) {
@@ -2342,6 +2444,14 @@ void rvn_snippets_shutdown(void) {
 	g_snippets = NULL;
 	g_snippet_count = 0;
 	g_snippet_cap = 0;
+	for (i = 0; i < g_variable_count; i++) {
+		rvn_free(g_variables[i].name);
+		rvn_free(g_variables[i].value);
+	}
+	rvn_free(g_variables);
+	g_variables = NULL;
+	g_variable_count = 0;
+	g_variable_cap = 0;
 }
 
 int Rsnippet_add(const RSnippet* snippet) {
@@ -2393,6 +2503,32 @@ int Rsnippet_find(const char* name) {
 		if (rvn_stricmp(g_snippets[i].name, name) == 0) return i;
 	}
 	return -1;
+}
+
+int Rsnippet_set_variable(const char* name, const char* value) {
+	uint32_t i;
+	RVN_API_GUARD(R_FALSE);
+	if (!name || !name[0]) {
+		rvn_error(R_ERROR_INVALID_VALUE, R_SEVERITY_ERROR, "Rsnippet_set_variable: a variable needs a name");
+		return R_FALSE;
+	}
+	/* (the value may hold any text: it is typed as it is) */
+	for (i = 0; i < g_variable_count; i++) {
+		if (rvn_stricmp(g_variables[i].name, name) != 0) continue;
+		rvn_str_set(&g_variables[i].value, value && value[0] ? value : NULL);
+		if (!g_variables[i].value) {
+			rvn_free(g_variables[i].name);
+			g_variables[i] = g_variables[--g_variable_count];
+		}
+		return R_TRUE;
+	}
+	if (!value || !value[0]) return R_TRUE; /* (removing one that is not there) */
+	RVN_ARRAY_RESERVE(g_variables, g_variable_cap, g_variable_count + 1);
+	memset(&g_variables[g_variable_count], 0, sizeof(rvn_ed_variable_t));
+	rvn_str_set(&g_variables[g_variable_count].name, name);
+	rvn_str_set(&g_variables[g_variable_count].value, value);
+	g_variable_count++;
+	return R_TRUE;
 }
 
 /* The snippet whose name is the longest one that ends at a position, or -1. */
@@ -2503,6 +2639,22 @@ static char* rvn_ed_snippet_body(const char* body, rvn_ed_pos_t at, rvn_ed_place
 			}
 			continue;
 		}
+		/* "$NAME": a variable the application gave (Rsnippet_set_variable); unknown ones are left as typed */
+		if (body[i] == '$' && ((body[i + 1] >= 'A' && body[i + 1] <= 'Z') || (body[i + 1] >= 'a' && body[i + 1] <= 'z') ||
+			body[i + 1] == '_')) {
+			int begin = i + 1, end = begin;
+			const char* value = NULL;
+			while ((body[end] >= 'A' && body[end] <= 'Z') || (body[end] >= 'a' && body[end] <= 'z') ||
+				(body[end] >= '0' && body[end] <= '9') || body[end] == '_') end++;
+			value = rvn_snippet_variable(body + begin, end - begin);
+			if (value) {
+				int length = (int)strlen(value);
+				rvn_text_append(&text, value, (size_t)length);
+				current.column += length;
+				i = end;
+				continue;
+			}
+		}
 		rvn_text_append(&text, body + i, 1);
 		current.column++;
 		i++;
@@ -2513,7 +2665,32 @@ static char* rvn_ed_snippet_body(const char* body, rvn_ed_pos_t at, rvn_ed_place
 	return text.data;
 }
 
-/* Where the caret goes for a place: its text selected when it has one. */
+/* Alt+drag: a selection on every line the pointer crosses, from the column where it was pressed. */
+static void rvn_ed_column_drag(rvn_text_editor_t* ed, rvn_ed_pos_t anchor, rvn_ed_pos_t to) {
+	int first = rvn_mini(anchor.line, to.line), last = rvn_maxi(anchor.line, to.line);
+	int line;
+	ed->caret_count = 0;
+	ed->anchor = rvn_ed_pos(anchor.line, rvn_mini(anchor.column, ed->lines[anchor.line].length));
+	for (line = first; line <= last; line++) {
+		const rvn_ed_line_t* l = &ed->lines[line];
+		/* (a line shorter than the column reaches only as far as it goes) */
+		int from_column = rvn_mini(anchor.column, l->length);
+		int to_column = rvn_mini(to.column, l->length);
+		rvn_ed_pos_t from = rvn_ed_pos(line, rvn_mini(from_column, to_column));
+		rvn_ed_pos_t stop = rvn_ed_pos(line, rvn_maxi(from_column, to_column));
+		if (line == anchor.line) {
+			ed->caret = stop;
+			continue;
+		}
+		if (ed->caret_count >= 255) break;
+		RVN_ARRAY_RESERVE(ed->carets, ed->caret_cap, ed->caret_count + 1);
+		ed->carets[ed->caret_count].anchor = from;
+		ed->carets[ed->caret_count].caret = stop;
+		ed->caret_count++;
+	}
+}
+
+
 static void rvn_ed_snippet_goto_place(rvn_text_editor_t* ed, int index) {
 	rvn_ed_place_t* place;
 	if (index < 0 || index >= (int)ed->place_count) return;
@@ -3348,6 +3525,13 @@ static int rvn_ed_key(rvn_widget_t* widget, const REvent* event) {
 			changed = rvn_ed_redo(ed);
 			if (!changed) return R_TRUE;
 			break;
+		case R_KEY_D:
+			/* Ctrl+D: the next occurrence of the selection gets a caret of its own */
+			if (!command || !ed->multi_cursor) goto printable;
+			if (ed->read_only) return R_TRUE;
+			if (!Rtext_editor_select_next_occurrence(id)) return R_TRUE;
+			rvn_widget_invalidate_paint(widget);
+			return R_TRUE;
 		default:
 		printable:
 			/* keys that type a character are consumed so that they never trigger
@@ -3444,6 +3628,7 @@ static int rvn_text_editor_event(rvn_widget_t* widget, const REvent* event) {
 			if (event->type == R_EVENT_MOUSE_UP) {
 				if (event->button != R_MOUSE_LEFT || !ed->selecting) return R_FALSE;
 				ed->selecting = R_FALSE;
+				ed->column_drag = R_FALSE;
 				rvn_widget_release_mouse(widget);
 				return R_TRUE;
 			}
@@ -3515,13 +3700,25 @@ static int rvn_text_editor_event(rvn_widget_t* widget, const REvent* event) {
 						rvn_widget_invalidate_paint(widget);
 						return R_TRUE;
 					}
-					ed->caret = pos;
-					if (!(event->modifiers & R_MOD_SHIFT)) ed->anchor = pos;
+					/* Alt+drag: a caret on every line, from the column pressed (a column of text) */
+					if (ed->multi_cursor && (event->modifiers & R_MOD_ALT)) {
+						ed->anchor = pos;
+						ed->caret = pos;
+						ed->caret_count = 0;
+						ed->column_drag = R_TRUE;
+					} else {
+						ed->caret = pos;
+						if (!(event->modifiers & R_MOD_SHIFT)) ed->anchor = pos;
+						ed->column_drag = R_FALSE;
+					}
 					ed->selecting = R_TRUE;
 					rvn_widget_capture_mouse(widget);
 				}
 				rvn_ed_complete_close(ed);
 				rvn_ed_break_typing(ed);
+			} else if (ed->column_drag) {
+				/* (Alt+drag: the line the pointer is on gets a selection in the column that was pressed) */
+				rvn_ed_column_drag(ed, ed->anchor, pos);
 			} else {
 				ed->caret = pos;
 			}
@@ -3738,6 +3935,28 @@ Rid Rtext_editor_create(const char* text) {
 void Rtext_editor_set_text(Rid id, const char* text) {
 	RVN_EDITOR_VOID(ed, id);
 	rvn_ed_set_text(ed, text);
+}
+
+/* Loads new text (a file changed by another program), keeping the caret and the scroll where they were
+ * as far as the new text reaches. The text loaded counts as saved. */
+void Rtext_editor_reload_text(Rid id, const char* text) {
+	int line, column;
+	float vertical, horizontal;
+	RVN_EDITOR_VOID(ed, id);
+	line = ed->caret.line;
+	column = ed->caret.column;
+	vertical = ed->vbar.offset;
+	horizontal = ed->hbar.offset;
+	rvn_ed_set_text(ed, text);
+	if (line >= (int)ed->line_count) line = (int)ed->line_count - 1;
+	if (line < 0) line = 0;
+	if (column > ed->lines[line].length) column = ed->lines[line].length;
+	ed->caret = ed->anchor = rvn_ed_pos(line, column);
+	ed->vbar.offset = vertical;
+	ed->hbar.offset = horizontal;
+	ed->goal_x = -1.0f;
+	ed->saved_version = ed->version;
+	rvn_widget_invalidate_layout(&ed->base);
 }
 
 const char* Rtext_editor_get_text(Rid id) {
@@ -4001,6 +4220,10 @@ void Rtext_editor_set_auto_pairs(Rid id, int enabled) {
 }
 
 void Rtext_editor_add_marker(Rid id, int line, int from_column, int to_column, RMarkerKind kind, const char* message) {
+	Rtext_editor_add_marker_from(id, 0, line, from_column, to_column, kind, message);
+}
+
+void Rtext_editor_add_marker_from(Rid id, int source, int line, int from_column, int to_column, RMarkerKind kind, const char* message) {
 	rvn_ed_marker_t* marker;
 	RVN_EDITOR_VOID(ed, id);
 	if (kind < R_MARKER_ERROR || kind > R_MARKER_INFO) {
@@ -4016,7 +4239,22 @@ void Rtext_editor_add_marker(Rid id, int line, int from_column, int to_column, R
 	marker->from = from_column;
 	marker->to = to_column < 0 ? -1 : to_column;
 	marker->kind = kind;
+	marker->source = source;
 	marker->message = message && message[0] ? rvn_strdup(message) : NULL;
+	rvn_widget_invalidate_paint(widget);
+}
+
+void Rtext_editor_clear_markers_of_source(Rid id, int source) {
+	uint32_t i = 0;
+	RVN_EDITOR_VOID(ed, id);
+	while (i < ed->marker_count) {
+		if (ed->markers[i].source == source) {
+			rvn_free(ed->markers[i].message);
+			ed->markers[i] = ed->markers[--ed->marker_count];
+		} else {
+			i++;
+		}
+	}
 	rvn_widget_invalidate_paint(widget);
 }
 
@@ -4162,6 +4400,45 @@ static void rvn_ed_expand(const char* replacement, const char* text, int from, i
 			}
 			continue;
 		}
+		/* "$<n>": a group whose number is written between angle brackets */
+		if (c == '$' && replacement[i + 1] == '<') {
+			int k = i + 2, group = 0, digits = 0;
+			while (replacement[k] >= '0' && replacement[k] <= '9') {
+				group = group * 10 + (replacement[k] - '0');
+				k++;
+				digits++;
+			}
+			if (digits > 0 && replacement[k] == '>') {
+				if (group * 2 + 1 < group_count * 2 && groups[group * 2] >= 0) {
+					rvn_text_append(out, text + from + groups[group * 2], (size_t)(groups[group * 2 + 1] - groups[group * 2]));
+				}
+				i = k + 1;
+				continue;
+			}
+		}
+		/* "${n}" (a group) and "${n:text}" (the group, or that text when it did not take part) */
+		if (c == '$' && replacement[i + 1] == '{') {
+			int k = i + 2, group = 0, digits = 0, close;
+			while (replacement[k] >= '0' && replacement[k] <= '9') {
+				group = group * 10 + (replacement[k] - '0');
+				k++;
+				digits++;
+			}
+			close = k;
+			while (replacement[close] && replacement[close] != '}') close++;
+			if (digits > 0 && replacement[close] == '}' && (replacement[k] == '}' || replacement[k] == ':')) {
+				if (group * 2 + 1 < group_count * 2 && groups[group * 2] >= 0) {
+					rvn_text_append(out, text + from + groups[group * 2], (size_t)(groups[group * 2 + 1] - groups[group * 2]));
+				} else if (replacement[k] == ':') {
+					int begin = k + 1;
+					while (begin < close && replacement[begin] == ' ') begin++;
+					while (close > begin && replacement[close - 1] == ' ') close--;
+					rvn_text_append(out, replacement + begin, (size_t)(close - begin));
+				}
+				i = close + 1;
+				continue;
+			}
+		}
 		if (c == '$' && replacement[i + 1] == '&') {
 			rvn_text_append(out, text + from, (size_t)(to - from));
 			i += 2;
@@ -4253,7 +4530,7 @@ int Rtext_editor_replace_all(Rid id, const char* text) {
 	rvn_ed_update_matches(ed);
 	if (ed->match_count == 0) return 0;
 	/* from the end to the start, so that the places of the matches do not move */
-	rvn_ed_break_typing(ed);
+	rvn_ed_group_begin(ed);
 	while (ed->match_count > 0) {
 		rvn_ed_match_t match = ed->matches[ed->match_count - 1];
 		char* replacement = rvn_ed_replacement_text(ed, text, match.from, match.to);
@@ -4262,12 +4539,44 @@ int Rtext_editor_replace_all(Rid id, const char* text) {
 		ed->match_count--;
 		replaced++;
 	}
-	rvn_ed_break_typing(ed);
+	rvn_ed_group_end(ed);
 	ed->caret = ed->anchor = rvn_ed_pos(0, 0);
 	rvn_ed_update_matches(ed);
 	rvn_ed_caret_moved(ed, R_FALSE);
 	rvn_ed_notify(widget);
 	return replaced;
+}
+
+/* Comments or uncomments the lines of the selection, as one step of the history. */
+int Rtext_editor_toggle_comment(Rid id) {
+	int toggled;
+	RVN_EDITOR(ed, id, 0);
+	if (ed->read_only) return 0;
+	rvn_ed_group_begin(ed);
+	toggled = rvn_ed_toggle_comment(ed);
+	rvn_ed_group_end(ed);
+	if (toggled) rvn_ed_notify(widget);
+	return toggled;
+}
+
+void Rtext_editor_begin_edit(Rid id) {
+	RVN_EDITOR_VOID(ed, id);
+	rvn_ed_group_begin(ed);
+}
+
+void Rtext_editor_end_edit(Rid id) {
+	RVN_EDITOR_VOID(ed, id);
+	rvn_ed_group_end(ed);
+}
+
+int Rtext_editor_is_modified(Rid id) {
+	RVN_EDITOR(ed, id, 0);
+	return ed->version != ed->saved_version;
+}
+
+void Rtext_editor_set_modified(Rid id, int modified) {
+	RVN_EDITOR_VOID(ed, id);
+	ed->saved_version = modified ? ed->version - 1 : ed->version;
 }
 
 void Rtext_editor_set_folding(Rid id, int enabled) {
@@ -4420,7 +4729,7 @@ void Rtext_editor_clear_carets(Rid id) {
 
 int Rtext_editor_select_next_occurrence(Rid id) {
 	char* selected;
-	rvn_ed_pos_t from, to;
+	rvn_ed_pos_t from, to, after;
 	RVN_EDITOR(ed, id, R_FALSE);
 	if (!ed->multi_cursor || !rvn_ed_has_selection(ed)) return R_FALSE;
 	from = rvn_ed_sel_min(ed);
@@ -4431,10 +4740,15 @@ int Rtext_editor_select_next_occurrence(Rid id) {
 		uint32_t count = 0, cap = 0, i;
 		int length = (int)strlen(selected);
 		int line;
-		/* the same text again, after the selection */
-		for (line = to.line; line < (int)ed->line_count; line++) {
+		/* (the next one comes after what every caret already selects, so that pressing again goes on) */
+		after = to;
+		for (i = 0; i < ed->caret_count; i++) {
+			rvn_ed_pos_t end = rvn_ed_pos_cmp(ed->carets[i].caret, ed->carets[i].anchor) > 0 ? ed->carets[i].caret : ed->carets[i].anchor;
+			if (rvn_ed_pos_cmp(end, after) > 0) after = end;
+		}
+		for (line = after.line; line < (int)ed->line_count; line++) {
 			const rvn_ed_line_t* l = &ed->lines[line];
-			int begin = line == to.line ? to.column : 0, k;
+			int begin = line == after.line ? after.column : 0, k;
 			for (k = begin; k + length <= l->length; k++) {
 				if (memcmp(l->text + k, selected, (size_t)length) != 0) continue;
 				RVN_ARRAY_RESERVE(matches, cap, count + 1);
@@ -4447,12 +4761,14 @@ int Rtext_editor_select_next_occurrence(Rid id) {
 		}
 		if (count > 0 && ed->caret_count < 255) {
 			rvn_ed_caret_t* caret;
+			/* (what was selected stays selected, with a caret of its own, and the new one is the main selection) */
 			RVN_ARRAY_RESERVE(ed->carets, ed->caret_cap, ed->caret_count + 1);
 			caret = &ed->carets[ed->caret_count++];
-			caret->anchor = matches[0].from;
-			caret->caret = matches[0].to;
+			caret->anchor = from;
+			caret->caret = to;
+			ed->anchor = matches[0].from;
+			ed->caret = matches[0].to;
 		}
-		(void)i;
 		rvn_free(matches);
 	}
 	rvn_free(selected);
@@ -4461,19 +4777,27 @@ int Rtext_editor_select_next_occurrence(Rid id) {
 
 int Rtext_editor_get_word_count(Rid id) {
 	int line, words = 0;
+	const RLanguageDesc* desc;
 	RVN_EDITOR(ed, id, 0);
+	desc = rvn_ed_language_desc(ed);
 	for (line = 0; line < (int)ed->line_count; line++) {
 		const rvn_ed_line_t* l = &ed->lines[line];
+		const char* comment = desc && desc->line_comment && desc->line_comment[0] ? desc->line_comment : NULL;
+		int tex = desc && (desc->flags & R_LANGUAGE_TEX);
+		int comment_length = comment ? (int)strlen(comment) : 0;
 		int i = 0;
 		while (i < l->length) {
 			char c = l->text[i];
-			/* (in a comment of TeX, and in a command name, there are no words) */
-			if (c == '%') break;
-			if (c == '\\' && i + 1 < l->length) {
+			/* (a command of TeX, with its name, is not a word of the text; neither is what a backslash escapes) */
+			if (tex && c == '\\' && i + 1 < l->length) {
 				i++;
 				while (i < l->length && ((l->text[i] >= 'a' && l->text[i] <= 'z') || (l->text[i] >= 'A' && l->text[i] <= 'Z'))) i++;
+				if (i < l->length && !rvn_ed_is_blank(l->text[i])) i++;
 				continue;
 			}
+			/* (in a comment there are no words, in the comment of the language this editor shows) */
+			if (comment && i + comment_length <= l->length &&
+				memcmp(l->text + i, comment, (size_t)comment_length) == 0) break;
 			if (!rvn_ed_is_word_byte(c)) {
 				i++;
 				continue;

@@ -183,6 +183,12 @@ extern "C" {
 	 */
 	RAVEN_API char* Rfile_read(const char* path, size_t* size);
 	RAVEN_API int Rfile_write(const char* path, const void* data, size_t size);
+	/** @brief Copies a file. R_FALSE when the source cannot be read or the target cannot be written. */
+	RAVEN_API int Rfile_copy(const char* from, const char* to);
+	/** @brief Moves (renames) a file, copying it when the system cannot rename it. */
+	RAVEN_API int Rfile_move(const char* from, const char* to);
+	/** @brief Creates a folder and the ones above it that are missing. R_TRUE when it exists afterwards. */
+	RAVEN_API int Rfile_mkdir_p(const char* path);
 
 
 	/* ============================================================================

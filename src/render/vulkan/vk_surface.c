@@ -425,16 +425,17 @@ int rvn_vk_surface_create(Rid window, const RNativeWindow* native, Ruint width, 
 
 	memset(surface, 0, sizeof(*surface));
 	if (!rvn_vk_native_surface_create(native, &surface->surface)) return R_FALSE;
-	surface->used = R_TRUE;
 	surface->window = window;
 	surface->transparent = native->transparent != 0;
 
+	/* "used" is set only once every step that can fail has passed: a failed create leaves the slot free */
 	rvn_vk.GetPhysicalDeviceSurfaceSupportKHR(g_vk.physical_device, g_vk.queue_family, surface->surface, &supported);
 	if (!supported) {
 		rvn_error(R_ERROR_BACKEND, R_SEVERITY_ERROR, "Vulkan: the graphics queue cannot present to this window");
 		rvn_vk_surface_release(surface);
 		return R_FALSE;
 	}
+	surface->used = R_TRUE;
 	for (i = 0; i < RVN_VK_FRAMES; i++) {
 		if (!rvn_vk_frame_create(&surface->frames[i])) {
 			rvn_vk_surface_release(surface);

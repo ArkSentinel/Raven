@@ -82,6 +82,14 @@ if(RAVEN_BACKEND_VULKAN)
 	set_tests_properties(test_render PROPERTIES SKIP_RETURN_CODE 77)
 endif()
 
+# docs/reference.html has an entry for every function of the headers, with the
+# signature the header gives (tools/gen_reference_entries.py writes them).
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_FOUND)
+	add_test(NAME reference_up_to_date
+		COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/gen_reference_entries.py --check)
+endif()
+
 # Not a test: prints timings for a large widget tree (see the top of benchmark.c).
 add_executable(raven_benchmark benchmark.c)
 target_link_libraries(raven_benchmark PRIVATE raven::raven)

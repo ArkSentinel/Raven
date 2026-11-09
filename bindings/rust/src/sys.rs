@@ -1209,6 +1209,8 @@ pub type RWidgetDestroyCallback = Option<unsafe extern "C" fn(widget: Rid, user_
 /// not see it), R_FALSE to let it continue.
 pub type RWidgetEventCallback = Option<unsafe extern "C" fn(widget: Rid, event: *const REvent, user_data: *mut c_void) -> c_int>;
 pub type RTabChangedCallback = Option<unsafe extern "C" fn(tab_view: Rid, index: c_int, user_data: *mut c_void)>;
+/// Called after a tab was moved with Rtab_view_move_tab, with its old and new index.
+pub type RTabReorderedCallback = Option<unsafe extern "C" fn(tab_view: Rid, from: c_int, to: c_int, user_data: *mut c_void)>;
 /// The user closes a tab (its button, a middle click). Return R_TRUE
 /// to delete its page now, R_FALSE to keep it (the application may ask to
 /// save, then delete the page itself with Rwidget_destroy).
@@ -1337,8 +1339,14 @@ pub type RMeasureCallback = Option<unsafe extern "C" fn(widget: Rid, width: *mut
 /// again when the scale changes by more than 1 % or when it comes back
 /// into view.
 pub type RPdfPageNeededCallback = Option<unsafe extern "C" fn(pdf_view: Rid, page: c_int, scale: f32, user_data: *mut c_void)>;
+/// Called when the page the view is at changes: by scrolling, by the keys, by
+/// Rpdf_view_set_page, or when the pages change. Not called when the page stays the same.
+pub type RPdfPageChangedCallback = Option<unsafe extern "C" fn(pdf_view: Rid, page: c_int, user_data: *mut c_void)>;
 /// Called when the user clicks on a page. This also fires the action of the widget.
 pub type RPdfPageClickedCallback = Option<unsafe extern "C" fn(pdf_view: Rid, page: c_int, page_x: f32, page_y: f32, user_data: *mut c_void)>;
+/// Called when the user clicks inside a link, with the target given to Rpdf_view_add_link.
+/// The page click (Rpdf_view_set_page_clicked_callback) is still called after it.
+pub type RPdfLinkClickedCallback = Option<unsafe extern "C" fn(pdf_view: Rid, page: c_int, target: c_int, user_data: *mut c_void)>;
 /// Called each time a file was loaded again.
 /// path The file given when the interface was created.
 /// ok   R_FALSE when the file could not be used (the interface is unchanged).
@@ -2131,6 +2139,13 @@ extern "C" {
     /// Closes a window and deletes its content widgets.
     pub fn Rwindow_destroy(window: Rid);
     pub fn Rwindow_is_valid(window: Rid) -> c_int;
+    /// R_FALSE when the window has no rendering surface, so nothing is drawn in it: the backend
+    /// refused it, or it could not be made again after the loss of the device. The window stays valid.
+    pub fn Rwindow_has_surface(window: Rid) -> c_int;
+    /// Why the window has no surface, as text, for the application to show in the window:
+    /// the last refusal of the backend. NULL when the surface is there. The text stays until the
+    /// surface is made again.
+    pub fn Rwindow_get_surface_error(window: Rid) -> *const c_char;
     /// Sets the root widget of the window. The window takes ownership of
     /// the widget; the previous content is deleted.
     pub fn Rwindow_set_content(window: Rid, widget: Rid);
@@ -2578,6 +2593,10 @@ extern "C" {
     pub fn Rtexture_destroy(texture: Rid);
     pub fn Rtexture_is_valid(texture: Rid) -> c_int;
     pub fn Rtexture_get_size(texture: Rid, width: *mut c_int, height: *mut c_int);
+    /// R_TRUE when the device was lost and the texture could not be rebuilt (it came from pixels
+    /// too large to keep a copy of): it is blank now, and the application must upload it again with
+    /// Rtexture_update. Set to R_FALSE by any upload. Use it after the reset callback to re-upload only what was lost.
+    pub fn Rtexture_is_placeholder(texture: Rid) -> c_int;
     /// How the texture is smoothed when it is scaled. The textures made
     /// from image files start with R_FILTER_MIPMAP, the others with
     /// R_FILTER_LINEAR.
@@ -2849,6 +2868,10 @@ extern "C" {
     pub fn Rtab_view_get_tab(tab_view: Rid, index: c_int) -> Rid;
     /// Index of the tab of a page, -1 if none.
     pub fn Rtab_view_find_tab(tab_view: Rid, content: Rid) -> c_int;
+    /// Moves the tab at index "from" to index "to" (both in 0 .. count-1). The page keeps its state,
+    /// and the active page stays active. R_FALSE when an index is out of range.
+    pub fn Rtab_view_move_tab(tab_view: Rid, from: c_int, to: c_int) -> c_int;
+    pub fn Rtab_view_set_reordered_callback(tab_view: Rid, callback: RTabReorderedCallback, user_data: *mut c_void);
     pub fn Rtab_view_set_tab_title(tab_view: Rid, content: Rid, title: *const c_char);
     /// Icon before the title (documents). R_INVALID_ID removes it; tint: a mask in the text color.
     pub fn Rtab_view_set_tab_icon(tab_view: Rid, content: Rid, texture: Rid, u0: f32, v0: f32, u1: f32, v1: f32, tint: c_int);
@@ -3435,6 +3458,12 @@ extern "C" {
     /// to_column -1 for the end of the line.
     pub fn Rtext_editor_add_marker(editor: Rid, line: c_int, from_column: c_int, to_column: c_int, kind: RMarkerKind, message: *const c_char);
     pub fn Rtext_editor_clear_markers(editor: Rid);
+    /// Like Rtext_editor_add_marker, with the source of the marker: an application with two
+    /// sources (the compiler log and a spell checker) can then replace one without touching the other.
+    /// Rtext_editor_add_marker adds to source 0.
+    pub fn Rtext_editor_add_marker_from(editor: Rid, source: c_int, line: c_int, from_column: c_int, to_column: c_int, kind: RMarkerKind, message: *const c_char);
+    /// Removes the markers added with this source, and only those.
+    pub fn Rtext_editor_clear_markers_of_source(editor: Rid, source: c_int);
     pub fn Rtext_editor_get_marker_count(editor: Rid) -> c_int;
     /// The line, the columns and the kind of a marker, by index (0 ..
     /// Rtext_editor_get_marker_count - 1).
@@ -3462,9 +3491,31 @@ extern "C" {
     pub fn Rtext_editor_replace(editor: Rid, text: *const c_char) -> c_int;
     /// Replaces every match, as one step of the history. Returns: How many were replaced.
     pub fn Rtext_editor_replace_all(editor: Rid, text: *const c_char) -> c_int;
-    /// The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
-    /// (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
-    /// with `matches`, the groups of the regex that matched. Pure: no editor needed.
+    /// Comments the lines of the selection with the line comment of the language, or uncomments
+    /// them when all already are, as one step of the history.
+    /// Returns: R_FALSE when the language has no line comment (or the editor is read-only).
+    pub fn Rtext_editor_toggle_comment(editor: Rid) -> c_int;
+    /// Groups the edits made until Rtext_editor_end_edit into one step of the history. The calls nest.
+    /// Use it when an application changes several lines at once (a menu action, a reformat).
+    pub fn Rtext_editor_begin_edit(editor: Rid);
+    /// Ends the group opened by Rtext_editor_begin_edit.
+    pub fn Rtext_editor_end_edit(editor: Rid);
+    /// R_TRUE when the text changed since it was last loaded or saved. Undoing back to the saved
+    /// text still counts as modified: only Rtext_editor_set_modified(editor, R_FALSE) clears it.
+    /// Rtext_editor_set_text does not clear it either.
+    pub fn Rtext_editor_is_modified(editor: Rid) -> c_int;
+    /// Marks the current text as saved (modified = R_FALSE) or as changed (modified = R_TRUE).
+    /// Call it with R_FALSE after saving, or after loading a file from disk.
+    pub fn Rtext_editor_set_modified(editor: Rid, modified: c_int);
+    /// Replaces the text with one read from disk, keeping the caret and the scroll where they were
+    /// (as far as the new text reaches). The history is cleared, and the text counts as saved.
+    pub fn Rtext_editor_reload_text(editor: Rid, text: *const c_char);
+    /// The text of a replacement where `$1` .. `$9` and `${1}` (a group
+    /// of the regex), `${1:text}` (the group, or that text when the group did
+    /// not take part), `$&` (the whole match), `$$` (a dollar), `\n`, `\t` and
+    /// `\\` mean something; `groups` holds the pairs of the match, as
+    /// `Rtext_editor_get_match` gives them, `group_count` how many are.
+    /// Pure: no editor needed.
     /// Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
     pub fn Rtext_editor_expand_replacement(replacement: *const c_char, text: *const c_char, from: c_int, to: c_int, groups: *const c_int, group_count: c_int) -> *const c_char;
     /// R_TRUE (the default): with a language whose blocks can be folded
@@ -3490,6 +3541,12 @@ extern "C" {
     pub fn Rsnippet_get_count() -> c_int;
     pub fn Rsnippet_get_name(index: c_int) -> *const c_char;
     pub fn Rsnippet_find(name: *const c_char) -> c_int;
+    /// Gives the text that `$NAME` in a snippet body stands for
+    /// ("DATE", "AUTHOR"...). Case is ignored. A NULL or empty value removes
+    /// the variable, and a body that names one that is not set keeps it as
+    /// written. The text is copied.
+    /// Returns: R_FALSE when the name is empty.
+    pub fn Rsnippet_set_variable(name: *const c_char, value: *const c_char) -> c_int;
     /// Types the snippet at the caret, replacing the word before it
     /// when that word is its name. Sets the places; Tab and Shift+Tab walk
     /// them, Escape leaves them.
@@ -4083,6 +4140,12 @@ extern "C" {
     /// Rmemory_free; NULL when the file cannot be read. `size` may be NULL.
     pub fn Rfile_read(path: *const c_char, size: *mut usize) -> *mut c_char;
     pub fn Rfile_write(path: *const c_char, data: *const c_void, size: usize) -> c_int;
+    /// Copies a file. R_FALSE when the source cannot be read or the target cannot be written.
+    pub fn Rfile_copy(from: *const c_char, to: *const c_char) -> c_int;
+    /// Moves (renames) a file, copying it when the system cannot rename it.
+    pub fn Rfile_move(from: *const c_char, to: *const c_char) -> c_int;
+    /// Creates a folder and the ones above it that are missing. R_TRUE when it exists afterwards.
+    pub fn Rfile_mkdir_p(path: *const c_char) -> c_int;
     pub fn Rfile_browser_create() -> Rid;
     pub fn Rfile_browser_set_mode(browser: Rid, mode: RFileBrowserMode);
     /// Shows a folder. "~" is the home of the user. Returns R_FALSE when it cannot be read.
@@ -4221,11 +4284,19 @@ extern "C" {
     pub fn Rpdf_view_set_page_gap(pdf_view: Rid, gap: f32);
     pub fn Rpdf_view_get_page_gap(pdf_view: Rid) -> f32;
     pub fn Rpdf_view_set_page_needed_callback(pdf_view: Rid, callback: RPdfPageNeededCallback, user_data: *mut c_void);
+    pub fn Rpdf_view_set_page_changed_callback(pdf_view: Rid, callback: RPdfPageChangedCallback, user_data: *mut c_void);
     /// The page and the point of the page (in points, from its top-left
     /// corner) under a point of the widget, for SyncTeX inverse search.
     /// Returns: R_FALSE outside a page.
     pub fn Rpdf_view_get_page_at(pdf_view: Rid, x: f32, y: f32, page: *mut c_int, page_x: *mut f32, page_y: *mut f32) -> c_int;
     pub fn Rpdf_view_set_page_clicked_callback(pdf_view: Rid, callback: RPdfPageClickedCallback, user_data: *mut c_void);
+    /// Adds a link to a page: a rectangle in points from the top left of the page (the
+    /// coordinates page_x / page_y of the clicks), and the number the application gives it.
+    /// The application reads the links of a page from the document (PDFium), so Raven does not.
+    pub fn Rpdf_view_add_link(pdf_view: Rid, page: c_int, x0: f32, y0: f32, x1: f32, y1: f32, target: c_int);
+    /// Removes the links of a page (before its links are read again).
+    pub fn Rpdf_view_clear_links(pdf_view: Rid, page: c_int);
+    pub fn Rpdf_view_set_link_clicked_callback(pdf_view: Rid, callback: RPdfLinkClickedCallback, user_data: *mut c_void);
     /// Asks for one page to be painted again, once its bitmap has arrived.
     pub fn Rpdf_view_invalidate_page(pdf_view: Rid, page: c_int);
     /// Scrolls so that a point of a page is in the middle of the view (SyncTeX forward search).
@@ -4491,6 +4562,9 @@ extern "C" {
     pub fn Rsettings_set_text(settings: Rid, key: *const c_char, value: *const c_char);
     /// Removes a key. R_TRUE when it was there.
     pub fn Rsettings_remove(settings: Rid, key: *const c_char) -> c_int;
+    /// Removes every key whose full name starts with `prefix` (a whole list, such as
+    /// "project.recent", with the keys it had). Returns how many keys were removed.
+    pub fn Rsettings_remove_prefix(settings: Rid, prefix: *const c_char) -> c_int;
     /// R_TRUE when the key is there, whatever it holds.
     pub fn Rsettings_has(settings: Rid, key: *const c_char) -> c_int;
     /// The whole document as text, for a project file that holds arrays
@@ -4545,7 +4619,13 @@ extern "C" {
     /// Blocks until the program ends. For tests and shutdown: never call
     /// it from the UI thread of a running application.
     pub fn Rprocess_wait(process: Rid);
-    /// Returns: R_TRUE when the program is found (PATH lookup only).
+    /// Frees a process that ended. Its callbacks are not called again.
+    /// A process still running is stopped first, as Rprocess_cancel does. The
+    /// library keeps every process until Rshutdown, so an application that
+    /// starts many of them (a check after each pause) calls this when it no
+    /// longer needs the exit code.
+    pub fn Rprocess_destroy(process: Rid);
+    /// Returns: R_TRUE when the program is found (the same lookup as Rprocess_find).
     pub fn Rprocess_is_available(program: *const c_char) -> c_int;
     /// Finds a program without running it.
     /// Returns: An absolute path (in a buffer of the library, valid until the
@@ -4555,6 +4635,10 @@ extern "C" {
     /// /opt/homebrew/bin, C:\\texlive\\ * \\bin\\windows and the bin folder of
     /// MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
     pub fn Rprocess_find(program: *const c_char) -> *const c_char;
+    /// Same as Rprocess_find, but the path is a copy the application owns: it stays the same
+    /// after the next call. Its length (without the terminating zero) is written to `size` when it is
+    /// not NULL. Free it with Rmemory_free. NULL when the program is not found.
+    pub fn Rprocess_find_copy(program: *const c_char, size: *mut usize) -> *mut c_char;
     /// Runs a program to the end and collects what it printed.
     /// Blocking: for setup work (asking git for the state of a file, a tool for
     /// its version), never for a build. The window is frozen meanwhile.

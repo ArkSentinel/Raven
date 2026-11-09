@@ -99,7 +99,7 @@ Raven belongs to the thread that starts it: call it from that thread only
 
 ## Per language
 
-**C++** (C++11 or later)
+**C++** (C++14 or later; the example is built with C++17)
 
     g++ -std=c++17 app.cpp -I<raven>/include -I<raven>/bindings/cpp -lraven
 

@@ -43,6 +43,8 @@ typedef struct rvn_texture_t {
 	uint8_t* source_data;
 	size_t source_size;
 	uint8_t* kept_pixels;
+	/** R_TRUE when the loss of the device left it transparent: it had no copy to come back from. */
+	int placeholder;
 	/** Texels per logical unit: 1 for a picture, the scale an SVG was drawn at (0 counts as 1). */
 	float density;
 	/*

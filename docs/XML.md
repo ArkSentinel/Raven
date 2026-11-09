@@ -338,7 +338,7 @@ PDF decoder, so each page is handed to it as a texture.
 
 | Tag | Attributes |
 |---|---|
-| `PdfView` (`Pdf`, `PdfPreview`) | `PageCount`, `Page` (0 is the first), `Zoom` (pixels per point of a page: 1 is 72 dpi), `Fit` (`None`, `Width`, `Page`), `PageGap` (points between pages), `Background` (a color), `OnPageClicked` |
+| `PdfView` (`Pdf`, `PdfPreview`) | `PageCount`, `Page` (0 is the first), `Zoom` (pixels per point of a page: 1 is 72 dpi), `Fit` (`None`, `Width`, `Page`), `PageGap` (points between pages), `Background` (the color behind the pages), `OnChanged` (the action fired when the user clicks a page) |
 
 The application calls `Rpdf_view_set_page_size` for every page and
 `Rpdf_view_set_page_bitmap` with the pixels it rendered, at the scale it

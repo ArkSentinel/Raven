@@ -53,9 +53,13 @@ void rvn_pool_remove(rvn_pool_t* pool, Rid id) {
 	if (!rvn_pool_get(pool, id)) return;
 	pool->items[index] = NULL;
 	pool->generations[index]++;
+	pool->live--;
+	/* The generation has 8 bits: after 256 removals it would repeat, and a handle kept from the
+	 * first cycle would name the object of the next one. A slot whose generation wrapped to 0 is
+	 * retired instead of reused, so no old handle can become valid again. */
+	if (pool->generations[index] == 0) return;
 	RVN_ARRAY_RESERVE(pool->free_list, pool->free_cap, pool->free_count + 1);
 	pool->free_list[pool->free_count++] = index;
-	pool->live--;
 }
 
 void* rvn_pool_at(const rvn_pool_t* pool, uint32_t index) {

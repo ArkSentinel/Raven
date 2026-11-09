@@ -764,6 +764,8 @@ struct rvn_window_t {
 	float scale;
 	int visible;
 	int surface_ready;
+	/** Why the surface is not there, when it was refused (NULL when it is, or nothing went wrong). */
+	char* surface_error;
 	/** RWindowFlags given at creation. */
 	uint32_t window_flags;
 	rvn_pwindow_state_t state;

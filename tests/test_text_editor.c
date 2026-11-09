@@ -1591,6 +1591,69 @@ static void test_zoom(void) {
 	Rwindow_destroy(g_window);
 }
 
+/* The edits an application makes itself: a comment toggle, the state modified or saved, and a
+ * group of edits that one undo takes back. */
+static void test_application_edits(void) {
+	open_editor("");
+	Rtext_editor_set_language(g_editor, "C");
+	Rtext_editor_set_text(g_editor, "int a;\nint b;\n");
+	CHECK(Rtext_editor_is_modified(g_editor));
+	Rtext_editor_set_modified(g_editor, R_FALSE);
+	CHECK(!Rtext_editor_is_modified(g_editor));
+
+	/* the lines selected get the line comment, and get it off again */
+	Rtext_editor_select(g_editor, 0, 0, 1, 6);
+	CHECK(Rtext_editor_toggle_comment(g_editor));
+	CHECK_STR(Rtext_editor_get_text(g_editor), "// int a;\n// int b;\n");
+	CHECK(Rtext_editor_is_modified(g_editor));
+	CHECK(g_changes > 0);
+	CHECK(Rtext_editor_toggle_comment(g_editor));
+	CHECK_STR(Rtext_editor_get_text(g_editor), "int a;\nint b;\n");
+
+	/* undoing back to the saved text is still modified: only set_modified clears it */
+	Rtext_editor_set_modified(g_editor, R_FALSE);
+	Rtext_editor_select(g_editor, 0, 0, 1, 6);
+	Rtext_editor_toggle_comment(g_editor);
+	Rtext_editor_undo(g_editor);
+	CHECK(Rtext_editor_is_modified(g_editor));
+
+	/* a group of edits is one undo step */
+	Rtext_editor_set_text(g_editor, "a\nb\nc\n");
+	Rtext_editor_set_modified(g_editor, R_FALSE);
+	Rtext_editor_begin_edit(g_editor);
+	Rtext_editor_select(g_editor, 0, 0, 0, 0);
+	Rtext_editor_insert_text(g_editor, "x");
+	Rtext_editor_select(g_editor, 1, 0, 1, 0);
+	Rtext_editor_insert_text(g_editor, "y");
+	Rtext_editor_select(g_editor, 2, 0, 2, 0);
+	Rtext_editor_insert_text(g_editor, "z");
+	Rtext_editor_end_edit(g_editor);
+	CHECK_STR(Rtext_editor_get_text(g_editor), "xa\nyb\nzc\n");
+	Rtext_editor_undo(g_editor);
+	CHECK_STR(Rtext_editor_get_text(g_editor), "a\nb\nc\n");
+
+	/* a language without a line comment: nothing to toggle */
+	Rtext_editor_set_language(g_editor, NULL);
+	CHECK(!Rtext_editor_toggle_comment(g_editor));
+}
+
+/* Reloading keeps the caret and clamps it to the new text; the loaded text counts as saved. */
+static void test_reload_text(void) {
+	int line = -1, column = -1;
+	open_editor("");
+	Rtext_editor_set_text(g_editor, "one\ntwo\nthree\nfour\n");
+	Rtext_editor_select(g_editor, 2, 3, 2, 3);
+	Rtext_editor_reload_text(g_editor, "one\ntwo\nthree\nfour\nfive\n");
+	CHECK_STR(Rtext_editor_get_text(g_editor), "one\ntwo\nthree\nfour\nfive\n");
+	Rtext_editor_get_caret(g_editor, 0, &line, &column);
+	CHECK(line == 2 && column == 3);
+	CHECK(!Rtext_editor_is_modified(g_editor));
+
+	Rtext_editor_reload_text(g_editor, "x\n");  /* shorter: the caret is clamped */
+	Rtext_editor_get_caret(g_editor, 0, &line, &column);
+	CHECK(line == 1 && column == 0);
+}
+
 int main(void) {
 	if (!test_init(0)) return 1;
 
@@ -1601,6 +1664,8 @@ int main(void) {
 	RUN(test_navigation);
 	RUN(test_clipboard_and_history);
 	RUN(test_indent);
+	RUN(test_application_edits);
+	RUN(test_reload_text);
 	RUN(test_mouse);
 	RUN(test_wrap_and_scroll);
 	RUN(test_xml);

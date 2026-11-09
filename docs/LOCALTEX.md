@@ -62,7 +62,8 @@ starts a command, `%` a comment, `$...$` mathematics, `\begin{...}` and
 `\end{...}` are a pair, and a BibTeX entry is `@type{key, field = {value}}`.
 `RLanguageDesc::word_characters` lets a language say that a backslash (TeX)
 or an `@` (BibTeX) is part of a name, which is what makes completing `\sec`
-propose `\section` and what makes folding `\begin` work.
+propose `\section`. (Folding `\begin` reads the name of the environment
+itself and does not depend on it.)
 
 **Typing.** A `\begin{itemize}` typed in a TeX document gets its
 `\end{itemize}` on the line below, with the caret indented inside; Enter
@@ -71,10 +72,13 @@ after a `\begin{...}` indents the next line; Ctrl+/ comments lines out with
 
 **Search and replace** (`Rtext_editor_set_search`, `Rtext_editor_find_next`,
 `Rtext_editor_replace`, `Rtext_editor_replace_all`): plain text or a regular
-expression (`R_SEARCH_REGEX`), ignoring case, whole words only. Matches are
-computed once per (text, pattern) and highlighted. The engine is
-`src/widgets/regex.c`: a small backtracking matcher with a step budget, so a
-pathological pattern says "nothing found" instead of freezing the window.
+expression (`R_SEARCH_REGEX`), ignoring case, whole words only — the three
+flags work together, also with a regular expression. Matches are computed
+once per (text, pattern) and highlighted. A replacement understands `$1`,
+`${1}`, `${1:text}`, `$&`, `$$`, `\n` and `\t`. `replace_all` is one step of
+the history. The engine is `src/widgets/regex.c`: a small backtracking
+matcher with a step budget, so a pathological pattern says "nothing found"
+instead of freezing the window.
 
 **Folding** (`Rtext_editor_set_folding`, `Rtext_editor_fold_line`,
 `Rtext_editor_toggle_fold`, Ctrl+Shift+[ / ]): braces and brackets of a
@@ -83,18 +87,24 @@ margin of the line numbers; a folded block shows `...` and its last line
 stays visible.
 
 **Snippets** (`Rsnippet_add`, `Rtext_editor_insert_snippet`): `\section`,
-`figure`, `table`... Bodies hold `$1`..`$9`, `${1:text}` and `$0`; Tab walks
+`figure`, `table`... Bodies hold `$1`..`$9`, `${1:text}`, `$0` and `$NAME`
+(a variable given with `Rsnippet_set_variable`: a date, an author); Tab walks
 the places, Escape leaves them. `Rtext_editor_snippet_at_caret` says which
 snippet the word being typed would expand.
 
 **Several cursors** (`Rtext_editor_set_multi_cursor`, `Rtext_editor_add_caret`):
-Ctrl+click adds a caret; selecting and typing act on all of them. The
-replacement of a selection is the base of Ctrl+D (next occurrence).
+Ctrl+click adds a caret, Alt+drag selects a column of text, and Ctrl+D adds
+the next occurrence of the selection. Typing, Backspace and Delete act on all
+of them, as one step of the history: one Ctrl+Z takes back what every caret
+did. (The history keeps 512 edits; a step that needs more than that, like a
+Replace All over a long document, is kept whole.)
 
 **Reading back** what an application needs for a status bar and for markers:
 `Rtext_editor_get_marker`, `Rtext_editor_clear_markers_of_line`,
-`Rtext_editor_get_word_count`, `Rtext_editor_get_character_count`,
-`Rtext_editor_get_non_empty_line_count`, `Rtext_editor_get_current_line`.
+`Rtext_editor_get_word_count` (lines counted as the language counts them: a
+comment is not words, and neither is a command of TeX),
+`Rtext_editor_get_character_count`, `Rtext_editor_get_non_empty_line_count`,
+`Rtext_editor_get_current_line`.
 
 ## 3. Running tools and reading their logs (`raven_process.h`, `raven_latex.h`)
 
@@ -132,7 +142,8 @@ A store of settings backed by JSON, in the usual folder of the platform
 (`~/.config/<app>`, `~/Library/Application Support/<app>`, `%APPDATA%\<app>`):
 booleans, integers, numbers and texts under dotted keys, the whole document
 as text, nested objects and arrays, and a reader that tolerates comments and
-a trailing comma. `Rsettings_open` makes the folder and the file.
+a trailing comma. `Rsettings_open` makes the folder and a store in it; the
+file is written by the first `Rsettings_save`.
 
 On top of it:
 

@@ -392,6 +392,13 @@ const char* Rprocess_find(const char* program) {
 	return found;
 }
 
+char* Rprocess_find_copy(const char* program, size_t* size) {
+	const char* found = Rprocess_find(program);
+	char* copy = found ? rvn_strdup(found) : NULL;
+	if (size) *size = copy ? strlen(copy) : 0;
+	return copy;
+}
+
 int Rprocess_is_available(const char* program) {
 	return Rprocess_find(program) != NULL;
 }
@@ -1004,6 +1011,10 @@ static void rvn_process_destroy_id(Rid id) {
 }
 
 void rvn_process_destroy(Rid process) {
+	rvn_process_destroy_id(process);
+}
+
+void Rprocess_destroy(Rid process) {
 	rvn_process_destroy_id(process);
 }
 

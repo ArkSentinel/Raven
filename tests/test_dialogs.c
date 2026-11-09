@@ -8,6 +8,7 @@
 
 #include "test.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -728,6 +729,44 @@ static void test_dialog_animated(void) {
 	Rset_animation_time_step(0.0);
 }
 
+/* Whole-file operations on a folder of the test: a copy, a move, and folders made on the way. */
+static void test_file_operations(void) {
+	const char* base = getenv("TMPDIR");
+	char root[1024], deep[1100], a[1100], b[1100], c[1100];
+	size_t size = 0;
+	char* data;
+	snprintf(root, sizeof(root), "%s/raven-fileops-%d", base && base[0] ? base : "/tmp", (int)getpid());
+	snprintf(deep, sizeof(deep), "%s/one/two/three", root);
+	snprintf(a, sizeof(a), "%s/a.txt", root);
+	snprintf(b, sizeof(b), "%s/copy.txt", deep);
+	snprintf(c, sizeof(c), "%s/moved.txt", deep);
+	CHECK(Rfile_mkdir_p(deep));
+	CHECK(Rfile_mkdir_p(deep));                 /* already there: still fine */
+	CHECK(!Rfile_mkdir_p(""));
+	CHECK(Rfile_write(a, "hello", 5));
+	CHECK(Rfile_copy(a, b));
+	data = Rfile_read(b, &size);
+	CHECK(data != NULL && size == 5 && memcmp(data, "hello", 5) == 0);
+	Rmemory_free(data);
+	CHECK(!Rfile_copy("/raven-no-such-file-4f1c", b));
+	CHECK(Rfile_move(b, c));
+	CHECK(Rfile_read(b, &size) == NULL);
+	data = Rfile_read(c, &size);
+	CHECK(data != NULL && size == 5);
+	Rmemory_free(data);
+	CHECK(!Rfile_move("/raven-no-such-file-4f1c", c));
+	remove(c);
+	remove(a);
+	/* the folders made by the test, from the deepest */
+	snprintf(deep, sizeof(deep), "%s/one/two/three", root);
+	rmdir(deep);
+	snprintf(deep, sizeof(deep), "%s/one/two", root);
+	rmdir(deep);
+	snprintf(deep, sizeof(deep), "%s/one", root);
+	rmdir(deep);
+	rmdir(root);
+}
+
 int main(void) {
 	if (!test_init(0)) {
 		printf("test_dialogs: cannot initialize Raven\n");
@@ -741,6 +780,7 @@ int main(void) {
 	RUN(test_file_browser);
 	RUN(test_file_browser_xml);
 	RUN(test_file_dialogs);
+	RUN(test_file_operations);
 	remove_tree();
 	Rshutdown();
 	return test_report("test_dialogs");

@@ -4437,6 +4437,27 @@ public final class R {
     }
 
     /**
+     * Called after a tab was moved with Rtab_view_move_tab, with its old and new index.
+     */
+    @FunctionalInterface
+    public interface RTabReorderedCallback {
+        void invoke(int tab_view, int from, int to_, MemorySegment user_data);
+    }
+
+    private static void RTabReorderedCallback$raw(RTabReorderedCallback f, int tab_view, int from, int to_, MemorySegment user_data) {
+        try {
+            f.invoke(tab_view, from, to_, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RTabReorderedCallback f) {
+        return stub(f, RTabReorderedCallback.class, "RTabReorderedCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
+    }
+
+    /**
      * The user closes a tab (its button, a middle click). Return R_TRUE
      * to delete its page now, R_FALSE to keep it (the application may ask to
      * save, then delete the page itself with Rwidget_destroy).
@@ -5579,6 +5600,28 @@ public final class R {
     }
 
     /**
+     * Called when the page the view is at changes: by scrolling, by the keys, by
+     * Rpdf_view_set_page, or when the pages change. Not called when the page stays the same.
+     */
+    @FunctionalInterface
+    public interface RPdfPageChangedCallback {
+        void invoke(int pdf_view, int page, MemorySegment user_data);
+    }
+
+    private static void RPdfPageChangedCallback$raw(RPdfPageChangedCallback f, int pdf_view, int page, MemorySegment user_data) {
+        try {
+            f.invoke(pdf_view, page, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RPdfPageChangedCallback f) {
+        return stub(f, RPdfPageChangedCallback.class, "RPdfPageChangedCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, ADDRESS));
+    }
+
+    /**
      * Called when the user clicks on a page. This also fires the action of the widget.
      */
     @FunctionalInterface
@@ -5597,6 +5640,28 @@ public final class R {
 
     private static MemorySegment upcall(RPdfPageClickedCallback f) {
         return stub(f, RPdfPageClickedCallback.class, "RPdfPageClickedCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, ADDRESS));
+    }
+
+    /**
+     * Called when the user clicks inside a link, with the target given to Rpdf_view_add_link.
+     * The page click (Rpdf_view_set_page_clicked_callback) is still called after it.
+     */
+    @FunctionalInterface
+    public interface RPdfLinkClickedCallback {
+        void invoke(int pdf_view, int page, int target, MemorySegment user_data);
+    }
+
+    private static void RPdfLinkClickedCallback$raw(RPdfLinkClickedCallback f, int pdf_view, int page, int target, MemorySegment user_data) {
+        try {
+            f.invoke(pdf_view, page, target, user_data);
+        } catch (Throwable t) {
+            // an exception must not cross C: it is reported here
+            t.printStackTrace();
+        }
+    }
+
+    private static MemorySegment upcall(RPdfLinkClickedCallback f) {
+        return stub(f, RPdfLinkClickedCallback.class, "RPdfLinkClickedCallback$raw", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
     }
 
     /**
@@ -6799,6 +6864,41 @@ public final class R {
         try {
             int $r = (int) $h.invokeExact(window);
             return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rwindow_has_surface$;
+
+    /**
+     * R_FALSE when the window has no rendering surface, so nothing is drawn in it: the backend
+     * refused it, or it could not be made again after the loss of the device. The window stays valid.
+     */
+    public static int Rwindow_has_surface(int window) {
+        MethodHandle $h = Rwindow_has_surface$;
+        if ($h == null) Rwindow_has_surface$ = $h = find("Rwindow_has_surface", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(window);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rwindow_get_surface_error$;
+
+    /**
+     * Why the window has no surface, as text, for the application to show in the window:
+     * the last refusal of the backend. NULL when the surface is there. The text stays until the
+     * surface is made again.
+     */
+    public static String Rwindow_get_surface_error(int window) {
+        MethodHandle $h = Rwindow_get_surface_error$;
+        if ($h == null) Rwindow_get_surface_error$ = $h = find("Rwindow_get_surface_error", FunctionDescriptor.of(ADDRESS, JAVA_INT));
+        try {
+            MemorySegment $r = (MemorySegment) $h.invokeExact(window);
+            return text($r);
         } catch (Throwable $t) {
             throw fail($t);
         }
@@ -9444,6 +9544,24 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rtexture_is_placeholder$;
+
+    /**
+     * R_TRUE when the device was lost and the texture could not be rebuilt (it came from pixels
+     * too large to keep a copy of): it is blank now, and the application must upload it again with
+     * Rtexture_update. Set to R_FALSE by any upload. Use it after the reset callback to re-upload only what was lost.
+     */
+    public static int Rtexture_is_placeholder(int texture) {
+        MethodHandle $h = Rtexture_is_placeholder$;
+        if ($h == null) Rtexture_is_placeholder$ = $h = find("Rtexture_is_placeholder", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(texture);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rtexture_set_filter$;
 
     /**
@@ -11301,6 +11419,39 @@ public final class R {
         } catch (Throwable $t) {
             throw fail($t);
         }
+    }
+
+    private static MethodHandle Rtab_view_move_tab$;
+
+    /**
+     * Moves the tab at index "from" to index "to" (both in 0 .. count-1). The page keeps its state,
+     * and the active page stays active. R_FALSE when an index is out of range.
+     */
+    public static int Rtab_view_move_tab(int tab_view, int from, int to_) {
+        MethodHandle $h = Rtab_view_move_tab$;
+        if ($h == null) Rtab_view_move_tab$ = $h = find("Rtab_view_move_tab", FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(tab_view, from, to_);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtab_view_set_reordered_callback$;
+
+    public static void Rtab_view_set_reordered_callback(int tab_view, RTabReorderedCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rtab_view_set_reordered_callback$;
+        if ($h == null) Rtab_view_set_reordered_callback$ = $h = find("Rtab_view_set_reordered_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(tab_view, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rtab_view_set_reordered_callback(int tab_view, RTabReorderedCallback callback) {
+        Rtab_view_set_reordered_callback(tab_view, callback, (MemorySegment) null);
     }
 
     private static MethodHandle Rtab_view_set_tab_title$;
@@ -16372,6 +16523,39 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rtext_editor_add_marker_from$;
+
+    /**
+     * Like Rtext_editor_add_marker, with the source of the marker: an application with two
+     * sources (the compiler log and a spell checker) can then replace one without touching the other.
+     * Rtext_editor_add_marker adds to source 0.
+     */
+    public static void Rtext_editor_add_marker_from(int editor, int source, int line, int from_column, int to_column, int kind, String message) {
+        MethodHandle $h = Rtext_editor_add_marker_from$;
+        if ($h == null) Rtext_editor_add_marker_from$ = $h = find("Rtext_editor_add_marker_from", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment message$ = message == null ? MemorySegment.NULL : utf8($a, message);
+            $h.invokeExact(editor, source, line, from_column, to_column, kind, message$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_clear_markers_of_source$;
+
+    /**
+     * Removes the markers added with this source, and only those.
+     */
+    public static void Rtext_editor_clear_markers_of_source(int editor, int source) {
+        MethodHandle $h = Rtext_editor_clear_markers_of_source$;
+        if ($h == null) Rtext_editor_clear_markers_of_source$ = $h = find("Rtext_editor_clear_markers_of_source", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(editor, source);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rtext_editor_get_marker_count$;
 
     public static int Rtext_editor_get_marker_count(int editor) {
@@ -16565,12 +16749,115 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rtext_editor_toggle_comment$;
+
+    /**
+     * Comments the lines of the selection with the line comment of the language, or uncomments
+     * them when all already are, as one step of the history.
+     * Returns: R_FALSE when the language has no line comment (or the editor is read-only).
+     */
+    public static int Rtext_editor_toggle_comment(int editor) {
+        MethodHandle $h = Rtext_editor_toggle_comment$;
+        if ($h == null) Rtext_editor_toggle_comment$ = $h = find("Rtext_editor_toggle_comment", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_begin_edit$;
+
+    /**
+     * Groups the edits made until Rtext_editor_end_edit into one step of the history. The calls nest.
+     * Use it when an application changes several lines at once (a menu action, a reformat).
+     */
+    public static void Rtext_editor_begin_edit(int editor) {
+        MethodHandle $h = Rtext_editor_begin_edit$;
+        if ($h == null) Rtext_editor_begin_edit$ = $h = find("Rtext_editor_begin_edit", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(editor);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_end_edit$;
+
+    /**
+     * Ends the group opened by Rtext_editor_begin_edit.
+     */
+    public static void Rtext_editor_end_edit(int editor) {
+        MethodHandle $h = Rtext_editor_end_edit$;
+        if ($h == null) Rtext_editor_end_edit$ = $h = find("Rtext_editor_end_edit", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(editor);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_is_modified$;
+
+    /**
+     * R_TRUE when the text changed since it was last loaded or saved. Undoing back to the saved
+     * text still counts as modified: only Rtext_editor_set_modified(editor, R_FALSE) clears it.
+     * Rtext_editor_set_text does not clear it either.
+     */
+    public static int Rtext_editor_is_modified(int editor) {
+        MethodHandle $h = Rtext_editor_is_modified$;
+        if ($h == null) Rtext_editor_is_modified$ = $h = find("Rtext_editor_is_modified", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
+        try {
+            int $r = (int) $h.invokeExact(editor);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_set_modified$;
+
+    /**
+     * Marks the current text as saved (modified = R_FALSE) or as changed (modified = R_TRUE).
+     * Call it with R_FALSE after saving, or after loading a file from disk.
+     */
+    public static void Rtext_editor_set_modified(int editor, int modified) {
+        MethodHandle $h = Rtext_editor_set_modified$;
+        if ($h == null) Rtext_editor_set_modified$ = $h = find("Rtext_editor_set_modified", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(editor, modified);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rtext_editor_reload_text$;
+
+    /**
+     * Replaces the text with one read from disk, keeping the caret and the scroll where they were
+     * (as far as the new text reaches). The history is cleared, and the text counts as saved.
+     */
+    public static void Rtext_editor_reload_text(int editor, String text) {
+        MethodHandle $h = Rtext_editor_reload_text$;
+        if ($h == null) Rtext_editor_reload_text$ = $h = find("Rtext_editor_reload_text", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment text$ = text == null ? MemorySegment.NULL : utf8($a, text);
+            $h.invokeExact(editor, text$);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rtext_editor_expand_replacement$;
 
     /**
-     * The text of a replacement where `$1` .. `$9`, `${name}`, `$&amp;`
-     * (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
-     * with `matches`, the groups of the regex that matched. Pure: no editor needed.
+     * The text of a replacement where `$1` .. `$9` and `${1}` (a group
+     * of the regex), `${1:text}` (the group, or that text when the group did
+     * not take part), `$&amp;` (the whole match), `$$` (a dollar), `\n`, `\t` and
+     * `\\` mean something; `groups` holds the pairs of the match, as
+     * `Rtext_editor_get_match` gives them, `group_count` how many are.
+     * Pure: no editor needed.
      * Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
      */
     public static String Rtext_editor_expand_replacement(String replacement, String text, int from, int to_, int[] groups, int group_count) {
@@ -16780,6 +17067,28 @@ public final class R {
         try (Arena $a = Arena.ofConfined()) {
             MemorySegment name$ = name == null ? MemorySegment.NULL : utf8($a, name);
             int $r = (int) $h.invokeExact(name$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rsnippet_set_variable$;
+
+    /**
+     * Gives the text that `$NAME` in a snippet body stands for
+     * ("DATE", "AUTHOR"...). Case is ignored. A NULL or empty value removes
+     * the variable, and a body that names one that is not set keeps it as
+     * written. The text is copied.
+     * Returns: R_FALSE when the name is empty.
+     */
+    public static int Rsnippet_set_variable(String name, String value) {
+        MethodHandle $h = Rsnippet_set_variable$;
+        if ($h == null) Rsnippet_set_variable$ = $h = find("Rsnippet_set_variable", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment name$ = name == null ? MemorySegment.NULL : utf8($a, name);
+            MemorySegment value$ = value == null ? MemorySegment.NULL : utf8($a, value);
+            int $r = (int) $h.invokeExact(name$, value$);
             return $r;
         } catch (Throwable $t) {
             throw fail($t);
@@ -21128,6 +21437,59 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rfile_copy$;
+
+    /**
+     * Copies a file. R_FALSE when the source cannot be read or the target cannot be written.
+     */
+    public static int Rfile_copy(String from, String to_) {
+        MethodHandle $h = Rfile_copy$;
+        if ($h == null) Rfile_copy$ = $h = find("Rfile_copy", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment from$ = from == null ? MemorySegment.NULL : utf8($a, from);
+            MemorySegment to_$ = to_ == null ? MemorySegment.NULL : utf8($a, to_);
+            int $r = (int) $h.invokeExact(from$, to_$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rfile_move$;
+
+    /**
+     * Moves (renames) a file, copying it when the system cannot rename it.
+     */
+    public static int Rfile_move(String from, String to_) {
+        MethodHandle $h = Rfile_move$;
+        if ($h == null) Rfile_move$ = $h = find("Rfile_move", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment from$ = from == null ? MemorySegment.NULL : utf8($a, from);
+            MemorySegment to_$ = to_ == null ? MemorySegment.NULL : utf8($a, to_);
+            int $r = (int) $h.invokeExact(from$, to_$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rfile_mkdir_p$;
+
+    /**
+     * Creates a folder and the ones above it that are missing. R_TRUE when it exists afterwards.
+     */
+    public static int Rfile_mkdir_p(String path) {
+        MethodHandle $h = Rfile_mkdir_p$;
+        if ($h == null) Rfile_mkdir_p$ = $h = find("Rfile_mkdir_p", FunctionDescriptor.of(JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment path$ = path == null ? MemorySegment.NULL : utf8($a, path);
+            int $r = (int) $h.invokeExact(path$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rfile_browser_create$;
 
     public static int Rfile_browser_create() {
@@ -22162,6 +22524,22 @@ public final class R {
         Rpdf_view_set_page_needed_callback(pdf_view, callback, (MemorySegment) null);
     }
 
+    private static MethodHandle Rpdf_view_set_page_changed_callback$;
+
+    public static void Rpdf_view_set_page_changed_callback(int pdf_view, RPdfPageChangedCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rpdf_view_set_page_changed_callback$;
+        if ($h == null) Rpdf_view_set_page_changed_callback$ = $h = find("Rpdf_view_set_page_changed_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(pdf_view, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rpdf_view_set_page_changed_callback(int pdf_view, RPdfPageChangedCallback callback) {
+        Rpdf_view_set_page_changed_callback(pdf_view, callback, (MemorySegment) null);
+    }
+
     private static MethodHandle Rpdf_view_get_page_at$;
 
     /**
@@ -22200,6 +22578,54 @@ public final class R {
 
     public static void Rpdf_view_set_page_clicked_callback(int pdf_view, RPdfPageClickedCallback callback) {
         Rpdf_view_set_page_clicked_callback(pdf_view, callback, (MemorySegment) null);
+    }
+
+    private static MethodHandle Rpdf_view_add_link$;
+
+    /**
+     * Adds a link to a page: a rectangle in points from the top left of the page (the
+     * coordinates page_x / page_y of the clicks), and the number the application gives it.
+     * The application reads the links of a page from the document (PDFium), so Raven does not.
+     */
+    public static void Rpdf_view_add_link(int pdf_view, int page, float x0, float y0, float x1, float y1, int target) {
+        MethodHandle $h = Rpdf_view_add_link$;
+        if ($h == null) Rpdf_view_add_link$ = $h = find("Rpdf_view_add_link", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_FLOAT, JAVA_INT));
+        try {
+            $h.invokeExact(pdf_view, page, x0, y0, x1, y1, target);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_clear_links$;
+
+    /**
+     * Removes the links of a page (before its links are read again).
+     */
+    public static void Rpdf_view_clear_links(int pdf_view, int page) {
+        MethodHandle $h = Rpdf_view_clear_links$;
+        if ($h == null) Rpdf_view_clear_links$ = $h = find("Rpdf_view_clear_links", FunctionDescriptor.ofVoid(JAVA_INT, JAVA_INT));
+        try {
+            $h.invokeExact(pdf_view, page);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rpdf_view_set_link_clicked_callback$;
+
+    public static void Rpdf_view_set_link_clicked_callback(int pdf_view, RPdfLinkClickedCallback callback, MemorySegment user_data) {
+        MethodHandle $h = Rpdf_view_set_link_clicked_callback$;
+        if ($h == null) Rpdf_view_set_link_clicked_callback$ = $h = find("Rpdf_view_set_link_clicked_callback", FunctionDescriptor.ofVoid(JAVA_INT, ADDRESS, ADDRESS));
+        try {
+            $h.invokeExact(pdf_view, upcall(callback), (MemorySegment) (user_data == null ? MemorySegment.NULL : user_data));
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    public static void Rpdf_view_set_link_clicked_callback(int pdf_view, RPdfLinkClickedCallback callback) {
+        Rpdf_view_set_link_clicked_callback(pdf_view, callback, (MemorySegment) null);
     }
 
     private static MethodHandle Rpdf_view_invalidate_page$;
@@ -24046,6 +24472,24 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rsettings_remove_prefix$;
+
+    /**
+     * Removes every key whose full name starts with `prefix` (a whole list, such as
+     * "project.recent", with the keys it had). Returns how many keys were removed.
+     */
+    public static int Rsettings_remove_prefix(int settings, String prefix) {
+        MethodHandle $h = Rsettings_remove_prefix$;
+        if ($h == null) Rsettings_remove_prefix$ = $h = find("Rsettings_remove_prefix", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment prefix$ = prefix == null ? MemorySegment.NULL : utf8($a, prefix);
+            int $r = (int) $h.invokeExact(settings, prefix$);
+            return $r;
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rsettings_has$;
 
     /**
@@ -24317,10 +24761,29 @@ public final class R {
         }
     }
 
+    private static MethodHandle Rprocess_destroy$;
+
+    /**
+     * Frees a process that ended. Its callbacks are not called again.
+     * A process still running is stopped first, as Rprocess_cancel does. The
+     * library keeps every process until Rshutdown, so an application that
+     * starts many of them (a check after each pause) calls this when it no
+     * longer needs the exit code.
+     */
+    public static void Rprocess_destroy(int process) {
+        MethodHandle $h = Rprocess_destroy$;
+        if ($h == null) Rprocess_destroy$ = $h = find("Rprocess_destroy", FunctionDescriptor.ofVoid(JAVA_INT));
+        try {
+            $h.invokeExact(process);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
     private static MethodHandle Rprocess_is_available$;
 
     /**
-     * Returns: R_TRUE when the program is found (PATH lookup only).
+     * Returns: R_TRUE when the program is found (the same lookup as Rprocess_find).
      */
     public static int Rprocess_is_available(String program) {
         MethodHandle $h = Rprocess_is_available$;
@@ -24352,6 +24815,29 @@ public final class R {
             MemorySegment program$ = program == null ? MemorySegment.NULL : utf8($a, program);
             MemorySegment $r = (MemorySegment) $h.invokeExact(program$);
             return text($r);
+        } catch (Throwable $t) {
+            throw fail($t);
+        }
+    }
+
+    private static MethodHandle Rprocess_find_copy$;
+
+    /**
+     * Same as Rprocess_find, but the path is a copy the application owns: it stays the same
+     * after the next call. Its length (without the terminating zero) is written to `size` when it is
+     * not NULL. Free it with Rmemory_free. NULL when the program is not found.
+     */
+    public static byte[] Rprocess_find_copy(String program) {
+        MethodHandle $h = Rprocess_find_copy$;
+        if ($h == null) Rprocess_find_copy$ = $h = find("Rprocess_find_copy", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+        try (Arena $a = Arena.ofConfined()) {
+            MemorySegment program$ = program == null ? MemorySegment.NULL : utf8($a, program);
+            MemorySegment size$ = $a.allocate(JAVA_LONG);
+            MemorySegment $r = (MemorySegment) $h.invokeExact(program$, size$);
+            if ($r.equals(MemorySegment.NULL)) return null;
+            byte[] $data = $r.reinterpret(size$.get(JAVA_LONG, 0)).toArray(JAVA_BYTE);
+            Rmemory_free($r);
+            return $data;
         } catch (Throwable $t) {
             throw fail($t);
         }

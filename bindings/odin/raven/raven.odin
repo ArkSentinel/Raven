@@ -1239,6 +1239,8 @@ RWidgetDestroyCallback :: #type proc "c" (widget: Rid, user_data: rawptr)
 // not see it), R_FALSE to let it continue.
 RWidgetEventCallback :: #type proc "c" (widget: Rid, event: ^REvent, user_data: rawptr) -> i32
 RTabChangedCallback :: #type proc "c" (tab_view: Rid, index: i32, user_data: rawptr)
+// Called after a tab was moved with Rtab_view_move_tab, with its old and new index.
+RTabReorderedCallback :: #type proc "c" (tab_view: Rid, from: i32, to: i32, user_data: rawptr)
 // The user closes a tab (its button, a middle click). Return R_TRUE
 // to delete its page now, R_FALSE to keep it (the application may ask to
 // save, then delete the page itself with Rwidget_destroy).
@@ -1367,8 +1369,14 @@ RMeasureCallback :: #type proc "c" (widget: Rid, width: ^f32, height: ^f32, user
 // again when the scale changes by more than 1 % or when it comes back
 // into view.
 RPdfPageNeededCallback :: #type proc "c" (pdf_view: Rid, page: i32, scale: f32, user_data: rawptr)
+// Called when the page the view is at changes: by scrolling, by the keys, by
+// Rpdf_view_set_page, or when the pages change. Not called when the page stays the same.
+RPdfPageChangedCallback :: #type proc "c" (pdf_view: Rid, page: i32, user_data: rawptr)
 // Called when the user clicks on a page. This also fires the action of the widget.
 RPdfPageClickedCallback :: #type proc "c" (pdf_view: Rid, page: i32, page_x: f32, page_y: f32, user_data: rawptr)
+// Called when the user clicks inside a link, with the target given to Rpdf_view_add_link.
+// The page click (Rpdf_view_set_page_clicked_callback) is still called after it.
+RPdfLinkClickedCallback :: #type proc "c" (pdf_view: Rid, page: i32, target: i32, user_data: rawptr)
 // Called each time a file was loaded again.
 // path The file given when the interface was created.
 // ok   R_FALSE when the file could not be used (the interface is unchanged).
@@ -2108,6 +2116,13 @@ foreign lib {
 	// Closes a window and deletes its content widgets.
 	Rwindow_destroy :: proc(window: Rid) ---
 	Rwindow_is_valid :: proc(window: Rid) -> i32 ---
+	// R_FALSE when the window has no rendering surface, so nothing is drawn in it: the backend
+	// refused it, or it could not be made again after the loss of the device. The window stays valid.
+	Rwindow_has_surface :: proc(window: Rid) -> i32 ---
+	// Why the window has no surface, as text, for the application to show in the window:
+	// the last refusal of the backend. NULL when the surface is there. The text stays until the
+	// surface is made again.
+	Rwindow_get_surface_error :: proc(window: Rid) -> cstring ---
 	// Sets the root widget of the window. The window takes ownership of
 	// the widget; the previous content is deleted.
 	Rwindow_set_content :: proc(window: Rid, widget: Rid) ---
@@ -2555,6 +2570,10 @@ foreign lib {
 	Rtexture_destroy :: proc(texture: Rid) ---
 	Rtexture_is_valid :: proc(texture: Rid) -> i32 ---
 	Rtexture_get_size :: proc(texture: Rid, width: ^i32, height: ^i32) ---
+	// R_TRUE when the device was lost and the texture could not be rebuilt (it came from pixels
+	// too large to keep a copy of): it is blank now, and the application must upload it again with
+	// Rtexture_update. Set to R_FALSE by any upload. Use it after the reset callback to re-upload only what was lost.
+	Rtexture_is_placeholder :: proc(texture: Rid) -> i32 ---
 	// How the texture is smoothed when it is scaled. The textures made
 	// from image files start with R_FILTER_MIPMAP, the others with
 	// R_FILTER_LINEAR.
@@ -2826,6 +2845,10 @@ foreign lib {
 	Rtab_view_get_tab :: proc(tab_view: Rid, index: i32) -> Rid ---
 	// Index of the tab of a page, -1 if none.
 	Rtab_view_find_tab :: proc(tab_view: Rid, content: Rid) -> i32 ---
+	// Moves the tab at index "from" to index "to" (both in 0 .. count-1). The page keeps its state,
+	// and the active page stays active. R_FALSE when an index is out of range.
+	Rtab_view_move_tab :: proc(tab_view: Rid, from: i32, to: i32) -> i32 ---
+	Rtab_view_set_reordered_callback :: proc(tab_view: Rid, callback: RTabReorderedCallback, user_data: rawptr) ---
 	Rtab_view_set_tab_title :: proc(tab_view: Rid, content: Rid, title: cstring) ---
 	// Icon before the title (documents). R_INVALID_ID removes it; tint: a mask in the text color.
 	Rtab_view_set_tab_icon :: proc(tab_view: Rid, content: Rid, texture: Rid, u0: f32, v0: f32, u1: f32, v1: f32, tint: i32) ---
@@ -3412,6 +3435,12 @@ foreign lib {
 	// to_column -1 for the end of the line.
 	Rtext_editor_add_marker :: proc(editor: Rid, line: i32, from_column: i32, to_column: i32, kind: RMarkerKind, message: cstring) ---
 	Rtext_editor_clear_markers :: proc(editor: Rid) ---
+	// Like Rtext_editor_add_marker, with the source of the marker: an application with two
+	// sources (the compiler log and a spell checker) can then replace one without touching the other.
+	// Rtext_editor_add_marker adds to source 0.
+	Rtext_editor_add_marker_from :: proc(editor: Rid, source: i32, line: i32, from_column: i32, to_column: i32, kind: RMarkerKind, message: cstring) ---
+	// Removes the markers added with this source, and only those.
+	Rtext_editor_clear_markers_of_source :: proc(editor: Rid, source: i32) ---
 	Rtext_editor_get_marker_count :: proc(editor: Rid) -> i32 ---
 	// The line, the columns and the kind of a marker, by index (0 ..
 	// Rtext_editor_get_marker_count - 1).
@@ -3439,9 +3468,31 @@ foreign lib {
 	Rtext_editor_replace :: proc(editor: Rid, text: cstring) -> i32 ---
 	// Replaces every match, as one step of the history. Returns: How many were replaced.
 	Rtext_editor_replace_all :: proc(editor: Rid, text: cstring) -> i32 ---
-	// The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
-	// (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
-	// with `matches`, the groups of the regex that matched. Pure: no editor needed.
+	// Comments the lines of the selection with the line comment of the language, or uncomments
+	// them when all already are, as one step of the history.
+	// Returns: R_FALSE when the language has no line comment (or the editor is read-only).
+	Rtext_editor_toggle_comment :: proc(editor: Rid) -> i32 ---
+	// Groups the edits made until Rtext_editor_end_edit into one step of the history. The calls nest.
+	// Use it when an application changes several lines at once (a menu action, a reformat).
+	Rtext_editor_begin_edit :: proc(editor: Rid) ---
+	// Ends the group opened by Rtext_editor_begin_edit.
+	Rtext_editor_end_edit :: proc(editor: Rid) ---
+	// R_TRUE when the text changed since it was last loaded or saved. Undoing back to the saved
+	// text still counts as modified: only Rtext_editor_set_modified(editor, R_FALSE) clears it.
+	// Rtext_editor_set_text does not clear it either.
+	Rtext_editor_is_modified :: proc(editor: Rid) -> i32 ---
+	// Marks the current text as saved (modified = R_FALSE) or as changed (modified = R_TRUE).
+	// Call it with R_FALSE after saving, or after loading a file from disk.
+	Rtext_editor_set_modified :: proc(editor: Rid, modified: i32) ---
+	// Replaces the text with one read from disk, keeping the caret and the scroll where they were
+	// (as far as the new text reaches). The history is cleared, and the text counts as saved.
+	Rtext_editor_reload_text :: proc(editor: Rid, text: cstring) ---
+	// The text of a replacement where `$1` .. `$9` and `${1}` (a group
+	// of the regex), `${1:text}` (the group, or that text when the group did
+	// not take part), `$&` (the whole match), `$$` (a dollar), `\n`, `\t` and
+	// `\\` mean something; `groups` holds the pairs of the match, as
+	// `Rtext_editor_get_match` gives them, `group_count` how many are.
+	// Pure: no editor needed.
 	// Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
 	Rtext_editor_expand_replacement :: proc(replacement: cstring, text: cstring, from: i32, to: i32, groups: [^]i32, group_count: i32) -> cstring ---
 	// R_TRUE (the default): with a language whose blocks can be folded
@@ -3467,6 +3518,12 @@ foreign lib {
 	Rsnippet_get_count :: proc() -> i32 ---
 	Rsnippet_get_name :: proc(index: i32) -> cstring ---
 	Rsnippet_find :: proc(name: cstring) -> i32 ---
+	// Gives the text that `$NAME` in a snippet body stands for
+	// ("DATE", "AUTHOR"...). Case is ignored. A NULL or empty value removes
+	// the variable, and a body that names one that is not set keeps it as
+	// written. The text is copied.
+	// Returns: R_FALSE when the name is empty.
+	Rsnippet_set_variable :: proc(name: cstring, value: cstring) -> i32 ---
 	// Types the snippet at the caret, replacing the word before it
 	// when that word is its name. Sets the places; Tab and Shift+Tab walk
 	// them, Escape leaves them.
@@ -4060,6 +4117,12 @@ foreign lib {
 	// Rmemory_free; NULL when the file cannot be read. `size` may be NULL.
 	Rfile_read :: proc(path: cstring, size: ^uint) -> cstring ---
 	Rfile_write :: proc(path: cstring, data: rawptr, size: uint) -> i32 ---
+	// Copies a file. R_FALSE when the source cannot be read or the target cannot be written.
+	Rfile_copy :: proc(from: cstring, to: cstring) -> i32 ---
+	// Moves (renames) a file, copying it when the system cannot rename it.
+	Rfile_move :: proc(from: cstring, to: cstring) -> i32 ---
+	// Creates a folder and the ones above it that are missing. R_TRUE when it exists afterwards.
+	Rfile_mkdir_p :: proc(path: cstring) -> i32 ---
 	Rfile_browser_create :: proc() -> Rid ---
 	Rfile_browser_set_mode :: proc(browser: Rid, mode: RFileBrowserMode) ---
 	// Shows a folder. "~" is the home of the user. Returns R_FALSE when it cannot be read.
@@ -4198,11 +4261,19 @@ foreign lib {
 	Rpdf_view_set_page_gap :: proc(pdf_view: Rid, gap: f32) ---
 	Rpdf_view_get_page_gap :: proc(pdf_view: Rid) -> f32 ---
 	Rpdf_view_set_page_needed_callback :: proc(pdf_view: Rid, callback: RPdfPageNeededCallback, user_data: rawptr) ---
+	Rpdf_view_set_page_changed_callback :: proc(pdf_view: Rid, callback: RPdfPageChangedCallback, user_data: rawptr) ---
 	// The page and the point of the page (in points, from its top-left
 	// corner) under a point of the widget, for SyncTeX inverse search.
 	// Returns: R_FALSE outside a page.
 	Rpdf_view_get_page_at :: proc(pdf_view: Rid, x: f32, y: f32, page: ^i32, page_x: ^f32, page_y: ^f32) -> i32 ---
 	Rpdf_view_set_page_clicked_callback :: proc(pdf_view: Rid, callback: RPdfPageClickedCallback, user_data: rawptr) ---
+	// Adds a link to a page: a rectangle in points from the top left of the page (the
+	// coordinates page_x / page_y of the clicks), and the number the application gives it.
+	// The application reads the links of a page from the document (PDFium), so Raven does not.
+	Rpdf_view_add_link :: proc(pdf_view: Rid, page: i32, x0: f32, y0: f32, x1: f32, y1: f32, target: i32) ---
+	// Removes the links of a page (before its links are read again).
+	Rpdf_view_clear_links :: proc(pdf_view: Rid, page: i32) ---
+	Rpdf_view_set_link_clicked_callback :: proc(pdf_view: Rid, callback: RPdfLinkClickedCallback, user_data: rawptr) ---
 	// Asks for one page to be painted again, once its bitmap has arrived.
 	Rpdf_view_invalidate_page :: proc(pdf_view: Rid, page: i32) ---
 	// Scrolls so that a point of a page is in the middle of the view (SyncTeX forward search).
@@ -4468,6 +4539,9 @@ foreign lib {
 	Rsettings_set_text :: proc(settings: Rid, key: cstring, value: cstring) ---
 	// Removes a key. R_TRUE when it was there.
 	Rsettings_remove :: proc(settings: Rid, key: cstring) -> i32 ---
+	// Removes every key whose full name starts with `prefix` (a whole list, such as
+	// "project.recent", with the keys it had). Returns how many keys were removed.
+	Rsettings_remove_prefix :: proc(settings: Rid, prefix: cstring) -> i32 ---
 	// R_TRUE when the key is there, whatever it holds.
 	Rsettings_has :: proc(settings: Rid, key: cstring) -> i32 ---
 	// The whole document as text, for a project file that holds arrays
@@ -4522,7 +4596,13 @@ foreign lib {
 	// Blocks until the program ends. For tests and shutdown: never call
 	// it from the UI thread of a running application.
 	Rprocess_wait :: proc(process: Rid) ---
-	// Returns: R_TRUE when the program is found (PATH lookup only).
+	// Frees a process that ended. Its callbacks are not called again.
+	// A process still running is stopped first, as Rprocess_cancel does. The
+	// library keeps every process until Rshutdown, so an application that
+	// starts many of them (a check after each pause) calls this when it no
+	// longer needs the exit code.
+	Rprocess_destroy :: proc(process: Rid) ---
+	// Returns: R_TRUE when the program is found (the same lookup as Rprocess_find).
 	Rprocess_is_available :: proc(program: cstring) -> i32 ---
 	// Finds a program without running it.
 	// Returns: An absolute path (in a buffer of the library, valid until the
@@ -4532,6 +4612,10 @@ foreign lib {
 	// /opt/homebrew/bin, C:\\texlive\\ * \\bin\\windows and the bin folder of
 	// MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
 	Rprocess_find :: proc(program: cstring) -> cstring ---
+	// Same as Rprocess_find, but the path is a copy the application owns: it stays the same
+	// after the next call. Its length (without the terminating zero) is written to `size` when it is
+	// not NULL. Free it with Rmemory_free. NULL when the program is not found.
+	Rprocess_find_copy :: proc(program: cstring, size: ^uint) -> cstring ---
 	// Runs a program to the end and collects what it printed.
 	// Blocking: for setup work (asking git for the state of a file, a tool for
 	// its version), never for a build. The window is frozen meanwhile.

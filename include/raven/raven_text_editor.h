@@ -331,6 +331,14 @@ extern "C" {
 	 */
 	RAVEN_API void Rtext_editor_add_marker(Rid editor, int line, int from_column, int to_column, RMarkerKind kind, const char* message);
 	RAVEN_API void Rtext_editor_clear_markers(Rid editor);
+	/**
+	 * @brief Like Rtext_editor_add_marker, with the source of the marker: an application with two
+	 * sources (the compiler log and a spell checker) can then replace one without touching the other.
+	 * Rtext_editor_add_marker adds to source 0.
+	 */
+	RAVEN_API void Rtext_editor_add_marker_from(Rid editor, int source, int line, int from_column, int to_column, RMarkerKind kind, const char* message);
+	/** @brief Removes the markers added with this source, and only those. */
+	RAVEN_API void Rtext_editor_clear_markers_of_source(Rid editor, int source);
 	RAVEN_API int Rtext_editor_get_marker_count(Rid editor);
 	/**
 	 * @brief The line, the columns and the kind of a marker, by index (0 ..
@@ -380,9 +388,41 @@ extern "C" {
 	/** @brief Replaces every match, as one step of the history. @return How many were replaced. */
 	RAVEN_API int Rtext_editor_replace_all(Rid editor, const char* text);
 	/**
-	 * @brief The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
-	 * (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
-	 * with `matches`, the groups of the regex that matched. Pure: no editor needed.
+	 * @brief Comments the lines of the selection with the line comment of the language, or uncomments
+	 * them when all already are, as one step of the history.
+	 * @return R_FALSE when the language has no line comment (or the editor is read-only).
+	 */
+	RAVEN_API int Rtext_editor_toggle_comment(Rid editor);
+	/**
+	 * @brief Groups the edits made until Rtext_editor_end_edit into one step of the history. The calls nest.
+	 * Use it when an application changes several lines at once (a menu action, a reformat).
+	 */
+	RAVEN_API void Rtext_editor_begin_edit(Rid editor);
+	/** @brief Ends the group opened by Rtext_editor_begin_edit. */
+	RAVEN_API void Rtext_editor_end_edit(Rid editor);
+	/**
+	 * @brief R_TRUE when the text changed since it was last loaded or saved. Undoing back to the saved
+	 * text still counts as modified: only Rtext_editor_set_modified(editor, R_FALSE) clears it.
+	 * Rtext_editor_set_text does not clear it either.
+	 */
+	RAVEN_API int Rtext_editor_is_modified(Rid editor);
+	/**
+	 * @brief Marks the current text as saved (modified = R_FALSE) or as changed (modified = R_TRUE).
+	 * Call it with R_FALSE after saving, or after loading a file from disk.
+	 */
+	RAVEN_API void Rtext_editor_set_modified(Rid editor, int modified);
+	/**
+	 * @brief Replaces the text with one read from disk, keeping the caret and the scroll where they were
+	 * (as far as the new text reaches). The history is cleared, and the text counts as saved.
+	 */
+	RAVEN_API void Rtext_editor_reload_text(Rid editor, const char* text);
+	/**
+	 * @brief The text of a replacement where `$1` .. `$9` and `${1}` (a group
+	 * of the regex), `${1:text}` (the group, or that text when the group did
+	 * not take part), `$&` (the whole match), `$$` (a dollar), `\n`, `\t` and
+	 * `\\` mean something; `groups` holds the pairs of the match, as
+	 * `Rtext_editor_get_match` gives them, `group_count` how many are.
+	 * Pure: no editor needed.
 	 * @return The text, in a buffer of the editor (valid until the next call), or NULL.
 	 */
 	RAVEN_API const char* Rtext_editor_expand_replacement(const char* replacement, const char* text, int from, int to,
@@ -440,6 +480,14 @@ extern "C" {
 	RAVEN_API int Rsnippet_get_count(void);
 	RAVEN_API const char* Rsnippet_get_name(int index);
 	RAVEN_API int Rsnippet_find(const char* name);
+	/**
+	 * @brief Gives the text that `$NAME` in a snippet body stands for
+	 * ("DATE", "AUTHOR"...). Case is ignored. A NULL or empty value removes
+	 * the variable, and a body that names one that is not set keeps it as
+	 * written. The text is copied.
+	 * @return R_FALSE when the name is empty.
+	 */
+	RAVEN_API int Rsnippet_set_variable(const char* name, const char* value);
 	/**
 	 * @brief Types the snippet at the caret, replacing the word before it
 	 * when that word is its name. Sets the places; Tab and Shift+Tab walk

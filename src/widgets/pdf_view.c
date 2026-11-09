@@ -25,10 +25,20 @@
 /* A page is rendered again when the scale asked for moves by more than this. */
 #define RVN_PDF_SCALE_TOLERANCE 0.01f
 
+/** A link of a page: a rectangle in points (from the top left) and what the application gave for it. */
+typedef struct rvn_pdf_link_t {
+	float x0, y0, x1, y1;
+	int target;
+} rvn_pdf_link_t;
+
 typedef struct rvn_pdf_page_t {
 	/** Size of the page, in points. */
 	float width;
 	float height;
+	/** The links the application gave for the page (Rpdf_view_add_link). */
+	rvn_pdf_link_t* links;
+	uint32_t link_count;
+	uint32_t link_cap;
 	/** Pixels of the page, or R_INVALID_ID while the application has not rendered it. */
 	Rid texture;
 	/** Resolution of the texture, in pixels per point (the scale it was rendered at). */
@@ -52,8 +62,12 @@ typedef struct rvn_pdf_view_t {
 	int pressed_page;
 	RPdfPageNeededCallback needed;
 	void* needed_user;
+	RPdfPageChangedCallback changed;
+	void* changed_user;
 	RPdfPageClickedCallback clicked;
 	void* clicked_user;
+	RPdfLinkClickedCallback link_clicked;
+	void* link_clicked_user;
 	int has_highlight;
 	int highlight_page;
 	float highlight[4];
@@ -61,6 +75,13 @@ typedef struct rvn_pdf_view_t {
 	int painted_first;
 	int painted_last;
 } rvn_pdf_view_t;
+
+/* The page the view is at. The application hears of a change once, when it happens. */
+static void rvn_pdf_set_page(rvn_pdf_view_t* view, int page) {
+	int old = view->page;
+	view->page = page;
+	if (old != page && view->changed) view->changed(view->base.id, page, view->changed_user);
+}
 
 /** Where the pages are in the widget. */
 typedef struct rvn_pdf_layout_t {
@@ -87,6 +108,8 @@ static void rvn_pdf_init(rvn_widget_t* widget) {
 static void rvn_pdf_destroy(rvn_widget_t* widget) {
 	rvn_pdf_view_t* view = (rvn_pdf_view_t*)widget;
 	/* (the textures belong to the application) */
+	uint32_t i;
+	for (i = 0; i < view->cap; i++) rvn_free(view->pages[i].links);
 	rvn_free(view->pages);
 	view->pages = NULL;
 	view->count = view->cap = 0;
@@ -197,7 +220,7 @@ static void rvn_pdf_track_page(rvn_widget_t* widget, rvn_pdf_layout_t* layout) {
 	int page;
 	if (!layout->scrolls) return;
 	page = rvn_pdf_top_page(view, layout, view->bar.offset);
-	if (page >= 0) view->page = page;
+	if (page >= 0) rvn_pdf_set_page(view, page);
 }
 
 static void rvn_pdf_scroll_by(rvn_widget_t* widget, float delta) {
@@ -265,7 +288,7 @@ static int rvn_pdf_zoom_at(rvn_widget_t* widget, float zoom, float x, float y) {
 	/* (drawn where it is at once: it does not glide from the other size) */
 	view->bar.shown.started = R_FALSE;
 	top_page = rvn_pdf_top_page(view, &after, view->bar.offset);
-	if (top_page >= 0 && after.scrolls) view->page = top_page;
+	if (top_page >= 0 && after.scrolls) rvn_pdf_set_page(view, top_page);
 	rvn_widget_invalidate_paint(widget);
 	return R_TRUE;
 }
@@ -322,7 +345,8 @@ static void rvn_pdf_request_pages(rvn_widget_t* widget, rvn_pdf_view_t* view, in
 	if (!view->needed || first < 0 || last < first) return;
 	for (i = first; i <= last && i < view->count; i++) {
 		rvn_pdf_page_t* entry = &view->pages[i];
-		int rendered = entry->texture != R_INVALID_ID && entry->bitmap_scale > 0.0f &&
+		int rendered = entry->texture != R_INVALID_ID && rvn_texture_get(entry->texture) != NULL &&
+			entry->bitmap_scale > 0.0f &&
 			fabsf(scale - entry->bitmap_scale) <= entry->bitmap_scale * RVN_PDF_SCALE_TOLERANCE;
 		if (rendered) {
 			entry->asked = scale;
@@ -446,6 +470,17 @@ static int rvn_pdf_event(rvn_widget_t* widget, const REvent* event) {
 			if (event->button != R_MOUSE_LEFT || pressed < 0) return R_FALSE;
 			if (!rvn_pdf_page_at_point(widget, &layout, event->local_x, event->local_y, &page, &page_x, &page_y)) return R_TRUE;
 			if (page != pressed) return R_TRUE;
+			if (view->link_clicked) {
+				const rvn_pdf_page_t* hit = &view->pages[page];
+				uint32_t k;
+				for (k = 0; k < hit->link_count; k++) {
+					const rvn_pdf_link_t* link = &hit->links[k];
+					if (page_x >= link->x0 && page_x <= link->x1 && page_y >= link->y0 && page_y <= link->y1) {
+						view->link_clicked(widget->id, page, link->target, view->link_clicked_user);
+						break;
+					}
+				}
+			}
 			if (view->clicked) view->clicked(widget->id, page, page_x, page_y, view->clicked_user);
 			if (rvn_widget_alive(widget)) rvn_widget_fire_action(widget);
 			return R_TRUE;
@@ -495,12 +530,12 @@ static int rvn_pdf_event(rvn_widget_t* widget, const REvent* event) {
 				case R_KEY_PAGE_UP: rvn_pdf_scroll_by(widget, -step); return R_TRUE;
 				case R_KEY_PAGE_DOWN: rvn_pdf_scroll_by(widget, step); return R_TRUE;
 				case R_KEY_HOME:
-					if (view->count > 0) view->page = 0;
+					if (view->count > 0) rvn_pdf_set_page(view, 0);
 					rvn_scrollbar_set(&view->bar, 0.0f);
 					rvn_widget_invalidate_paint(widget);
 					return R_TRUE;
 				case R_KEY_END:
-					if (view->count > 0) view->page = view->count - 1;
+					if (view->count > 0) rvn_pdf_set_page(view, view->count - 1);
 					rvn_scrollbar_set(&view->bar, rvn_scrollbar_max(&view->bar));
 					rvn_widget_invalidate_paint(widget);
 					return R_TRUE;
@@ -573,6 +608,12 @@ static int rvn_pdf_set_attribute(rvn_widget_t* widget, const char* name, const c
 	if (RVN_ATTR("PageGap")) {
 		if (!rvn_parse_float(value, &real)) return R_FALSE;
 		Rpdf_view_set_page_gap(widget->id, real);
+		return R_TRUE;
+	}
+	if (RVN_ATTR("Background")) {
+		rvn_color_t color;
+		if (!rvn_parse_color(value, &color)) return R_FALSE;
+		rvn_widget_set_color(widget, R_COLOR_PANEL, color);
 		return R_TRUE;
 	}
 	return R_FALSE;
@@ -648,7 +689,7 @@ void Rpdf_view_set_page_count(Rid id, int count) {
 		}
 	}
 	view->count = count;
-	view->page = rvn_clampi(view->page, 0, count > 0 ? count - 1 : 0);
+	rvn_pdf_set_page(view, rvn_clampi(view->page, 0, count > 0 ? count - 1 : 0));
 	view->pressed_page = -1;
 	if (view->highlight_page >= count) view->has_highlight = R_FALSE;
 	rvn_widget_invalidate_layout(widget);
@@ -693,7 +734,12 @@ void Rpdf_view_set_page_bitmap(Rid id, int page, Rid texture, float scale) {
 		return;
 	}
 	view->pages[page].texture = texture;
-	view->pages[page].bitmap_scale = scale > 0.0f ? scale : 1.0f;
+	view->pages[page].bitmap_scale = texture != R_INVALID_ID && scale > 0.0f ? scale : 0.0f;
+	if (texture == R_INVALID_ID) {
+		/* the application let the pixels go: the page is asked for again the
+		 * next time it is in view */
+		view->pages[page].asked = 0.0f;
+	}
 	rvn_widget_invalidate_paint(widget);
 }
 
@@ -709,10 +755,10 @@ void Rpdf_view_set_page(Rid id, int page) {
 	rvn_pdf_view_t* view = (rvn_pdf_view_t*)widget;
 	rvn_pdf_layout_t layout;
 	if (view->count == 0) {
-		view->page = 0;
+		rvn_pdf_set_page(view, 0);
 		return;
 	}
-	view->page = rvn_clampi(page, 0, view->count - 1);
+	rvn_pdf_set_page(view, rvn_clampi(page, 0, view->count - 1));
 	rvn_pdf_lay(widget, &layout);
 	rvn_scrollbar_set(&view->bar, rvn_pdf_page_top(view, view->page, layout.zoom));
 	view->bar.shown.started = R_FALSE;
@@ -787,6 +833,13 @@ float Rpdf_view_get_page_gap(Rid id) {
 	return ((rvn_pdf_view_t*)widget)->gap;
 }
 
+void Rpdf_view_set_page_changed_callback(Rid id, RPdfPageChangedCallback callback, void* user_data) {
+	RVN_WIDGET_VOID(widget, id, R_WIDGET_PDF_VIEW);
+	rvn_pdf_view_t* view = (rvn_pdf_view_t*)widget;
+	view->changed = callback;
+	view->changed_user = user_data;
+}
+
 void Rpdf_view_set_page_needed_callback(Rid id, RPdfPageNeededCallback callback, void* user_data) {
 	RVN_WIDGET_VOID(widget, id, R_WIDGET_PDF_VIEW);
 	rvn_pdf_view_t* view = (rvn_pdf_view_t*)widget;
@@ -803,6 +856,35 @@ int Rpdf_view_get_page_at(Rid id, float x, float y, int* page, float* page_x, fl
 	rvn_pdf_layout_t layout;
 	rvn_pdf_lay(widget, &layout);
 	return rvn_pdf_page_at_point(widget, &layout, x, y, page, page_x, page_y);
+}
+
+void Rpdf_view_add_link(Rid id, int page, float x0, float y0, float x1, float y1, int target) {
+	rvn_pdf_page_t* entry;
+	RVN_WIDGET_VOID(widget, id, R_WIDGET_PDF_VIEW);
+	rvn_pdf_view_t* view = (rvn_pdf_view_t*)widget;
+	if (page < 0 || page >= view->count) return;
+	entry = &view->pages[page];
+	RVN_ARRAY_RESERVE(entry->links, entry->link_cap, entry->link_count + 1);
+	entry->links[entry->link_count].x0 = rvn_minf(x0, x1);
+	entry->links[entry->link_count].y0 = rvn_minf(y0, y1);
+	entry->links[entry->link_count].x1 = rvn_maxf(x0, x1);
+	entry->links[entry->link_count].y1 = rvn_maxf(y0, y1);
+	entry->links[entry->link_count].target = target;
+	entry->link_count++;
+}
+
+void Rpdf_view_clear_links(Rid id, int page) {
+	rvn_pdf_view_t* view;
+	RVN_WIDGET_VOID(widget, id, R_WIDGET_PDF_VIEW);
+	view = (rvn_pdf_view_t*)widget;
+	if (page < 0 || page >= view->count) return;
+	view->pages[page].link_count = 0;
+}
+
+void Rpdf_view_set_link_clicked_callback(Rid id, RPdfLinkClickedCallback callback, void* user_data) {
+	RVN_WIDGET_VOID(widget, id, R_WIDGET_PDF_VIEW);
+	((rvn_pdf_view_t*)widget)->link_clicked = callback;
+	((rvn_pdf_view_t*)widget)->link_clicked_user = user_data;
 }
 
 void Rpdf_view_set_page_clicked_callback(Rid id, RPdfPageClickedCallback callback, void* user_data) {
@@ -830,7 +912,7 @@ void Rpdf_view_scroll_to_position(Rid id, int page, float page_x, float page_y) 
 	rvn_scrollbar_set(&view->bar, rvn_pdf_page_top(view, page, layout.zoom) +
 		page_y * layout.zoom - layout.body.h * 0.5f);
 	view->bar.shown.started = R_FALSE;
-	view->page = page;
+	rvn_pdf_set_page(view, page);
 	rvn_widget_invalidate_paint(widget);
 }
 

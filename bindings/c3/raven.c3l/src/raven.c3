@@ -1551,6 +1551,8 @@ alias WidgetDestroyCallback = fn void(Id widget, void* user_data);
 *>
 alias WidgetEventCallback = fn CInt(Id widget, Event* event, void* user_data);
 alias TabChangedCallback = fn void(Id tab_view, CInt index, void* user_data);
+<* Called after a tab was moved with Rtab_view_move_tab, with its old and new index. *>
+alias TabReorderedCallback = fn void(Id tab_view, CInt from, CInt to, void* user_data);
 <*
  The user closes a tab (its button, a middle click). Return R_TRUE
  to delete its page now, R_FALSE to keep it (the application may ask to
@@ -1709,8 +1711,18 @@ alias MeasureCallback = fn void(Id widget, float* width, float* height, void* us
  into view.
 *>
 alias PdfPageNeededCallback = fn void(Id pdf_view, CInt page, float scale, void* user_data);
+<*
+ Called when the page the view is at changes: by scrolling, by the keys, by
+ Rpdf_view_set_page, or when the pages change. Not called when the page stays the same.
+*>
+alias PdfPageChangedCallback = fn void(Id pdf_view, CInt page, void* user_data);
 <* Called when the user clicks on a page. This also fires the action of the widget. *>
 alias PdfPageClickedCallback = fn void(Id pdf_view, CInt page, float page_x, float page_y, void* user_data);
+<*
+ Called when the user clicks inside a link, with the target given to Rpdf_view_add_link.
+ The page click (Rpdf_view_set_page_clicked_callback) is still called after it.
+*>
+alias PdfLinkClickedCallback = fn void(Id pdf_view, CInt page, CInt target, void* user_data);
 <*
  Called each time a file was loaded again.
  path The file given when the interface was created.
@@ -3301,6 +3313,14 @@ fn Id TabView.get_tab(self, CInt index) @inline => c::tab_view_get_tab(self, ind
 <* Index of the tab of a page, -1 if none. *>
 fn CInt TabView.find_tab(self, Id content) @inline => c::tab_view_find_tab(self, content);
 
+<*
+ Moves the tab at index "from" to index "to" (both in 0 .. count-1). The page keeps its state,
+ and the active page stays active. R_FALSE when an index is out of range.
+*>
+fn CInt TabView.move_tab(self, CInt from, CInt to) @inline => c::tab_view_move_tab(self, from, to);
+
+fn void TabView.set_reordered_callback(self, TabReorderedCallback callback, void* user_data) @inline => c::tab_view_set_reordered_callback(self, callback, user_data);
+
 fn void TabView.set_tab_title(self, Id content, ZString title) @inline => c::tab_view_set_tab_title(self, content, title);
 
 <* Icon before the title (documents). R_INVALID_ID removes it; tint: a mask in the text color. *>
@@ -3492,6 +3512,16 @@ fn void TextEditor.add_marker(self, CInt line, CInt from_column, CInt to_column,
 
 fn void TextEditor.clear_markers(self) @inline => c::text_editor_clear_markers(self);
 
+<*
+ Like Rtext_editor_add_marker, with the source of the marker: an application with two
+ sources (the compiler log and a spell checker) can then replace one without touching the other.
+ Rtext_editor_add_marker adds to source 0.
+*>
+fn void TextEditor.add_marker_from(self, CInt source, CInt line, CInt from_column, CInt to_column, MarkerKind kind, ZString message) @inline => c::text_editor_add_marker_from(self, source, line, from_column, to_column, kind, message);
+
+<* Removes the markers added with this source, and only those. *>
+fn void TextEditor.clear_markers_of_source(self, CInt source) @inline => c::text_editor_clear_markers_of_source(self, source);
+
 fn CInt TextEditor.get_marker_count(self) @inline => c::text_editor_get_marker_count(self);
 
 <*
@@ -3539,9 +3569,47 @@ fn CInt TextEditor.replace(self, ZString text) @inline => c::text_editor_replace
 fn CInt TextEditor.replace_all(self, ZString text) @inline => c::text_editor_replace_all(self, text);
 
 <*
- The text of a replacement where `$1` .. `$9`, `${name}`, `$&`
- (the whole match), `$$` (a dollar), `\n`, `\t` and `\\` mean something;
- with `matches`, the groups of the regex that matched. Pure: no editor needed.
+ Comments the lines of the selection with the line comment of the language, or uncomments
+ them when all already are, as one step of the history.
+ Returns: R_FALSE when the language has no line comment (or the editor is read-only).
+*>
+fn bool TextEditor.toggle_comment(self) @inline => c::text_editor_toggle_comment(self) != 0;
+
+<*
+ Groups the edits made until Rtext_editor_end_edit into one step of the history. The calls nest.
+ Use it when an application changes several lines at once (a menu action, a reformat).
+*>
+fn void TextEditor.begin_edit(self) @inline => c::text_editor_begin_edit(self);
+
+<* Ends the group opened by Rtext_editor_begin_edit. *>
+fn void TextEditor.end_edit(self) @inline => c::text_editor_end_edit(self);
+
+<*
+ R_TRUE when the text changed since it was last loaded or saved. Undoing back to the saved
+ text still counts as modified: only Rtext_editor_set_modified(editor, R_FALSE) clears it.
+ Rtext_editor_set_text does not clear it either.
+*>
+fn bool TextEditor.is_modified(self) @inline => c::text_editor_is_modified(self) != 0;
+
+<*
+ Marks the current text as saved (modified = R_FALSE) or as changed (modified = R_TRUE).
+ Call it with R_FALSE after saving, or after loading a file from disk.
+*>
+fn void TextEditor.set_modified(self, CInt modified) @inline => c::text_editor_set_modified(self, modified);
+
+<*
+ Replaces the text with one read from disk, keeping the caret and the scroll where they were
+ (as far as the new text reaches). The history is cleared, and the text counts as saved.
+*>
+fn void TextEditor.reload_text(self, ZString text) @inline => c::text_editor_reload_text(self, text);
+
+<*
+ The text of a replacement where `$1` .. `$9` and `${1}` (a group
+ of the regex), `${1:text}` (the group, or that text when the group did
+ not take part), `$&` (the whole match), `$$` (a dollar), `\n`, `\t` and
+ `\\` mean something; `groups` holds the pairs of the match, as
+ `Rtext_editor_get_match` gives them, `group_count` how many are.
+ Pure: no editor needed.
  Returns: The text, in a buffer of the editor (valid until the next call), or NULL.
 *>
 alias text_editor_expand_replacement = c::text_editor_expand_replacement;
@@ -5116,6 +5184,8 @@ fn float PdfView.get_page_gap(self) @inline => c::pdf_view_get_page_gap(self);
 
 fn void PdfView.set_page_needed_callback(self, PdfPageNeededCallback callback, void* user_data) @inline => c::pdf_view_set_page_needed_callback(self, callback, user_data);
 
+fn void PdfView.set_page_changed_callback(self, PdfPageChangedCallback callback, void* user_data) @inline => c::pdf_view_set_page_changed_callback(self, callback, user_data);
+
 <*
  The page and the point of the page (in points, from its top-left
  corner) under a point of the widget, for SyncTeX inverse search.
@@ -5124,6 +5194,18 @@ fn void PdfView.set_page_needed_callback(self, PdfPageNeededCallback callback, v
 fn bool PdfView.get_page_at(self, float x, float y, CInt* page, float* page_x, float* page_y) @inline => c::pdf_view_get_page_at(self, x, y, page, page_x, page_y) != 0;
 
 fn void PdfView.set_page_clicked_callback(self, PdfPageClickedCallback callback, void* user_data) @inline => c::pdf_view_set_page_clicked_callback(self, callback, user_data);
+
+<*
+ Adds a link to a page: a rectangle in points from the top left of the page (the
+ coordinates page_x / page_y of the clicks), and the number the application gives it.
+ The application reads the links of a page from the document (PDFium), so Raven does not.
+*>
+fn void PdfView.add_link(self, CInt page, float x0, float y0, float x1, float y1, CInt target) @inline => c::pdf_view_add_link(self, page, x0, y0, x1, y1, target);
+
+<* Removes the links of a page (before its links are read again). *>
+fn void PdfView.clear_links(self, CInt page) @inline => c::pdf_view_clear_links(self, page);
+
+fn void PdfView.set_link_clicked_callback(self, PdfLinkClickedCallback callback, void* user_data) @inline => c::pdf_view_set_link_clicked_callback(self, callback, user_data);
 
 <* Asks for one page to be painted again, once its bitmap has arrived. *>
 fn void PdfView.invalidate_page(self, CInt page) @inline => c::pdf_view_invalidate_page(self, page);
@@ -5158,6 +5240,19 @@ fn Window window_create(ZString title, CInt width, CInt height, WindowFlags flag
 fn void Window.destroy(self) @inline => c::window_destroy(self);
 
 fn bool Window.is_valid(self) @inline => c::window_is_valid(self) != 0;
+
+<*
+ R_FALSE when the window has no rendering surface, so nothing is drawn in it: the backend
+ refused it, or it could not be made again after the loss of the device. The window stays valid.
+*>
+fn bool Window.has_surface(self) @inline => c::window_has_surface(self) != 0;
+
+<*
+ Why the window has no surface, as text, for the application to show in the window:
+ the last refusal of the backend. NULL when the surface is there. The text stays until the
+ surface is made again.
+*>
+fn ZString Window.get_surface_error(self) @inline => c::window_get_surface_error(self);
 
 <*
  Sets the root widget of the window. The window takes ownership of
@@ -5772,6 +5867,13 @@ fn void Texture.destroy(self) @inline => c::texture_destroy(self);
 fn bool Texture.is_valid(self) @inline => c::texture_is_valid(self) != 0;
 
 fn void Texture.get_size(self, CInt* width, CInt* height) @inline => c::texture_get_size(self, width, height);
+
+<*
+ R_TRUE when the device was lost and the texture could not be rebuilt (it came from pixels
+ too large to keep a copy of): it is blank now, and the application must upload it again with
+ Rtexture_update. Set to R_FALSE by any upload. Use it after the reset callback to re-upload only what was lost.
+*>
+fn bool Texture.is_placeholder(self) @inline => c::texture_is_placeholder(self) != 0;
 
 <*
  How the texture is smoothed when it is scaled. The textures made
@@ -6623,6 +6725,15 @@ alias snippet_get_name = c::snippet_get_name;
 alias snippet_find = c::snippet_find;
 
 <*
+ Gives the text that `$NAME` in a snippet body stands for
+ ("DATE", "AUTHOR"...). Case is ignored. A NULL or empty value removes
+ the variable, and a body that names one that is not set keeps it as
+ written. The text is copied.
+ Returns: R_FALSE when the name is empty.
+*>
+fn bool snippet_set_variable(ZString name, ZString value) @inline => c::snippet_set_variable(name, value) != 0;
+
+<*
  Color of a kind of token in the theme in use, instead of the
  one Raven picks for dark and for light themes. Theme files set them
  with <Syntax Keyword="#FF7AB2" String="..."/>.
@@ -6736,6 +6847,15 @@ alias file_is_memory = c::file_is_memory;
 alias file_read = c::file_read;
 
 alias file_write = c::file_write;
+
+<* Copies a file. R_FALSE when the source cannot be read or the target cannot be written. *>
+alias file_copy = c::file_copy;
+
+<* Moves (renames) a file, copying it when the system cannot rename it. *>
+alias file_move = c::file_move;
+
+<* Creates a folder and the ones above it that are missing. R_TRUE when it exists afterwards. *>
+alias file_mkdir_p = c::file_mkdir_p;
 
 <* Returns: R_TRUE when the system took the notification. *>
 fn bool notification_show(ZString title, ZString body, NotificationUrgency urgency) @inline => c::notification_show(title, body, urgency) != 0;
@@ -6994,6 +7114,12 @@ alias settings_set_text = c::settings_set_text;
 <* Removes a key. R_TRUE when it was there. *>
 alias settings_remove = c::settings_remove;
 
+<*
+ Removes every key whose full name starts with `prefix` (a whole list, such as
+ "project.recent", with the keys it had). Returns how many keys were removed.
+*>
+alias settings_remove_prefix = c::settings_remove_prefix;
+
 <* R_TRUE when the key is there, whatever it holds. *>
 alias settings_has = c::settings_has;
 
@@ -7080,7 +7206,16 @@ alias process_cancel = c::process_cancel;
 *>
 alias process_wait = c::process_wait;
 
-<* Returns: R_TRUE when the program is found (PATH lookup only). *>
+<*
+ Frees a process that ended. Its callbacks are not called again.
+ A process still running is stopped first, as Rprocess_cancel does. The
+ library keeps every process until Rshutdown, so an application that
+ starts many of them (a check after each pause) calls this when it no
+ longer needs the exit code.
+*>
+alias process_destroy = c::process_destroy;
+
+<* Returns: R_TRUE when the program is found (the same lookup as Rprocess_find). *>
 fn bool process_is_available(ZString program) @inline => c::process_is_available(program) != 0;
 
 <*
@@ -7093,6 +7228,13 @@ fn bool process_is_available(ZString program) @inline => c::process_is_available
  MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
 *>
 alias process_find = c::process_find;
+
+<*
+ Same as Rprocess_find, but the path is a copy the application owns: it stays the same
+ after the next call. Its length (without the terminating zero) is written to `size` when it is
+ not NULL. Free it with Rmemory_free. NULL when the program is not found.
+*>
+alias process_find_copy = c::process_find_copy;
 
 <*
  Runs a program to the end and collects what it printed.

@@ -110,7 +110,16 @@ extern "C" {
 	 */
 	RAVEN_API void Rprocess_wait(Rid process);
 
-	/** @return R_TRUE when the program is found (PATH lookup only). */
+	/**
+	 * @brief Frees a process that ended. Its callbacks are not called again.
+	 * A process still running is stopped first, as Rprocess_cancel does. The
+	 * library keeps every process until Rshutdown, so an application that
+	 * starts many of them (a check after each pause) calls this when it no
+	 * longer needs the exit code.
+	 */
+	RAVEN_API void Rprocess_destroy(Rid process);
+
+	/** @return R_TRUE when the program is found (the same lookup as Rprocess_find). */
 	RAVEN_API int Rprocess_is_available(const char* program);
 
 	/**
@@ -123,6 +132,12 @@ extern "C" {
 	 * MiKTeX (%LOCALAPPDATA% and %PROGRAMFILES%).
 	 */
 	RAVEN_API const char* Rprocess_find(const char* program);
+	/**
+	 * @brief Same as Rprocess_find, but the path is a copy the application owns: it stays the same
+	 * after the next call. Its length (without the terminating zero) is written to `size` when it is
+	 * not NULL. Free it with Rmemory_free. NULL when the program is not found.
+	 */
+	RAVEN_API char* Rprocess_find_copy(const char* program, size_t* size);
 
 	/**
 	 * @brief Runs a program to the end and collects what it printed.

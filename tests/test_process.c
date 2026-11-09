@@ -84,6 +84,17 @@ static void test_find(void) {
 #endif
 	CHECK(!Rprocess_is_available("raven-no-such-program-4f1c"));
 	CHECK(Rprocess_find("raven-no-such-program-4f1c") == NULL);
+	/* a copy of the path is the application's: it does not change with the next search */
+	{
+		size_t length = 99;
+		char* first = Rprocess_find_copy("sh", &length);
+		CHECK(first == NULL ? !Rprocess_is_available("sh") : first[0] != '\0');
+		CHECK(first == NULL || length == strlen(first));
+		CHECK(Rprocess_find("raven-no-such-program-4f1c") == NULL);
+		CHECK(Rprocess_find_copy("raven-no-such-program-4f1c", &length) == NULL);
+		CHECK(length == 0);
+		Rmemory_free(first);
+	}
 	/* a tool of the trade is absent here: the call only has to answer */
 	printf("  latexmk: %s\n", Rlatex_find_tool("latexmk") ? Rlatex_find_tool("latexmk") : "(not installed)");
 }

@@ -327,6 +327,17 @@ extern "C" {
 	/** @brief Closes a window and deletes its content widgets. */
 	RAVEN_API void Rwindow_destroy(Rid window);
 	RAVEN_API int Rwindow_is_valid(Rid window);
+	/**
+	 * @brief R_FALSE when the window has no rendering surface, so nothing is drawn in it: the backend
+	 * refused it, or it could not be made again after the loss of the device. The window stays valid.
+	 */
+	RAVEN_API int Rwindow_has_surface(Rid window);
+	/**
+	 * @brief Why the window has no surface, as text, for the application to show in the window:
+	 * the last refusal of the backend. NULL when the surface is there. The text stays until the
+	 * surface is made again.
+	 */
+	RAVEN_API const char* Rwindow_get_surface_error(Rid window);
 
 	/**
 	 * @brief Sets the root widget of the window. The window takes ownership of

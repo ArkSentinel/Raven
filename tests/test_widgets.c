@@ -683,6 +683,9 @@ static void test_device_lost(void) {
 	Rtexture_get_size(texture, &width, &height);
 	CHECK(width == 2 && height == 2);
 	CHECK(Rwindow_is_valid(g_window));
+	/* the surface of the window was made again: it can be drawn in */
+	CHECK(Rwindow_has_surface(g_window));
+	CHECK(Rwindow_get_surface_error(g_window) == NULL);
 	Rdraw_frame();
 	CHECK(g_device_resets == 1);
 	Rset_device_reset_callback(NULL, NULL);
@@ -894,6 +897,86 @@ static void test_system_menu_bar(void) {
 #endif
 }
 
+/* A handle kept after its widget is destroyed must stay invalid, even after the index is reused
+ * many times: the generation is 8 bits and wraps after 256 removals of the same slot. */
+static void test_stale_handle_stays_invalid(void) {
+	Rid stale = Rwidget_create(R_WIDGET_LABEL);
+	int revived = 0, i;
+	CHECK(Rwidget_is_valid(stale));
+	Rwidget_destroy(stale);
+	CHECK(!Rwidget_is_valid(stale));
+	for (i = 0; i < 1000; i++) {
+		Rid other = Rwidget_create(R_WIDGET_LABEL);
+		if (Rwidget_is_valid(stale)) revived = 1;
+		Rwidget_destroy(other);
+	}
+	CHECK(!revived);
+	CHECK(!Rwidget_is_valid(stale));
+}
+
+static int g_reorders, g_last_from, g_last_to;
+
+static void on_reordered(Rid tabs, int from, int to, void* user_data) {
+	(void)tabs;
+	(void)user_data;
+	g_reorders++;
+	g_last_from = from;
+	g_last_to = to;
+}
+
+/* Moving a tab reorders the pages: the active page stays active, and the page keeps its identity. */
+static void test_move_tab(void) {
+	Rid tabs = Rwidget_create(R_WIDGET_TAB_VIEW);
+	Rid a = Rbutton_create("A"), b = Rbutton_create("B"), c = Rbutton_create("C");
+	CHECK(Rtab_view_add_tab(tabs, "A", a) == 0);
+	CHECK(Rtab_view_add_tab(tabs, "B", b) == 1);
+	CHECK(Rtab_view_add_tab(tabs, "C", c) == 2);
+	Rtab_view_set_active(tabs, 1);             /* B is active */
+
+	CHECK(!Rtab_view_move_tab(tabs, 0, 3));    /* out of range */
+	CHECK(!Rtab_view_move_tab(tabs, -1, 0));
+	Rtab_view_set_reordered_callback(tabs, on_reordered, NULL);
+	g_reorders = 0;
+	CHECK(Rtab_view_move_tab(tabs, 0, 2));     /* A to the end: B, C, A */
+	CHECK(g_reorders == 1 && g_last_from == 0 && g_last_to == 2);
+	CHECK(Rtab_view_move_tab(tabs, 0, 0) && g_reorders == 1);  /* nothing moved: no callback */
+	CHECK(Rtab_view_get_tab(tabs, 0) == b);
+	CHECK(Rtab_view_get_tab(tabs, 2) == a);
+	CHECK(Rtab_view_get_active(tabs) == 0);    /* B is still the active one */
+	CHECK(Rtab_view_move_tab(tabs, 2, 1));     /* A back in the middle: B, A, C */
+	CHECK(Rtab_view_find_tab(tabs, a) == 1);
+	CHECK(Rtab_view_find_tab(tabs, c) == 2);
+	CHECK(Rtab_view_get_active(tabs) == 0);
+	CHECK(Rtab_view_move_tab(tabs, 0, 0));
+	CHECK(Rtab_view_get_tab_count(tabs) == 3);
+	Rwidget_destroy(tabs);
+}
+
+/* After the loss of the device a texture with a copy of its pixels comes back; one without a copy
+ * (pixels too large to keep) is a placeholder until the application uploads it again. */
+static uint8_t g_big_pixels[300 * 300 * 4];
+
+static void test_lost_placeholders(void) {
+	static const uint8_t pixels[16] = { 255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255 };
+	Rid small = Rtexture_create_from_pixels(pixels, 2, 2);
+	/* 300 x 300 is more than the copy kept (256 x 256): nothing to rebuild it from */
+	Rid large = Rtexture_create_from_pixels(g_big_pixels, 300, 300);
+	CHECK(!Rtexture_is_placeholder(small));
+	CHECK(!Rtexture_is_placeholder(large));
+
+	EXPECT_ERRORS_BEGIN();
+	Rbackend_device_lost();
+	Rdraw_frame();
+	EXPECT_ERRORS_END(1);
+	CHECK(!Rtexture_is_placeholder(small));
+	CHECK(Rtexture_is_placeholder(large));
+
+	Rtexture_update(large, g_big_pixels, 300, 300);
+	CHECK(!Rtexture_is_placeholder(large));
+	Rtexture_destroy(small);
+	Rtexture_destroy(large);
+}
+
 int main(void) {
 	if (!test_init(0)) {
 		printf("cannot initialize Raven\n");
@@ -913,6 +996,9 @@ int main(void) {
 	RUN(test_deletion_and_events);
 	RUN(test_timers_theme_and_attributes);
 	RUN(test_device_lost);
+	RUN(test_lost_placeholders);
+	RUN(test_move_tab);
+	RUN(test_stale_handle_stays_invalid);
 
 	/* everything still paints */
 	Rdraw_frame();

@@ -35,7 +35,7 @@ if(CMAKE_CXX_COMPILER)
 	add_executable(raven_binding_cpp cpp/example.cpp cpp/raven.hpp)
 	target_include_directories(raven_binding_cpp PRIVATE cpp)
 	target_link_libraries(raven_binding_cpp PRIVATE raven::raven)
-	set_target_properties(raven_binding_cpp PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON FOLDER "bindings")
+	set_target_properties(raven_binding_cpp PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON FOLDER "bindings")
 	add_test(NAME binding_cpp COMMAND raven_binding_cpp --test)
 endif()
 

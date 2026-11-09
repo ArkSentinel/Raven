@@ -29,7 +29,7 @@ SECTIONS = [
         "Rtext_editor_unfold_all", "Rtext_editor_get_folded_count", "Rtext_editor_get_fold_start"]),
     ("raven_text_editor.h", "Snippets", [
         "Rsnippet_add", "Rsnippet_clear", "Rsnippet_get_count", "Rsnippet_get_name", "Rsnippet_find",
-        "Rtext_editor_insert_snippet", "Rtext_editor_snippet_at_caret",
+        "Rsnippet_set_variable", "Rtext_editor_insert_snippet", "Rtext_editor_snippet_at_caret",
         "Rtext_editor_set_snippet_completion", "Rtext_editor_is_in_snippet"]),
     ("raven_text_editor.h", "Several cursors", [
         "Rtext_editor_set_multi_cursor", "Rtext_editor_get_multi_cursor", "Rtext_editor_get_caret_count",
@@ -46,8 +46,15 @@ SECTIONS = [
     ("raven_window.h", "Keybindings", [
         "Rwindow_set_keybindings", "Rkey_from_name", "Rkey_to_name",
         "Rwindow_get_shortcut_count", "Rwindow_get_shortcut"]),
+    ("raven_latex.h", "Reading a log", [
+        "Rlatex_log_parse", "Rlatex_log_parse_file", "Rlatex_log_get_count",
+        "Rlatex_log_get_message", "Rlatex_log_destroy"]),
     ("raven_settings.h", "Settings", None),
 ]
+
+# Headers whose every function must be in the page: the ones this fork owns
+# (the rest of the page documents what it chooses, as it always did).
+COMPLETE = ("raven_pdf.h", "raven_process.h", "raven_latex.h", "raven_settings.h", "raven_text_editor.h")
 
 LINKED = ("Rid", "RKey", "Ruint", "RToken", "RLanguageDesc", "RSnippet", "RMarkerKind",
           "RSettingType", "RSearchFlags", "RProcessDesc", "RLogMessage", "RLatexBuildDesc",
@@ -179,9 +186,61 @@ def add_to_index(page, names):
     return page
 
 
+def documented_entries(page):
+    """name -> the signature text the page shows for it."""
+    return dict(re.findall(r'<div class="d" id="(R\w+)"><pre class="sig">(.*?)</pre>', page, flags=re.S))
+
+
+def signature_text(sig):
+    """A signature without its links or its spacing, to compare two of them."""
+    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", "", sig))).strip()
+
+
+def stale_entries(page, headers):
+    """The names of the entries of the page whose signature is not the one of the header any more."""
+    found = {}
+    for header in headers:
+        found.update(functions(header_text(header)))
+    stale = []
+    for name, shown in documented_entries(page).items():
+        if name not in found:
+            continue
+        ret, arguments, _ = found[name]
+        if signature_text(shown) != signature_text(signature(ret, name, arguments)):
+            stale.append(name)
+    return stale
+
+
+def rewrite_stale(page, headers):
+    """Replaces the entries of the page whose signature changed; returns the page and what changed."""
+    entries = documented_entries(page)
+    found = {}
+    for header in headers:
+        found.update(functions(header_text(header)))
+    changed = []
+    for name, shown in entries.items():
+        if name not in found:
+            continue
+        ret, arguments, doc = found[name]
+        if signature_text(shown) == signature_text(signature(ret, name, arguments)):
+            continue
+        old = '<div class="d" id="%s"><pre class="sig">%s</pre>' % (name, shown)
+        start = page.find(old)
+        if start < 0:
+            continue
+        end = page.find("</div>", start)
+        if end < 0:
+            continue
+        page = page[:start] + entry(name, found) + page[end + len("</div>"):]
+        changed.append(name)
+    return page, changed
+
+
 def main():
     check = "--check" in sys.argv
     page = open(PAGE, encoding="utf-8").read()
+    # (every header of the library: the page may fall behind on any of them, not only on the new ones)
+    headers = sorted(name for name in os.listdir(os.path.join(ROOT, "include", "raven")) if name.endswith(".h"))
     cache, missing = {}, []
     for header, title, names in SECTIONS:
         if header not in cache:
@@ -189,6 +248,10 @@ def main():
         found = cache[header]
         if names is None:
             names = sorted(name for name in found if ('id="%s"' % name) not in page)
+        else:
+            # (a header whose every function belongs to the page: a new one is missing too)
+            extra = sorted(name for name in found if ('id="%s"' % name) not in page) if header in COMPLETE else []
+            names = list(names) + [name for name in extra if name not in names]
         # (a section added in an earlier pass is already in `page`: the same header may come twice)
         entries = []
         for name in names:
@@ -196,6 +259,8 @@ def main():
                 print("  %s: not in %s" % (name, header))
                 continue
             if ('id="%s"' % name) in page:
+                continue
+            if any(name == added for added, _ in entries) or name in missing:
                 continue
             entries.append((name, entry(name, found)))
         if not entries:
@@ -208,12 +273,18 @@ def main():
             print("  header %s: not in the page" % header)
             continue
         page = new_page
+    page, stale = rewrite_stale(page, headers)
     if check:
         if missing:
             print("%d entries missing: %s" % (len(missing), ", ".join(missing)))
             return 1
-        print("the page has every function of the headers")
+        if stale:
+            print("%d entries out of date (run without --check): %s" % (len(stale), ", ".join(stale)))
+            return 1
+        print("the page has every function of the headers, with the signature each one has")
         return 0
+    if stale:
+        print("%d entries brought up to date: %s" % (len(stale), ", ".join(stale)))
     page = add_to_index(page, missing)
     with open(PAGE, "w", encoding="utf-8") as handle:
         handle.write(page)

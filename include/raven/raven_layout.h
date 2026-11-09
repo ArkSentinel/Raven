@@ -206,6 +206,14 @@ extern "C" {
 	RAVEN_API Rid Rtab_view_get_tab(Rid tab_view, int index);
 	/** @brief Index of the tab of a page, -1 if none. */
 	RAVEN_API int Rtab_view_find_tab(Rid tab_view, Rid content);
+	/**
+	 * @brief Moves the tab at index "from" to index "to" (both in 0 .. count-1). The page keeps its state,
+	 * and the active page stays active. R_FALSE when an index is out of range.
+	 */
+	RAVEN_API int Rtab_view_move_tab(Rid tab_view, int from, int to);
+	/** @brief Called after a tab was moved with Rtab_view_move_tab, with its old and new index. */
+	typedef void (*RTabReorderedCallback)(Rid tab_view, int from, int to, void* user_data);
+	RAVEN_API void Rtab_view_set_reordered_callback(Rid tab_view, RTabReorderedCallback callback, void* user_data);
 	RAVEN_API void Rtab_view_set_tab_title(Rid tab_view, Rid content, const char* title);
 	/** @brief Icon before the title (documents). R_INVALID_ID removes it; tint: a mask in the text color. */
 	RAVEN_API void Rtab_view_set_tab_icon(Rid tab_view, Rid content, Rid texture, float u0, float v0, float u1, float v1, int tint);

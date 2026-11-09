@@ -28,8 +28,7 @@
  *     desc.root_file = "paper/main.tex";
  *     desc.engine = R_LATEX_PDFLATEX;
  *     desc.use_latexmk = R_TRUE;
- *     desc.finished = on_finished;
- *     Rlatex_build_start(&desc, NULL, NULL);
+ *     Rlatex_build_start(&desc, on_output, on_finished, NULL);
  *
  * The builds belong to the library: Rshutdown stops the ones still running and
  * frees them. A build destroyed by the application is cancelled first.

@@ -122,6 +122,13 @@ extern "C" {
 	RAVEN_API void Rpdf_view_set_page_needed_callback(Rid pdf_view, RPdfPageNeededCallback callback, void* user_data);
 
 	/**
+	 * @brief Called when the page the view is at changes: by scrolling, by the keys, by
+	 * Rpdf_view_set_page, or when the pages change. Not called when the page stays the same.
+	 */
+	typedef void (*RPdfPageChangedCallback)(Rid pdf_view, int page, void* user_data);
+	RAVEN_API void Rpdf_view_set_page_changed_callback(Rid pdf_view, RPdfPageChangedCallback callback, void* user_data);
+
+	/**
 	 * @brief The page and the point of the page (in points, from its top-left
 	 * corner) under a point of the widget, for SyncTeX inverse search.
 	 * @return R_FALSE outside a page.
@@ -131,6 +138,21 @@ extern "C" {
 	/** @brief Called when the user clicks on a page. This also fires the action of the widget. */
 	typedef void (*RPdfPageClickedCallback)(Rid pdf_view, int page, float page_x, float page_y, void* user_data);
 	RAVEN_API void Rpdf_view_set_page_clicked_callback(Rid pdf_view, RPdfPageClickedCallback callback, void* user_data);
+
+	/**
+	 * @brief Adds a link to a page: a rectangle in points from the top left of the page (the
+	 * coordinates page_x / page_y of the clicks), and the number the application gives it.
+	 * The application reads the links of a page from the document (PDFium), so Raven does not.
+	 */
+	RAVEN_API void Rpdf_view_add_link(Rid pdf_view, int page, float x0, float y0, float x1, float y1, int target);
+	/** @brief Removes the links of a page (before its links are read again). */
+	RAVEN_API void Rpdf_view_clear_links(Rid pdf_view, int page);
+	/**
+	 * @brief Called when the user clicks inside a link, with the target given to Rpdf_view_add_link.
+	 * The page click (Rpdf_view_set_page_clicked_callback) is still called after it.
+	 */
+	typedef void (*RPdfLinkClickedCallback)(Rid pdf_view, int page, int target, void* user_data);
+	RAVEN_API void Rpdf_view_set_link_clicked_callback(Rid pdf_view, RPdfLinkClickedCallback callback, void* user_data);
 
 	/** @brief Asks for one page to be painted again, once its bitmap has arrived. */
 	RAVEN_API void Rpdf_view_invalidate_page(Rid pdf_view, int page);

@@ -164,6 +164,12 @@ extern "C" {
 	RAVEN_API int Rtexture_is_valid(Rid texture);
 	RAVEN_API void Rtexture_get_size(Rid texture, int* width, int* height);
 	/**
+	 * @brief R_TRUE when the device was lost and the texture could not be rebuilt (it came from pixels
+	 * too large to keep a copy of): it is blank now, and the application must upload it again with
+	 * Rtexture_update. Set to R_FALSE by any upload. Use it after the reset callback to re-upload only what was lost.
+	 */
+	RAVEN_API int Rtexture_is_placeholder(Rid texture);
+	/**
 	 * @brief How the texture is smoothed when it is scaled. The textures made
 	 * from image files start with R_FILTER_MIPMAP, the others with
 	 * R_FILTER_LINEAR.
