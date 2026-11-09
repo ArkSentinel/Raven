@@ -19,8 +19,8 @@
  * commas are tolerated too, which makes the file nice to edit.
  *
  * The same object also reads and writes a whole JSON document, arrays and
- * objects included, for the project files of an application (.localtex.json
- * and the like).
+ * objects included, for the project files of an application (a file such as
+ * "project.json", and the like).
  */
 
 #ifndef RAVEN_SETTINGS_H
